@@ -21,6 +21,7 @@ function RoutePanel({
   onChildToggle,
   expandedChildIndex,
   onLeafNavigate,
+  level,
 }: {
   routes: Route[];
   basePath: string;
@@ -28,9 +29,10 @@ function RoutePanel({
   onChildToggle?: (childIndex: number) => void;
   expandedChildIndex?: number | null;
   onLeafNavigate: (fullPath: string) => void;
+  level: number;
 }) {
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-1" role="group">
       {routes.map((route, childIndex) => {
         const fullPath = `${basePath}/${route.path}`;
         const isLeaf = activeRoute.leaf === route.path;
@@ -45,6 +47,10 @@ function RoutePanel({
                 type="button"
                 onClick={() => onChildToggle(childIndex)}
                 aria-expanded={expandedChildIndex === childIndex}
+                aria-level={level}
+                aria-setsize={routes.length}
+                aria-posinset={childIndex + 1}
+                role="treeitem"
                 tabIndex={0}
                 className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
                   isAncestor
@@ -83,6 +89,11 @@ function RoutePanel({
                 e.preventDefault();
                 onLeafNavigate(fullPath);
               }}
+              aria-expanded={false}
+              aria-level={level}
+              aria-setsize={routes.length}
+              aria-posinset={childIndex + 1}
+              role="treeitem"
               tabIndex={0}
               className={`block cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
                 isLeaf
@@ -193,7 +204,7 @@ export function Sidebar({ routes }: { routes: Route[] }) {
   return (
     <div className="flex h-full max-w-[48rem] overflow-y-auto">
       <nav className={`shrink-0 w-full md:w-64 ${expandedRoute && expandedRoute.children ? "hidden md:block" : "block md:block"}`}>
-        <ul className="space-y-1">
+        <ul className="space-y-1" role="tree">
           {routes.map((route, index) => {
             const hasChildren = route.children && route.children.length > 0;
             const isLeaf = activeRoute.leaf === route.path;
@@ -207,6 +218,10 @@ export function Sidebar({ routes }: { routes: Route[] }) {
                     type="button"
                     onClick={() => handleToggle(index)}
                     aria-expanded={expandedPanels.level1 === index}
+                    aria-level={1}
+                    aria-setsize={routes.length}
+                    aria-posinset={index + 1}
+                    role="treeitem"
                     tabIndex={0}
                     className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
                       isAncestor
@@ -245,6 +260,11 @@ export function Sidebar({ routes }: { routes: Route[] }) {
                     e.preventDefault();
                     handleLeafNavigate(`/${route.path}`);
                   }}
+                  aria-expanded={false}
+                  aria-level={1}
+                  aria-setsize={routes.length}
+                  aria-posinset={index + 1}
+                  role="treeitem"
                   tabIndex={0}
                   className={`block cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
                     isLeaf
@@ -282,6 +302,7 @@ export function Sidebar({ routes }: { routes: Route[] }) {
               onChildToggle={handleChildToggle}
               expandedChildIndex={expandedPanels.level2}
               onLeafNavigate={handleLeafNavigate}
+              level={2}
             />
           )}
         </div>
@@ -301,6 +322,7 @@ export function Sidebar({ routes }: { routes: Route[] }) {
               basePath={`/${expandedRoute!.path}/${expandedChild.path}`}
               activeRoute={activeRoute}
               onLeafNavigate={handleLeafNavigate}
+              level={3}
             />
           )}
         </div>
