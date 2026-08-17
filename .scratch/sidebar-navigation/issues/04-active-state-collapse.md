@@ -4,14 +4,14 @@
 
 **Blocked by:** 01 — computeActiveRoute pure function + unit tests, 03 — Level 2 → Level 3 expansion + deeper-panel reset
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Integrate `computeActiveRoute` with `usePathname()`
-- [ ] Active leaf node gets bold/prominent highlight
-- [ ] Ancestor nodes of active leaf get muted/opacity highlight
-- [ ] Leaf node click navigates to full path via Next.js `useRouter`
-- [ ] After leaf click, drawer collapses to Level 1 only
-- [ ] Full path computed by concatenating ancestor `path` values joined by `/`
-- [ ] Non-active non-expanded parents show collapsed chevron
-- [ ] Expanded parents show rotated chevron
-- [ ] Parent nodes visually distinct from leaf nodes (cursor, hover)
+- [x] Integrate `computeActiveRoute` with `usePathname()`
+- [x] Active leaf node gets bold/prominent highlight
+- [x] Ancestor nodes of active leaf get muted/opacity highlight
+- [x] Leaf node click navigates to full path via Next.js `useRouter`
+- [x] After leaf click, drawer collapses to Level 1 only
+- [x] Full path computed by concatenating ancestor `path` values joined by `/`
+- [x] Non-active non-expanded parents show collapsed chevron
+- [x] Expanded parents show rotated chevron
+- [x] Parent nodes visually distinct from leaf nodes (cursor, hover)
