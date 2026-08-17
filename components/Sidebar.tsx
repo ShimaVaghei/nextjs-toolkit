@@ -32,7 +32,7 @@ function RoutePanel({
   level: number;
 }) {
   return (
-    <ul className="space-y-1" role="group">
+    <ul className="space-y-1 p-4" role="group">
       {routes.map((route, childIndex) => {
         const fullPath = `${basePath}/${route.path}`;
         const isLeaf = activeRoute.leaf === route.path;
@@ -202,9 +202,9 @@ export function Sidebar({ routes }: { routes: Route[] }) {
       : null;
 
   return (
-    <div className="flex h-full max-w-[48rem] overflow-y-auto">
-      <nav className={`shrink-0 w-full md:w-64 ${expandedRoute && expandedRoute.children ? "hidden md:block" : "block md:block"}`}>
-        <ul className="space-y-1" role="tree">
+    <div className="flex h-full max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden">
+      <nav className={`shrink-0 w-full md:w-auto ${expandedRoute && expandedRoute.children ? "hidden md:block" : "block md:block"}`}>
+        <ul className="space-y-1 p-4" role="tree">
           {routes.map((route, index) => {
             const hasChildren = route.children && route.children.length > 0;
             const isLeaf = activeRoute.leaf === route.path;
@@ -293,7 +293,7 @@ export function Sidebar({ routes }: { routes: Route[] }) {
             : "grid-rows-[0fr]"
         }`}
       >
-        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 pl-4">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
           {expandedRoute && expandedRoute.children && (
             <RoutePanel
               routes={expandedRoute.children}
@@ -315,7 +315,7 @@ export function Sidebar({ routes }: { routes: Route[] }) {
             : "grid-rows-[0fr]"
         }`}
       >
-        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 pl-4">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
           {expandedChild && expandedChild.children && (
             <RoutePanel
               routes={expandedChild.children}
