@@ -143,7 +143,8 @@ export function Sidebar({ routes }: { routes: Route[] }) {
   const [expandedPanels, setExpandedPanels] = useState<{
     level1: number | null;
     level2: number | null;
-  }>({ level1: null, level2: null });
+    level3Visible: boolean;
+  }>({ level1: null, level2: null, level3Visible: false });
   const pathname = usePathname();
   const router = useRouter();
   const activeRoute = computeActiveRoute(pathname, routes);
@@ -152,18 +153,24 @@ export function Sidebar({ routes }: { routes: Route[] }) {
     setExpandedPanels((prev) => ({
       level1: prev.level1 === index ? null : index,
       level2: null,
+      level3Visible: false,
     }));
   };
 
   const handleChildToggle = (childIndex: number) => {
-    setExpandedPanels((prev) => ({
-      ...prev,
-      level2: prev.level2 === childIndex ? null : childIndex,
-    }));
+    setExpandedPanels((prev) => {
+      if (prev.level2 === childIndex) {
+        if (prev.level3Visible) {
+          return { ...prev, level3Visible: false };
+        }
+        return { ...prev, level2: null, level3Visible: false };
+      }
+      return { ...prev, level2: childIndex, level3Visible: true };
+    });
   };
 
   const handleNavigate = () => {
-    setExpandedPanels({ level1: null, level2: null });
+    setExpandedPanels({ level1: null, level2: null, level3Visible: false });
   };
 
   const handleLeafNavigate = (fullPath: string) => {
@@ -177,13 +184,15 @@ export function Sidebar({ routes }: { routes: Route[] }) {
 
   const expandedRoute = expandedPanels.level1 !== null ? routes[expandedPanels.level1] : null;
   const expandedChild =
-    expandedPanels.level2 !== null && expandedRoute?.children
+    expandedPanels.level2 !== null &&
+    expandedPanels.level3Visible &&
+    expandedRoute?.children
       ? expandedRoute.children[expandedPanels.level2]
       : null;
 
   return (
     <div className="flex h-full max-w-[48rem] overflow-y-auto">
-      <nav className="w-64 shrink-0">
+      <nav className={`shrink-0 w-full md:w-64 ${expandedRoute && expandedRoute.children ? "hidden md:block" : "block md:block"}`}>
         <ul className="space-y-1">
           {routes.map((route, index) => {
             const hasChildren = route.children && route.children.length > 0;
@@ -254,13 +263,17 @@ export function Sidebar({ routes }: { routes: Route[] }) {
       </nav>
 
       <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
+          expandedChild && expandedChild.children
+            ? "hidden md:block"
+            : ""
+        } ${
           expandedRoute && expandedRoute.children
             ? "grid-rows-[1fr]"
             : "grid-rows-[0fr]"
         }`}
       >
-        <div className="w-64 shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 pl-4">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 pl-4">
           {expandedRoute && expandedRoute.children && (
             <RoutePanel
               routes={expandedRoute.children}
@@ -275,13 +288,13 @@ export function Sidebar({ routes }: { routes: Route[] }) {
       </div>
 
       <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
           expandedChild && expandedChild.children
             ? "grid-rows-[1fr]"
             : "grid-rows-[0fr]"
         }`}
       >
-        <div className="w-64 shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 pl-4">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 pl-4">
           {expandedChild && expandedChild.children && (
             <RoutePanel
               routes={expandedChild.children}

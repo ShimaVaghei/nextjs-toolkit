@@ -258,3 +258,140 @@ describe("Sidebar active state", () => {
     expect(dashboardLink).toHaveClass("cursor-pointer");
   });
 });
+
+describe("Sidebar mobile responsive", () => {
+  const routesWithLevel3: Route[] = [
+    { path: "dashboard", label: "Dashboard" },
+    {
+      path: "settings",
+      label: "Settings",
+      children: [
+        { path: "general", label: "General" },
+        {
+          path: "advanced",
+          label: "Advanced",
+          children: [{ path: "debug", label: "Debug" }],
+        },
+      ],
+    },
+    { path: "users", label: "Users" },
+  ];
+
+  it("Level 1 nav is hidden on mobile when Level 2 is expanded", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const nav = screen.getByRole("navigation");
+    expect(nav).toHaveClass("hidden", "md:block");
+  });
+
+  it("Level 2 panel takes full width on mobile", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    expect(screen.getByText("General")).toBeInTheDocument();
+    expect(screen.getByText("Advanced")).toBeInTheDocument();
+    const level2Grid = screen.getByText("General").closest(".grid");
+    expect(level2Grid).toHaveClass("w-full", "md:w-auto");
+  });
+
+  it("Level 1 nav reappears when Level 2 collapses on mobile", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const nav = screen.getByRole("navigation");
+    expect(nav).toHaveClass("hidden", "md:block");
+    fireEvent.click(settingsButton);
+    expect(nav).toHaveClass("block", "md:block");
+  });
+
+  it("Level 2 is hidden on mobile when Level 3 is expanded", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    const level2Grid = screen.getByText("General").closest(".grid");
+    expect(level2Grid).toHaveClass("hidden", "md:block");
+  });
+
+  it("Level 3 panel takes full width on mobile", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    const level3Grid = screen.getByText("Debug").closest(".grid");
+    expect(level3Grid).toHaveClass("w-full", "md:w-auto");
+  });
+
+  it("Level 1 is hidden on mobile when Level 3 is expanded", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    const nav = screen.getByRole("navigation");
+    expect(nav).toHaveClass("hidden", "md:block");
+  });
+
+  it("back navigation from Level 3 to Level 2 on mobile", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    fireEvent.click(advancedButton);
+    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
+    expect(screen.getByText("General")).toBeInTheDocument();
+    expect(screen.getByText("Advanced")).toBeInTheDocument();
+    const nav = screen.getByRole("navigation");
+    expect(nav).toHaveClass("hidden", "md:block");
+  });
+
+  it("back navigation from Level 2 to Level 1 on mobile", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    expect(screen.getByText("General")).toBeInTheDocument();
+    fireEvent.click(settingsButton);
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    const nav = screen.getByRole("navigation");
+    expect(nav).toHaveClass("block", "md:block");
+  });
+
+  it("clicking a different Level 2 parent while Level 3 is open on mobile swaps Level 3", () => {
+    const routesWithMultipleParents: Route[] = [
+      { path: "dashboard", label: "Dashboard" },
+      {
+        path: "settings",
+        label: "Settings",
+        children: [
+          {
+            path: "advanced",
+            label: "Advanced",
+            children: [{ path: "debug", label: "Debug" }],
+          },
+          {
+            path: "other",
+            label: "Other",
+            children: [{ path: "other-child", label: "Other Child" }],
+          },
+        ],
+      },
+      { path: "users", label: "Users" },
+    ];
+    render(<Sidebar routes={routesWithMultipleParents} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    const otherButton = screen.getByRole("button", { name: "Other" });
+    fireEvent.click(otherButton);
+    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
+    expect(screen.getByText("Other Child")).toBeInTheDocument();
+  });
+});
