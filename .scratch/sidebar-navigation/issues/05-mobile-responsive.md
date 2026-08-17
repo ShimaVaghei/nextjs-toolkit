@@ -4,10 +4,10 @@
 
 **Blocked by:** 04 — Active state + post-navigation collapse
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Below `md`, only the deepest open panel is visible
-- [ ] Deepest panel takes full width on mobile
-- [ ] Same CSS grid slide animation on mobile
-- [ ] Level 1 is always visible on mobile as the root panel
-- [ ] Navigation back to previous levels works on mobile (clicking parent in previous panel)
+- [x] Below `md`, only the deepest open panel is visible
+- [x] Deepest panel takes full width on mobile
+- [x] Same CSS grid slide animation on mobile
+- [x] Level 1 is always visible on mobile as the root panel
+- [x] Navigation back to previous levels works on mobile (clicking parent in previous panel)
