@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export type Route = {
   path: string;
@@ -9,26 +9,33 @@ export type Route = {
   children?: Route[];
 };
 
+export type ActiveRouteResult = {
+  leaf: string | null;
+  ancestors: Set<string>;
+};
+
 function RoutePanel({
   routes,
   basePath,
-  activeRoutes,
+  activeRoute,
   onChildToggle,
   expandedChildIndex,
-  onNavigate,
+  onLeafNavigate,
 }: {
   routes: Route[];
   basePath: string;
-  activeRoutes: Set<string>;
+  activeRoute: ActiveRouteResult;
   onChildToggle?: (childIndex: number) => void;
   expandedChildIndex?: number | null;
-  onNavigate: () => void;
+  onLeafNavigate: (fullPath: string) => void;
 }) {
   return (
     <ul className="space-y-1">
       {routes.map((route, childIndex) => {
-        const routeUrl = `${basePath}/${route.path}`;
-        const isActive = activeRoutes.has(route.path);
+        const fullPath = `${basePath}/${route.path}`;
+        const isLeaf = activeRoute.leaf === route.path;
+        const isAncestor = activeRoute.ancestors.has(route.path);
+        const isActive = isLeaf || isAncestor;
         const hasChildren = route.children && route.children.length > 0;
 
         if (hasChildren && onChildToggle) {
@@ -39,10 +46,12 @@ function RoutePanel({
                 onClick={() => onChildToggle(childIndex)}
                 aria-expanded={expandedChildIndex === childIndex}
                 tabIndex={0}
-                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                  isActive
-                    ? "text-neutral-900 dark:text-neutral-100"
-                    : "text-neutral-600 dark:text-neutral-400"
+                className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                  isAncestor
+                    ? "opacity-60 text-neutral-900 dark:text-neutral-100"
+                    : isActive
+                      ? "text-neutral-900 dark:text-neutral-100"
+                      : "text-neutral-600 dark:text-neutral-400"
                 }`}
               >
                 <span>{route.label}</span>
@@ -69,13 +78,18 @@ function RoutePanel({
         return (
           <li key={route.path}>
             <a
-              href={routeUrl}
-              onClick={onNavigate}
+              href={fullPath}
+              onClick={(e) => {
+                e.preventDefault();
+                onLeafNavigate(fullPath);
+              }}
               tabIndex={0}
-              className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                isActive
-                  ? "text-neutral-900 dark:text-neutral-100"
-                  : "text-neutral-600 dark:text-neutral-400"
+              className={`block cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                isLeaf
+                  ? "font-bold text-neutral-900 dark:text-neutral-100"
+                  : isActive
+                    ? "text-neutral-900 dark:text-neutral-100"
+                    : "text-neutral-600 dark:text-neutral-400"
               }`}
             >
               {route.label}
@@ -88,43 +102,41 @@ function RoutePanel({
 }
 
 /**
- * Computes the set of route paths that should be highlighted based on the current pathname.
- * Returns the matched leaf node path plus all its ancestor paths.
+ * Computes the active leaf node and its ancestor paths based on the current pathname.
  *
  * @param pathname - The current URL pathname (e.g., "/dashboard/settings")
  * @param routes - The route tree to match against
- * @returns A Set of path strings that should be highlighted
+ * @returns An object with the matched leaf path and a Set of ancestor paths
  */
 export function computeActiveRoute(
   pathname: string,
   routes: Route[],
-): Set<string> {
+): ActiveRouteResult {
   const segments = pathname.split("/").filter(Boolean);
-  const active = new Set<string>();
+  const ancestors = new Set<string>();
+  let leaf: string | null = null;
 
   function walk(routes: Route[], depth: number): boolean {
     for (const route of routes) {
       if (route.path === segments[depth]) {
-        active.add(route.path);
-
         if (route.children && route.children.length > 0) {
           if (walk(route.children, depth + 1)) {
+            ancestors.add(route.path);
             return true;
           }
         }
 
         if (depth === segments.length - 1) {
+          leaf = route.path;
           return true;
         }
-
-        active.delete(route.path);
       }
     }
     return false;
   }
 
   walk(routes, 0);
-  return active;
+  return { leaf, ancestors };
 }
 
 export function Sidebar({ routes }: { routes: Route[] }) {
@@ -133,7 +145,8 @@ export function Sidebar({ routes }: { routes: Route[] }) {
     level2: number | null;
   }>({ level1: null, level2: null });
   const pathname = usePathname();
-  const activeRoutes = computeActiveRoute(pathname, routes);
+  const router = useRouter();
+  const activeRoute = computeActiveRoute(pathname, routes);
 
   const handleToggle = (index: number) => {
     setExpandedPanels((prev) => ({
@@ -153,6 +166,11 @@ export function Sidebar({ routes }: { routes: Route[] }) {
     setExpandedPanels({ level1: null, level2: null });
   };
 
+  const handleLeafNavigate = (fullPath: string) => {
+    router.push(fullPath);
+    handleNavigate();
+  };
+
   if (routes.length === 0) {
     return null;
   }
@@ -169,7 +187,9 @@ export function Sidebar({ routes }: { routes: Route[] }) {
         <ul className="space-y-1">
           {routes.map((route, index) => {
             const hasChildren = route.children && route.children.length > 0;
-            const isActive = activeRoutes.has(route.path);
+            const isLeaf = activeRoute.leaf === route.path;
+            const isAncestor = activeRoute.ancestors.has(route.path);
+            const isActive = isLeaf || isAncestor;
 
             if (hasChildren) {
               return (
@@ -179,10 +199,12 @@ export function Sidebar({ routes }: { routes: Route[] }) {
                     onClick={() => handleToggle(index)}
                     aria-expanded={expandedPanels.level1 === index}
                     tabIndex={0}
-                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                      isActive
-                        ? "text-neutral-900 dark:text-neutral-100"
-                        : "text-neutral-600 dark:text-neutral-400"
+                    className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                      isAncestor
+                        ? "opacity-60 text-neutral-900 dark:text-neutral-100"
+                        : isActive
+                          ? "text-neutral-900 dark:text-neutral-100"
+                          : "text-neutral-600 dark:text-neutral-400"
                     }`}
                   >
                     <span>{route.label}</span>
@@ -210,12 +232,17 @@ export function Sidebar({ routes }: { routes: Route[] }) {
               <li key={route.path}>
                 <a
                   href={`/${route.path}`}
-                  onClick={handleNavigate}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLeafNavigate(`/${route.path}`);
+                  }}
                   tabIndex={0}
-                  className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                    isActive
-                      ? "text-neutral-900 dark:text-neutral-100"
-                      : "text-neutral-600 dark:text-neutral-400"
+                  className={`block cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                    isLeaf
+                      ? "font-bold text-neutral-900 dark:text-neutral-100"
+                      : isActive
+                        ? "text-neutral-900 dark:text-neutral-100"
+                        : "text-neutral-600 dark:text-neutral-400"
                   }`}
                 >
                   {route.label}
@@ -238,10 +265,10 @@ export function Sidebar({ routes }: { routes: Route[] }) {
             <RoutePanel
               routes={expandedRoute.children}
               basePath={`/${expandedRoute.path}`}
-              activeRoutes={activeRoutes}
+              activeRoute={activeRoute}
               onChildToggle={handleChildToggle}
               expandedChildIndex={expandedPanels.level2}
-              onNavigate={handleNavigate}
+              onLeafNavigate={handleLeafNavigate}
             />
           )}
         </div>
@@ -259,8 +286,8 @@ export function Sidebar({ routes }: { routes: Route[] }) {
             <RoutePanel
               routes={expandedChild.children}
               basePath={`/${expandedRoute!.path}/${expandedChild.path}`}
-              activeRoutes={activeRoutes}
-              onNavigate={handleNavigate}
+              activeRoute={activeRoute}
+              onLeafNavigate={handleLeafNavigate}
             />
           )}
         </div>
