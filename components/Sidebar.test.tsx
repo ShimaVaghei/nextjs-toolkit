@@ -67,4 +67,114 @@ describe("Sidebar", () => {
     const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
     expect(dashboardLink).toHaveAttribute("tabindex", "0");
   });
+
+  it("sidebar container has max width for 3 panels", () => {
+    const { container } = render(<Sidebar routes={routes} />);
+    const outerDiv = container.firstChild as HTMLElement;
+    expect(outerDiv).toHaveClass("max-w-[48rem]");
+  });
+});
+
+describe("Sidebar Level 3 expansion", () => {
+  const routesWithLevel3: Route[] = [
+    { path: "dashboard", label: "Dashboard" },
+    {
+      path: "settings",
+      label: "Settings",
+      children: [
+        { path: "general", label: "General" },
+        {
+          path: "advanced",
+          label: "Advanced",
+          children: [{ path: "debug", label: "Debug" }],
+        },
+      ],
+    },
+    { path: "users", label: "Users" },
+  ];
+
+  it("clicking a Level 2 parent with children opens a third panel", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+  });
+
+  it("clicking a different Level 1 parent closes all deeper panels", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    const usersLink = screen.getByRole("link", { name: "Users" });
+    fireEvent.click(usersLink);
+    // Debug should no longer be visible
+    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
+  });
+
+  it("clicking a different Level 2 parent closes the Level 3 panel", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    // Click a different Level 2 parent (General) which has no children
+    const generalLink = screen.getByRole("link", { name: "General" });
+    fireEvent.click(generalLink);
+    // Debug should no longer be visible
+    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
+  });
+
+  it("clicking a different Level 2 parent with children closes Level 3 and opens new one", () => {
+    const routesWithMultipleParents: Route[] = [
+      { path: "dashboard", label: "Dashboard" },
+      {
+        path: "settings",
+        label: "Settings",
+        children: [
+          {
+            path: "advanced",
+            label: "Advanced",
+            children: [{ path: "debug", label: "Debug" }],
+          },
+          {
+            path: "other",
+            label: "Other",
+            children: [{ path: "other-child", label: "Other Child" }],
+          },
+        ],
+      },
+      { path: "users", label: "Users" },
+    ];
+    render(<Sidebar routes={routesWithMultipleParents} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    fireEvent.click(advancedButton);
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    // Click a different Level 2 parent (Other) which has children
+    const otherButton = screen.getByRole("button", { name: "Other" });
+    fireEvent.click(otherButton);
+    // Debug should no longer be visible, Other Child should appear
+    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
+    expect(screen.getByText("Other Child")).toBeInTheDocument();
+  });
+
+  it("Level 2 parent chevron rotates when expanded", () => {
+    render(<Sidebar routes={routesWithLevel3} />);
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(settingsButton);
+    const advancedButton = screen.getByRole("button", { name: "Advanced" });
+    // Initially, Advanced button's SVG should not have rotate-90
+    const svgBefore = advancedButton.querySelector("svg");
+    expect(svgBefore).not.toHaveClass("rotate-90");
+    fireEvent.click(advancedButton);
+    // After clicking, SVG should have rotate-90
+    const svgAfter = advancedButton.querySelector("svg");
+    expect(svgAfter).toHaveClass("rotate-90");
+  });
 });
