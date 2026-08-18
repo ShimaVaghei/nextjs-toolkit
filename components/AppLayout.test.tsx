@@ -91,6 +91,44 @@ describe("AppLayout", () => {
   });
 });
 
+describe("AppLayout desktop sticky layout", () => {
+  const getNavColumn = () =>
+    screen.getByRole("navigation").parentElement as HTMLElement;
+
+  it("navigation column is sticky on md+ so it stays visible while the page scrolls", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    expect(getNavColumn()).toHaveClass("md:sticky");
+    expect(getNavColumn()).toHaveClass("md:top-0");
+  });
+
+  it("navigation column scrolls internally when taller than the viewport", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    expect(getNavColumn()).toHaveClass("overflow-y-auto");
+    expect(getNavColumn()).toHaveClass("md:max-h-screen");
+    expect(getNavColumn()).toHaveClass("md:self-start");
+  });
+
+  it("expanding a Collapsible section pushes the content column right as panels appear", () => {
+    const { container } = render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const shell = container.firstChild as HTMLElement;
+    const navColumn = getNavColumn();
+    const contentColumn = screen.getByText("Page content").parentElement as HTMLElement;
+
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+
+    expect(screen.getByText("General")).toBeInTheDocument();
+    expect(screen.getByText("Advanced")).toBeInTheDocument();
+    expect(navColumn).toContainElement(screen.getByText("General"));
+    expect(navColumn).toContainElement(screen.getByText("Advanced"));
+    expect(shell).toContainElement(navColumn);
+    expect(shell).toContainElement(contentColumn);
+    expect(contentColumn).toHaveClass("flex-1");
+    expect(navColumn).toHaveClass("shrink-0");
+    expect(navColumn).not.toHaveClass("fixed");
+    expect(navColumn).not.toHaveClass("absolute");
+  });
+});
+
 describe("AppLayout Level 3 expansion", () => {
   const routesWithLevel3: Route[] = [
     { path: "dashboard", label: "Dashboard" },

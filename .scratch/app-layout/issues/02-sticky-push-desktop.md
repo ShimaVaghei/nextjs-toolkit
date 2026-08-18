@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 — AppLayout shell with a content area
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Navigation column uses `position: sticky` on `md`+ — stays visible while the page scrolls
-- [ ] Navigation column scrolls internally when taller than the viewport
-- [ ] Expanding a Collapsible section pushes the content column right as panels appear
-- [ ] Column width capped at three panels (existing maximum)
-- [ ] Tests assert the sticky column and pushed content structure
+- [x] Navigation column uses `position: sticky` on `md`+ — stays visible while the page scrolls
+- [x] Navigation column scrolls internally when taller than the viewport
+- [x] Expanding a Collapsible section pushes the content column right as panels appear
+- [x] Column width capped at three panels (existing maximum)
+- [x] Tests assert the sticky column and pushed content structure

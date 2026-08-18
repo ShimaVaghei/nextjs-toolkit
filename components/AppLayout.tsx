@@ -208,8 +208,8 @@ export function AppLayout({
       : null;
 
   return (
-    <div className="flex h-full">
-      <div className="flex h-full shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden">
+    <div className="flex min-h-full">
+      <div className="flex shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden md:sticky md:top-0 md:max-h-screen md:self-start">
         <nav className={`shrink-0 w-full md:w-auto ${expandedRoute && expandedRoute.children ? "hidden md:block" : "block md:block"}`}>
           <ul className="space-y-1 p-4" role="tree">
             {routes.map((route, index) => {
