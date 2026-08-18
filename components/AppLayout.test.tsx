@@ -661,6 +661,48 @@ describe("AppLayout mobile overlay", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
+  it("closing the overlay via the close button collapses to Level 1; reopening shows only Level 1", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    openOverlay();
+    const reopened = getOverlay();
+    expect(within(reopened).queryByText("General")).not.toBeInTheDocument();
+    expect(
+      within(reopened).getByRole("treeitem", { name: "Settings" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closing the overlay via the Escape key collapses to Level 1; reopening shows only Level 1", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    openOverlay();
+    const reopened = getOverlay();
+    expect(within(reopened).queryByText("General")).not.toBeInTheDocument();
+  });
+
+  it("reopening the overlay after closing while drilled to Level 3 always starts at Level 1", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    let overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
+    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    openOverlay();
+    overlay = getOverlay();
+    expect(within(overlay).queryByText("Debug")).not.toBeInTheDocument();
+    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
+    expect(within(overlay).getByRole("treeitem", { name: "Dashboard" })).toBeInTheDocument();
+  });
+
   it("overlay closes when navigating to a Leaf node and panels collapse to Level 1", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     openOverlay();

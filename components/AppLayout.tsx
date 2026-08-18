@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 export type Route = {
@@ -352,16 +352,21 @@ export function AppLayout({
   const router = useRouter();
   const activeRoute = computeActiveRoute(pathname, routes);
 
+  const handleCloseOverlay = useCallback(() => {
+    setExpandedPanels(COLLAPSED_PANELS);
+    setIsOverlayOpen(false);
+  }, []);
+
   useEffect(() => {
     if (!isOverlayOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsOverlayOpen(false);
+        handleCloseOverlay();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOverlayOpen]);
+  }, [isOverlayOpen, handleCloseOverlay]);
 
   useEffect(() => {
     if (!isOverlayOpen) return;
@@ -392,14 +397,9 @@ export function AppLayout({
     });
   };
 
-  const handleNavigate = () => {
-    setExpandedPanels(COLLAPSED_PANELS);
-    setIsOverlayOpen(false);
-  };
-
   const handleLeafNavigate = (fullPath: string) => {
     router.push(fullPath);
-    handleNavigate();
+    handleCloseOverlay();
   };
 
   const handleContentClick = () => {
@@ -470,7 +470,7 @@ export function AppLayout({
             <button
               type="button"
               aria-label="Close navigation"
-              onClick={() => setIsOverlayOpen(false)}
+              onClick={handleCloseOverlay}
               className="rounded-md p-2 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
               <svg
