@@ -59,7 +59,7 @@ The set of column renderers: `text`, `date`, `datetime`, `array`, `image`, `numb
 _Avoid_: cell kind, column variant
 
 **TableDataRequest**:
-The request object passed to `dataSource`: optional `pagination`, `sort`, and `filters`.
+The request object passed to `dataSource`: optional `pagination`, `sort`, and `filters`. `filters` values are `string | number | (string | number)[]`; a cleared filter is omitted from the record.
 _Avoid_: DataGetRequest, query params
 
 **TableDataResponse**:

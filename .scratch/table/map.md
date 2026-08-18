@@ -19,6 +19,8 @@ A working, tested, reusable `Table` component in `components/Table.tsx` — dual
 
 - [02 — Cell rendering per column type](.scratch/table/issues/02-cell-rendering-per-type.md) — Plain & native take (with B's image + empty): `text` plain; `date`/`datetime` via `Intl` in `<time>`; `array` comma-joined; `image` `h-10 w-10 rounded-lg` with name-based `alt`; `number` plain string; empties render `—` in `text-neutral-400`; `transform` before type rendering, `class`/`dynamicClass` merged on the cell, `hidden` drops the column. Prototype captured on branch `prototype/table-cell-rendering`.
 
+- [03 — Filtering: controls + matching semantics](.scratch/table/issues/03-filtering-controls.md) — Filters live in a popover off a filter-icon button beside each header (trigger gets `aria-expanded`/`aria-controls`, Escape closes, focus returns). Widgets: text/array/date/datetime → text input; number → number input; image → not filterable (returns zero results if `filterable` set). Matching: text/array contains-case-insensitive; date/datetime/number exact. `filterable`/`sortable` default `false`. `filters` is `Record<string, string | number | (string | number)[]>`; UI emits scalars only; a cleared filter is omitted from the record.
+
 ## Not yet specified
 
 - The exact demo-page composition (which columns/data it exercises) is not ticketable until the rendering, filtering, sorting, and lifecycle tickets resolve. One patch of fog that should graduate into ticket 07's shape or into the build.
@@ -29,3 +31,4 @@ A working, tested, reusable `Table` component in `components/Table.tsx` — dual
 - Multi-column sort — the `TableDataRequest.sort` shape is single-key.
 - Sticky/resizable columns — not requested.
 - Row selection, cell editing/CRUD, export, URL-state sync — surfaced during charting and not confirmed in scope.
+- Multi-value filter UI (any-of arrays) — the `filters` type supports it, but the UI path is deferred to a later effort by the owner.
