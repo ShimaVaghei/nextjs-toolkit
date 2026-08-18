@@ -118,6 +118,12 @@ type ExpandedPanels = {
   level3Visible: boolean;
 };
 
+const COLLAPSED_PANELS: ExpandedPanels = {
+  level1: null,
+  level2: null,
+  level3Visible: false,
+};
+
 function panelGridClasses(expanded: boolean, hiddenOnMobile = false): string {
   return [
     "grid",
@@ -325,6 +331,12 @@ export function computeActiveRoute(
   return { leaf, ancestors };
 }
 
+const MD_MEDIA_QUERY = "(min-width: 768px)";
+
+function isDesktopViewport(): boolean {
+  return window.matchMedia(MD_MEDIA_QUERY).matches;
+}
+
 export function AppLayout({
   routes,
   children,
@@ -332,11 +344,9 @@ export function AppLayout({
   routes: Route[];
   children: ReactNode;
 }) {
-  const [expandedPanels, setExpandedPanels] = useState<ExpandedPanels>({
-    level1: null,
-    level2: null,
-    level3Visible: false,
-  });
+  const [expandedPanels, setExpandedPanels] = useState<ExpandedPanels>(
+    COLLAPSED_PANELS,
+  );
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -383,13 +393,20 @@ export function AppLayout({
   };
 
   const handleNavigate = () => {
-    setExpandedPanels({ level1: null, level2: null, level3Visible: false });
+    setExpandedPanels(COLLAPSED_PANELS);
     setIsOverlayOpen(false);
   };
 
   const handleLeafNavigate = (fullPath: string) => {
     router.push(fullPath);
     handleNavigate();
+  };
+
+  const handleContentClick = () => {
+    if (isOverlayOpen) return;
+    if (!isDesktopViewport()) return;
+    if (expandedPanels.level1 === null) return;
+    setExpandedPanels(COLLAPSED_PANELS);
   };
 
   if (routes.length === 0) {
@@ -434,7 +451,9 @@ export function AppLayout({
         />
       </div>
 
-      <div className="flex-1 p-4">{children}</div>
+      <div className="flex-1 p-4" onClick={handleContentClick}>
+        {children}
+      </div>
 
       {isOverlayOpen && (
         <div

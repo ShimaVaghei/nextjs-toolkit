@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
@@ -12,6 +12,23 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
   useRouter: () => ({ push: mockPush }),
 }));
+
+const mockMatchMedia = (matches: boolean) => {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+};
+
+beforeEach(() => {
+  mockMatchMedia(true);
+});
 
 afterEach(() => {
   cleanup();
@@ -778,5 +795,104 @@ describe("AppLayout smooth desktop expansion", () => {
     expect(level2Grid).toHaveClass("w-full", "md:w-auto");
     expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
     expect(level2Grid).toHaveClass("grid-rows-[1fr]");
+  });
+});
+
+describe("AppLayout desktop click-outside collapse", () => {
+  const routesWithLevel3: Route[] = [
+    { path: "dashboard", label: "Dashboard" },
+    {
+      path: "settings",
+      label: "Settings",
+      children: [
+        { path: "general", label: "General" },
+        {
+          path: "advanced",
+          label: "Advanced",
+          children: [{ path: "debug", label: "Debug" }],
+        },
+      ],
+    },
+    { path: "users", label: "Users" },
+  ];
+
+  const getContent = () => screen.getByText("Page content");
+  const getNavColumn = () =>
+    screen.getByRole("navigation").parentElement as HTMLElement;
+
+  it("clicking the content area while a panel is expanded collapses the sidebar to Level 1 on md+", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
+    fireEvent.click(settingsTreeItem);
+    expect(screen.getByText("General")).toBeInTheDocument();
+    fireEvent.click(getContent());
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("clicking the content area while fully drilled in collapses every panel to Level 1 on md+", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    fireEvent.click(getContent());
+    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Settings" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("clicking inside the sidebar never collapses it", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(getNavColumn());
+    expect(screen.getByText("General")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+  });
+
+  it("clicking the content area when the sidebar is already collapsed is a no-op", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(getContent());
+    expect(screen.getByRole("treeitem", { name: "Settings" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("clicking the content area twice keeps the sidebar collapsed", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(getContent());
+    fireEvent.click(getContent());
+    expect(screen.getByRole("treeitem", { name: "Settings" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+  });
+
+  it("clicking the content area on a mobile viewport does not collapse the sidebar", () => {
+    mockMatchMedia(false);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    expect(screen.getByText("General")).toBeInTheDocument();
+    fireEvent.click(getContent());
+    expect(screen.getByText("General")).toBeInTheDocument();
+  });
+
+  it("clicking the content area does not affect the mobile overlay", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    fireEvent.click(getContent());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
   });
 });
