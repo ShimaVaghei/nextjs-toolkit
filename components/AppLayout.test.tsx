@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Sidebar } from "./Sidebar";
-import type { Route } from "./Sidebar";
+import { AppLayout } from "./AppLayout";
+import type { Route } from "./AppLayout";
 
 let mockPathname = "/";
 const mockPush = vi.fn();
@@ -31,27 +31,37 @@ const routes: Route[] = [
   { path: "users", label: "Users" },
 ];
 
-describe("Sidebar", () => {
-  it("renders nothing when routes is empty", () => {
-    const { container } = render(<Sidebar routes={[]} />);
-    expect(container.firstChild).toBeNull();
+const pageContent = <div>Page content</div>;
+
+describe("AppLayout", () => {
+  it("renders children when routes is empty", () => {
+    render(<AppLayout routes={[]}>{pageContent}</AppLayout>);
+    expect(screen.getByText("Page content")).toBeInTheDocument();
   });
 
   it("renders Level 1 routes as a vertical list", () => {
-    render(<Sidebar routes={routes} />);
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Users")).toBeInTheDocument();
   });
 
+  it("renders children beside the navigation column", () => {
+    const { container } = render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const content = screen.getByText("Page content");
+    const nav = screen.getByRole("navigation");
+    expect(container.firstChild).toContainElement(nav);
+    expect(container.firstChild).toContainElement(content);
+  });
+
   it("parent nodes have aria-expanded attribute", () => {
-    render(<Sidebar routes={routes} />);
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     expect(settingsTreeItem).toHaveAttribute("aria-expanded", "false");
   });
 
   it("clicking a parent opens a second panel", () => {
-    render(<Sidebar routes={routes} />);
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
@@ -60,7 +70,7 @@ describe("Sidebar", () => {
   });
 
   it("clicking the same parent again closes the panel", () => {
-    render(<Sidebar routes={routes} />);
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
@@ -69,19 +79,19 @@ describe("Sidebar", () => {
   });
 
   it("items are tab-focusable", () => {
-    render(<Sidebar routes={routes} />);
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     expect(dashboardTreeItem).toHaveAttribute("tabindex", "0");
   });
 
-  it("sidebar container has max width for 3 panels", () => {
-    const { container } = render(<Sidebar routes={routes} />);
-    const outerDiv = container.firstChild as HTMLElement;
-    expect(outerDiv).toHaveClass("max-w-[48rem]");
+  it("nav column has max width for 3 panels", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const navColumn = screen.getByRole("navigation").parentElement as HTMLElement;
+    expect(navColumn).toHaveClass("md:max-w-3xl");
   });
 });
 
-describe("Sidebar Level 3 expansion", () => {
+describe("AppLayout Level 3 expansion", () => {
   const routesWithLevel3: Route[] = [
     { path: "dashboard", label: "Dashboard" },
     {
@@ -100,7 +110,7 @@ describe("Sidebar Level 3 expansion", () => {
   ];
 
   it("clicking a Level 2 parent with children opens a third panel", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -109,7 +119,7 @@ describe("Sidebar Level 3 expansion", () => {
   });
 
   it("clicking a different Level 1 parent closes all deeper panels", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -121,7 +131,7 @@ describe("Sidebar Level 3 expansion", () => {
   });
 
   it("clicking a different Level 2 parent closes the Level 3 panel", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -153,7 +163,7 @@ describe("Sidebar Level 3 expansion", () => {
       },
       { path: "users", label: "Users" },
     ];
-    render(<Sidebar routes={routesWithMultipleParents} />);
+    render(<AppLayout routes={routesWithMultipleParents}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -166,7 +176,7 @@ describe("Sidebar Level 3 expansion", () => {
   });
 
   it("Level 2 parent chevron rotates when expanded", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -178,7 +188,7 @@ describe("Sidebar Level 3 expansion", () => {
   });
 });
 
-describe("Sidebar active state", () => {
+describe("AppLayout active state", () => {
   const routesWithActive: Route[] = [
     { path: "dashboard", label: "Dashboard" },
     {
@@ -198,7 +208,7 @@ describe("Sidebar active state", () => {
 
   it("active leaf node has bold styling", () => {
     mockPathname = "/settings/general";
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
@@ -207,28 +217,28 @@ describe("Sidebar active state", () => {
 
   it("ancestor nodes of active leaf have muted opacity", () => {
     mockPathname = "/settings/general";
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     expect(settingsTreeItem).toHaveClass("opacity-60");
   });
 
   it("non-active nodes do not have bold or muted styling", () => {
     mockPathname = "/dashboard";
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const usersTreeItem = screen.getByRole("treeitem", { name: "Users" });
     expect(usersTreeItem).not.toHaveClass("font-bold");
     expect(usersTreeItem).not.toHaveClass("opacity-60");
   });
 
   it("clicking a leaf node navigates to full path via router", () => {
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     fireEvent.click(dashboardTreeItem);
     expect(mockPush).toHaveBeenCalledWith("/dashboard");
   });
 
   it("clicking a Level 2 leaf navigates to concatenated full path", () => {
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
@@ -237,7 +247,7 @@ describe("Sidebar active state", () => {
   });
 
   it("after leaf click, drawer collapses to Level 1", () => {
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(screen.getByText("General")).toBeInTheDocument();
@@ -247,19 +257,19 @@ describe("Sidebar active state", () => {
   });
 
   it("parent nodes have pointer cursor", () => {
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     expect(settingsTreeItem).toHaveClass("cursor-pointer");
   });
 
   it("leaf nodes have pointer cursor", () => {
-    render(<Sidebar routes={routesWithActive} />);
+    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     expect(dashboardTreeItem).toHaveClass("cursor-pointer");
   });
 });
 
-describe("Sidebar mobile responsive", () => {
+describe("AppLayout mobile responsive", () => {
   const routesWithLevel3: Route[] = [
     { path: "dashboard", label: "Dashboard" },
     {
@@ -278,7 +288,7 @@ describe("Sidebar mobile responsive", () => {
   ];
 
   it("Level 1 nav is hidden on mobile when Level 2 is expanded", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const nav = screen.getByRole("navigation");
@@ -286,7 +296,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("Level 2 panel takes full width on mobile", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(screen.getByText("General")).toBeInTheDocument();
@@ -296,7 +306,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("Level 1 nav reappears when Level 2 collapses on mobile", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const nav = screen.getByRole("navigation");
@@ -306,7 +316,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("Level 2 is hidden on mobile when Level 3 is expanded", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -317,7 +327,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("Level 3 panel takes full width on mobile", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -327,7 +337,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("Level 1 is hidden on mobile when Level 3 is expanded", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -337,7 +347,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("back navigation from Level 3 to Level 2 on mobile", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -352,7 +362,7 @@ describe("Sidebar mobile responsive", () => {
   });
 
   it("back navigation from Level 2 to Level 1 on mobile", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(screen.getByText("General")).toBeInTheDocument();
@@ -383,7 +393,7 @@ describe("Sidebar mobile responsive", () => {
       },
       { path: "users", label: "Users" },
     ];
-    render(<Sidebar routes={routesWithMultipleParents} />);
+    render(<AppLayout routes={routesWithMultipleParents}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -396,7 +406,7 @@ describe("Sidebar mobile responsive", () => {
   });
 });
 
-describe("Sidebar accessibility", () => {
+describe("AppLayout accessibility", () => {
   const routesWithLevel3: Route[] = [
     { path: "dashboard", label: "Dashboard" },
     {
@@ -415,31 +425,31 @@ describe("Sidebar accessibility", () => {
   ];
 
   it("container has role=tree", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const tree = screen.getByRole("tree");
     expect(tree).toBeInTheDocument();
   });
 
   it("Level 1 items have role=treeitem", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const treeItems = screen.getAllByRole("treeitem");
     expect(treeItems.length).toBeGreaterThanOrEqual(3);
   });
 
   it("parent nodes have aria-expanded", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     expect(settingsTreeItem).toHaveAttribute("aria-expanded");
   });
 
   it("parent nodes have aria-level", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     expect(settingsTreeItem).toHaveAttribute("aria-level", "1");
   });
 
   it("Level 2 items have aria-level=2", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
@@ -447,7 +457,7 @@ describe("Sidebar accessibility", () => {
   });
 
   it("Level 3 items have aria-level=3", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
@@ -457,57 +467,57 @@ describe("Sidebar accessibility", () => {
   });
 
   it("items have aria-setsize", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     expect(dashboardTreeItem).toHaveAttribute("aria-setsize", "3");
   });
 
   it("items have aria-posinset", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     expect(dashboardTreeItem).toHaveAttribute("aria-posinset", "1");
   });
 
   it("leaf nodes have aria-expanded=false", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     expect(dashboardTreeItem).toHaveAttribute("aria-expanded", "false");
   });
 
   it("parent nodes have role=treeitem with group", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     expect(settingsTreeItem).toHaveAttribute("role", "treeitem");
   });
 
   it("leaf nodes have role=treeitem", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
     expect(dashboardTreeItem).toHaveAttribute("role", "treeitem");
   });
 
   it("Enter key on parent toggles panel", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
   });
 
   it("Space key on parent toggles panel", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
   });
 
   it("container has role=tree on Level 1", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const trees = screen.getAllByRole("tree");
     expect(trees.length).toBeGreaterThanOrEqual(1);
   });
 
   it("Level 2 container has role=group", () => {
-    render(<Sidebar routes={routesWithLevel3} />);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
     fireEvent.click(settingsTreeItem);
     const groups = screen.getAllByRole("group");

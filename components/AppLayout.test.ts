@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeActiveRoute, type Route } from "./Sidebar";
+import { computeActiveRoute, type Route } from "./AppLayout";
 
 const routes: Route[] = [
   {
