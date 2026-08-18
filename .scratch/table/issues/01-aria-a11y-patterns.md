@@ -1,7 +1,7 @@
 # 01 — ARIA & a11y patterns for sortable/paginated tables
 
 Type: research
-Status: open
+Status: claimed
 Blocked by: None
 
 ## Question
