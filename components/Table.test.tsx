@@ -391,3 +391,224 @@ describe("Table column type renderers", () => {
     dashes.forEach((dash) => expect(dash).toHaveClass("text-neutral-400"));
   });
 });
+
+describe("Table local sort", () => {
+  type SortableItem = {
+    id: number;
+    name: string;
+    score: number | null;
+    joined: string | null;
+    tags: string[] | null;
+    avatar: string | null;
+  };
+
+  const sortableRows: SortableItem[] = [
+    { id: 1, name: "banana", score: 50, joined: "2023-01-15", tags: ["b"], avatar: "/b.png" },
+    { id: 2, name: "Apple", score: null, joined: "2022-06-10", tags: ["a"], avatar: "/A.png" },
+    { id: 3, name: "cherry", score: 10, joined: null, tags: [], avatar: "/c.png" },
+  ];
+
+  const sortableColumns: TableConfig<SortableItem>["columns"] = {
+    name: { type: "text", label: "Name", sortable: "name" },
+    score: { type: "number", label: "Score", sortable: "score" },
+    joined: { type: "date", label: "Joined", sortable: "joined" },
+    tags: { type: "array", label: "Tags", sortable: "tags" },
+    avatar: { type: "image", label: "Avatar", sortable: "avatar" },
+  };
+
+  function sortableConfig(
+    rows: SortableItem[] = sortableRows,
+    overrides: Partial<TableConfig<SortableItem>> = {},
+  ): TableConfig<SortableItem> {
+    return {
+      dataSource: () => ({ rows }),
+      columns: sortableColumns,
+      ...overrides,
+    };
+  }
+
+  const nameHeader = () => screen.getByRole("columnheader", { name: /name/i });
+  const scoreHeader = () => screen.getByRole("columnheader", { name: /score/i });
+
+  const clickSort = (header: HTMLElement) =>
+    fireEvent.click(within(header).getByRole("button"));
+
+  const hasDirectionIcon = (header: HTMLElement) =>
+    within(header)
+      .getByRole("button")
+      .textContent?.includes("\u2191") ||
+    within(header)
+      .getByRole("button")
+      .textContent?.includes("\u2193");
+
+  it("cycles a sortable header ascending → descending → none, showing aria-sort and a direction icon only while sorted", () => {
+    render(<Table config={sortableConfig()} />);
+
+    const header = nameHeader();
+    expect(header).toHaveAttribute("aria-sort", "none");
+    expect(within(header).getAllByRole("button")).toHaveLength(1);
+
+    clickSort(header);
+    expect(header).toHaveAttribute("aria-sort", "ascending");
+    expect(hasDirectionIcon(header)).toBe(true);
+
+    clickSort(header);
+    expect(header).toHaveAttribute("aria-sort", "descending");
+    expect(hasDirectionIcon(header)).toBe(true);
+
+    clickSort(header);
+    expect(header).toHaveAttribute("aria-sort", "none");
+    expect(hasDirectionIcon(header)).toBe(false);
+  });
+
+  it("clicking a different sortable column starts it ascending and clears the previous header's sort", () => {
+    render(<Table config={sortableConfig()} />);
+
+    const name = nameHeader();
+    const score = scoreHeader();
+
+    clickSort(name);
+    clickSort(name);
+    expect(name).toHaveAttribute("aria-sort", "descending");
+    expect(hasDirectionIcon(name)).toBe(true);
+    expect(score).toHaveAttribute("aria-sort", "none");
+    expect(hasDirectionIcon(score)).toBe(false);
+
+    clickSort(score);
+
+    expect(score).toHaveAttribute("aria-sort", "ascending");
+    expect(name).toHaveAttribute("aria-sort", "none");
+    expect(hasDirectionIcon(score)).toBe(true);
+    expect(hasDirectionIcon(name)).toBe(false);
+  });
+
+  const sortedRowNames = () =>
+    screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.querySelector("td")?.textContent);
+
+  it("sorts number columns numerically on the raw value", () => {
+    render(<Table config={sortableConfig()} />);
+
+    clickSort(scoreHeader());
+
+    expect(sortedRowNames()).toEqual(["cherry", "banana", "Apple"]);
+  });
+
+  it("sorts date columns chronologically on the raw value", () => {
+    render(<Table config={sortableConfig()} />);
+
+    clickSort(screen.getByRole("columnheader", { name: /joined/i }));
+
+    expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
+  });
+
+  it("sorts text columns case-insensitively on the raw value", () => {
+    render(<Table config={sortableConfig()} />);
+
+    clickSort(nameHeader());
+
+    expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
+  });
+
+  it("sorts array columns case-insensitively on the joined raw value", () => {
+    render(<Table config={sortableConfig()} />);
+
+    clickSort(screen.getByRole("columnheader", { name: /tags/i }));
+
+    expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
+  });
+
+  it("sorts image columns case-insensitively on the raw value", () => {
+    render(<Table config={sortableConfig()} />);
+
+    clickSort(screen.getByRole("columnheader", { name: /avatar/i }));
+
+    expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
+  });
+
+  it("sorts by the raw value, ignoring the column transform", () => {
+    const columns: TableConfig<SortableItem>["columns"] = {
+      id: { type: "text", label: "Id" },
+      name: {
+        type: "text",
+        label: "Name",
+        sortable: "name",
+        transform: (value) => String(value).split("").reverse().join(""),
+      },
+    };
+    render(
+      <Table
+        config={{
+          dataSource: () => ({ rows: sortableRows }),
+          columns,
+        }}
+      />,
+    );
+
+    clickSort(screen.getByRole("columnheader", { name: /name/i }));
+
+    expect(sortedRowNames()).toEqual(["2", "1", "3"]);
+  });
+
+  it("sorts empty values last in both directions", () => {
+    const rows: SortableItem[] = [
+      { id: 1, name: "banana", score: 30, joined: "2023-01-15", tags: ["b"], avatar: "/b.png" },
+      { id: 2, name: "Apple", score: 10, joined: "2022-06-10", tags: ["a"], avatar: "/a.png" },
+      { id: 3, name: "cherry", score: null, joined: null, tags: [], avatar: null },
+      { id: 4, name: "date", score: 20, joined: "2021-01-01", tags: ["c"], avatar: "/d.png" },
+    ];
+    render(<Table config={sortableConfig(rows)} />);
+
+    clickSort(scoreHeader());
+    expect(sortedRowNames()).toEqual(["Apple", "date", "banana", "cherry"]);
+
+    clickSort(scoreHeader());
+    expect(sortedRowNames()).toEqual(["banana", "date", "Apple", "cherry"]);
+  });
+
+  it("keeps equal sort keys in their original order (stable) across asc and desc", () => {
+    const rows: SortableItem[] = [
+      { id: 1, name: "banana", score: 5, joined: "2023-01-15", tags: ["b"], avatar: "/b.png" },
+      { id: 2, name: "Apple", score: 5, joined: "2022-06-10", tags: ["a"], avatar: "/a.png" },
+      { id: 3, name: "cherry", score: null, joined: null, tags: [], avatar: null },
+      { id: 4, name: "date", score: 5, joined: "2021-01-01", tags: ["c"], avatar: "/d.png" },
+    ];
+    render(<Table config={sortableConfig(rows)} />);
+
+    clickSort(scoreHeader());
+    expect(sortedRowNames()).toEqual(["banana", "Apple", "date", "cherry"]);
+
+    clickSort(scoreHeader());
+    expect(sortedRowNames()).toEqual(["banana", "Apple", "date", "cherry"]);
+
+    clickSort(scoreHeader());
+    expect(sortedRowNames()).toEqual(["banana", "Apple", "cherry", "date"]);
+
+    clickSort(scoreHeader());
+    expect(sortedRowNames()).toEqual(["banana", "Apple", "date", "cherry"]);
+  });
+
+  it("renders no sort control for a column without sortable", () => {
+    const columns: TableConfig<SortableItem>["columns"] = {
+      name: { type: "text", label: "Name" },
+      joined: { type: "date", label: "Joined" },
+    };
+    render(
+      <Table
+        config={{
+          dataSource: () => ({ rows: sortableRows }),
+          columns,
+        }}
+      />,
+    );
+
+    const header = screen.getByRole("columnheader", { name: "Name" });
+    expect(header).not.toHaveAttribute("aria-sort");
+    expect(within(header).queryByRole("button")).not.toBeInTheDocument();
+
+    const joined = screen.getByRole("columnheader", { name: "Joined" });
+    expect(within(joined).queryByRole("button")).not.toBeInTheDocument();
+  });
+});

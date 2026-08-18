@@ -90,6 +90,49 @@ function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined;
 }
 
+function compareRawValues(a: unknown, b: unknown, type: TableColumnType): number {
+  switch (type) {
+    case "array": {
+      const aText = Array.isArray(a) ? a.join(", ") : String(a);
+      const bText = Array.isArray(b) ? b.join(", ") : String(b);
+      return aText.localeCompare(bText, undefined, { sensitivity: "base" });
+    }
+    case "number": {
+      const aNum = Number(a);
+      const bNum = Number(b);
+      return aNum - bNum;
+    }
+    case "date":
+    case "datetime": {
+      const aDate = toDate(a);
+      const bDate = toDate(b);
+      return (aDate?.getTime() ?? 0) - (bDate?.getTime() ?? 0);
+    }
+    case "text":
+    case "image":
+    default:
+      return String(a).localeCompare(String(b), undefined, {
+        sensitivity: "base",
+      });
+  }
+}
+
+function isSortEmpty(value: unknown): boolean {
+  return (
+    isEmptyValue(value) || (Array.isArray(value) && value.length === 0)
+  );
+}
+
+function cycleSort(current: TableSort | null, key: string): TableSort | null {
+  if (!current || current.key !== key) {
+    return { key, direction: "ascending" };
+  }
+  if (current.direction === "ascending") {
+    return { key, direction: "descending" };
+  }
+  return null;
+}
+
 function toDate(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
@@ -158,6 +201,7 @@ function renderCell<T>(value: unknown, column: TableColumn<T>, row: T): ReactNod
 export function Table<T>({ config }: { config: TableConfig<T> }) {
   const dataSourceRef = useRef(config.dataSource);
   const [rows, setRows] = useState<T[] | null>(null);
+  const [sort, setSort] = useState<TableSort | null>(null);
   const [pagination, setPagination] = useState(() => ({
     page: Math.max(1, config.pagination?.page ?? 1),
     size: config.pagination?.size ?? 10,
@@ -189,7 +233,27 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
   const page = Math.min(Math.max(pagination.page, 1), totalPages);
   const start = (page - 1) * size;
   const end = Math.min(start + size, total);
-  const pageRows = rows?.slice(start, end) ?? [];
+  const sortedRows = useMemo(() => {
+    if (!sort || !rows) {
+      return rows ?? [];
+    }
+    const column = config.columns[sort.key];
+    const factor = sort.direction === "ascending" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const aValue = a[sort.key as keyof T];
+      const bValue = b[sort.key as keyof T];
+      const aEmpty = isSortEmpty(aValue);
+      const bEmpty = isSortEmpty(bValue);
+      if (aEmpty || bEmpty) {
+        if (aEmpty && bEmpty) {
+          return 0;
+        }
+        return aEmpty ? 1 : -1;
+      }
+      return compareRawValues(aValue, bValue, column.type) * factor;
+    });
+  }, [rows, sort, config.columns]);
+  const pageRows = sortedRows.slice(start, end);
   const from = total === 0 ? 0 : start + 1;
   const to = total === 0 ? 0 : end;
 
@@ -207,15 +271,40 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
         ) : null}
         <thead>
           <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">
-            {visibleColumns.map(([key, column]) => (
-              <th
-                key={key}
-                scope="col"
-                className="px-3 py-2 font-medium text-neutral-900 dark:text-neutral-100"
-              >
-                {column.label ?? key}
-              </th>
-            ))}
+            {visibleColumns.map(([key, column]) => {
+              const sorted = sort?.key === key;
+              return (
+                <th
+                  key={key}
+                  scope="col"
+                  aria-sort={
+                    sorted
+                      ? sort.direction
+                      : column.sortable
+                        ? "none"
+                        : undefined
+                  }
+                  className="px-3 py-2 font-medium text-neutral-900 dark:text-neutral-100"
+                >
+                  {column.sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => setSort((current) => cycleSort(current, key))}
+                      className="flex cursor-pointer items-center gap-1"
+                    >
+                      {column.label ?? key}
+                      {sorted ? (
+                        <span aria-hidden="true">
+                          {sort.direction === "ascending" ? "\u2191" : "\u2193"}
+                        </span>
+                      ) : null}
+                    </button>
+                  ) : (
+                    (column.label ?? key)
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
