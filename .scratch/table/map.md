@@ -23,6 +23,8 @@ A working, tested, reusable `Table` component in `components/Table.tsx` — dual
 
 - [04 — Sort interaction & local-mode semantics](.scratch/table/issues/04-sort-interaction.md) — Three-state header cycle asc → desc → none (aria-sort follows); a different column starts ascending and clears the old header. `sortable: string` is the server-mode request key only — local sort always reads `row[columnKey]`, gated on `sortable` being set. Local comparator per type on raw values (`transform` never affects sort): number numeric, date/datetime chronological, text/array/image case-insensitive string (array as its joined form); empties sort last in both directions; stable.
 
+- [05 — Server-mode fetch lifecycle](.scratch/table/issues/05-server-fetch-lifecycle.md) — `dataSource` fires on mount, immediately on page/sort change, debounced ~300ms on filter change (page resets to 1 on filter/sort change). Loading keeps prior rows dimmed + spinner in the `role="status"` region; error shows message + Retry re-firing the last request; empty differentiates "No data yet" vs "No results match your filters" + Clear filters. Stale responses dropped via monotonic request id + effect-cleanup `ignore` flag (no AbortController). `TableConfig` gains optional `pagination: { page?, size? }` (defaults 1/10); every server request carries `pagination`; the component mirrors response `pagination` without re-deriving/clamping — the server owns page math.
+
 ## Not yet specified
 
 - The exact demo-page composition (which columns/data it exercises) is not ticketable until the rendering, filtering, sorting, and lifecycle tickets resolve. One patch of fog that should graduate into ticket 07's shape or into the build.
