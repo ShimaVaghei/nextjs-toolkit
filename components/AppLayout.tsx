@@ -118,6 +118,22 @@ type ExpandedPanels = {
   level3Visible: boolean;
 };
 
+function panelGridClasses(expanded: boolean, hiddenOnMobile = false): string {
+  return [
+    "grid",
+    "overflow-hidden",
+    "transition-[grid-template-rows,grid-template-columns]",
+    "duration-300",
+    "ease-in-out",
+    "w-full",
+    "md:w-auto",
+    ...(hiddenOnMobile ? ["hidden md:grid"] : []),
+    expanded
+      ? "grid-rows-[1fr] md:grid-cols-[1fr]"
+      : "grid-rows-[0fr] md:grid-cols-[0fr]",
+  ].join(" ");
+}
+
 function NavigationPanels({
   routes,
   activeRoute,
@@ -230,17 +246,12 @@ function NavigationPanels({
       </nav>
 
       <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
-          expandedChild && expandedChild.children
-            ? "hidden md:block"
-            : ""
-        } ${
-          expandedRoute && expandedRoute.children
-            ? "grid-rows-[1fr]"
-            : "grid-rows-[0fr]"
-        }`}
+        className={panelGridClasses(
+          Boolean(expandedRoute && expandedRoute.children),
+          Boolean(expandedChild && expandedChild.children),
+        )}
       >
-        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 h-full">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 h-full md:w-max">
           {expandedRoute && expandedRoute.children && (
             <RoutePanel
               routes={expandedRoute.children}
@@ -256,13 +267,11 @@ function NavigationPanels({
       </div>
 
       <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
-          expandedChild && expandedChild.children
-            ? "grid-rows-[1fr]"
-            : "grid-rows-[0fr]"
-        }`}
+        className={panelGridClasses(
+          Boolean(expandedChild && expandedChild.children),
+        )}
       >
-        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 md:w-max">
           {expandedChild && expandedChild.children && (
             <RoutePanel
               routes={expandedChild.children}

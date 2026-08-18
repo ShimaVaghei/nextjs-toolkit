@@ -384,7 +384,7 @@ describe("AppLayout mobile responsive", () => {
     fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
     expect(within(overlay).getByText("Debug")).toBeInTheDocument();
     const level2Grid = within(overlay).getByText("General").closest(".grid");
-    expect(level2Grid).toHaveClass("hidden", "md:block");
+    expect(level2Grid).toHaveClass("hidden", "md:grid");
   });
 
   it("Level 3 panel takes full width on mobile", () => {
@@ -670,5 +670,113 @@ describe("AppLayout mobile overlay", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     openOverlay();
     expect(getOverlay()).toHaveClass("overflow-y-auto");
+  });
+});
+
+describe("AppLayout smooth desktop expansion", () => {
+  const routesWithLevel3: Route[] = [
+    { path: "dashboard", label: "Dashboard" },
+    {
+      path: "settings",
+      label: "Settings",
+      children: [
+        { path: "general", label: "General" },
+        {
+          path: "advanced",
+          label: "Advanced",
+          children: [{ path: "debug", label: "Debug" }],
+        },
+      ],
+    },
+    { path: "users", label: "Users" },
+  ];
+
+  const getLevel2Grid = () =>
+    screen.getByText("General").closest(".grid") as HTMLElement;
+
+  const getLevel3Grid = () =>
+    screen.getByText("Debug").closest(".grid") as HTMLElement;
+
+  it("expanding a Level 1 section animates the sidebar column width on md+", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    const level2Grid = getLevel2Grid();
+    expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
+    expect(level2Grid).toHaveClass(
+      "transition-[grid-template-rows,grid-template-columns]",
+    );
+    expect(level2Grid).toHaveClass("duration-300", "ease-in-out");
+  });
+
+  it("collapsing the same section shrinks the column back on md+", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
+    fireEvent.click(settingsTreeItem);
+    const level2Grid = getLevel2Grid();
+    expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
+    fireEvent.click(settingsTreeItem);
+    expect(level2Grid).toHaveClass("md:grid-cols-[0fr]");
+  });
+
+  it("collapsing via a Leaf click shrinks the column back on md+", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    const level2Grid = getLevel2Grid();
+    fireEvent.click(screen.getByRole("treeitem", { name: "General" }));
+    expect(level2Grid).toHaveClass("md:grid-cols-[0fr]");
+  });
+
+  it("panel body keeps a fixed natural width on md+ so labels do not reflow", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    const panelBody = screen.getByText("General").closest(".border-l") as HTMLElement;
+    expect(panelBody).toHaveClass("md:w-max");
+    expect(panelBody).toHaveClass("overflow-hidden");
+  });
+
+  it("expanding a Level 2 section animates the Level 3 column width on md+", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
+    const level3Grid = getLevel3Grid();
+    expect(level3Grid).toHaveClass("md:grid-cols-[1fr]");
+    expect(level3Grid).toHaveClass(
+      "transition-[grid-template-rows,grid-template-columns]",
+    );
+  });
+
+  it("collapsing a Level 2 section shrinks the Level 3 column back on md+", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
+    fireEvent.click(advancedTreeItem);
+    const level3Grid = getLevel3Grid();
+    expect(level3Grid).toHaveClass("md:grid-cols-[1fr]");
+    fireEvent.click(advancedTreeItem);
+    expect(level3Grid).toHaveClass("md:grid-cols-[0fr]");
+  });
+
+  it("collapsing Level 1 while Level 3 is open keeps the Level 2 panel a grid so it animates", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
+    const level2Grid = getLevel2Grid();
+    expect(level2Grid).toHaveClass("md:grid");
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    expect(level2Grid).toHaveClass("md:grid-cols-[0fr]");
+    expect(level2Grid).toHaveClass("grid-rows-[0fr]");
+  });
+
+  it("mobile panels stay full-width stacked when a Level 1 section is expanded", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    const level2Grid = within(overlay)
+      .getByText("General")
+      .closest(".grid") as HTMLElement;
+    expect(level2Grid).toHaveClass("w-full", "md:w-auto");
+    expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
+    expect(level2Grid).toHaveClass("grid-rows-[1fr]");
   });
 });
