@@ -27,3 +27,15 @@ _Avoid_: expandable, toggleable
 **AppLayout**:
 A component that composes the navigation sidebar (rendered from Routes, seeded in `lib/routes.ts`) with the page content passed as `children`. The sidebar is pinned to the left and pushes the content to the right as it expands. Mounted in the root layout, so every page in the app lives inside it.
 _Avoid_: SidebarLayout, AppShell, wrapper, frame
+
+**Collapse**:
+The state of the sidebar where only Level 1 is visible — no expanded panels. Clicking a leaf, clicking outside the sidebar on desktop, or closing the mobile overlay all return the sidebar to this state.
+_Avoid_: reset, minimize, close
+
+**Mobile overlay**:
+The fullscreen navigation shown on mobile when the hamburger is opened. It shows one Level at a time (drill-down) with a Back icon in its header.
+_Avoid_: drawer, modal, mobile menu
+
+**Back icon**:
+The mobile overlay header control that returns the user to the previous Level. It is hidden at Level 1, where only the close button is shown.
+_Avoid_: back button, back chevron, previous
