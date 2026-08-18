@@ -21,6 +21,8 @@ A working, tested, reusable `Table` component in `components/Table.tsx` — dual
 
 - [03 — Filtering: controls + matching semantics](.scratch/table/issues/03-filtering-controls.md) — Filters live in a popover off a filter-icon button beside each header (trigger gets `aria-expanded`/`aria-controls`, Escape closes, focus returns). Widgets: text/array/date/datetime → text input; number → number input; image → not filterable (returns zero results if `filterable` set). Matching: text/array contains-case-insensitive; date/datetime/number exact. `filterable`/`sortable` default `false`. `filters` is `Record<string, string | number | (string | number)[]>`; UI emits scalars only; a cleared filter is omitted from the record.
 
+- [04 — Sort interaction & local-mode semantics](.scratch/table/issues/04-sort-interaction.md) — Three-state header cycle asc → desc → none (aria-sort follows); a different column starts ascending and clears the old header. `sortable: string` is the server-mode request key only — local sort always reads `row[columnKey]`, gated on `sortable` being set. Local comparator per type on raw values (`transform` never affects sort): number numeric, date/datetime chronological, text/array/image case-insensitive string (array as its joined form); empties sort last in both directions; stable.
+
 ## Not yet specified
 
 - The exact demo-page composition (which columns/data it exercises) is not ticketable until the rendering, filtering, sorting, and lifecycle tickets resolve. One patch of fog that should graduate into ticket 07's shape or into the build.
