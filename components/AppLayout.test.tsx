@@ -732,6 +732,84 @@ describe("AppLayout mobile overlay", () => {
   });
 });
 
+describe("AppLayout mobile overlay Back icon", () => {
+  const routesWithLevel3: Route[] = [
+    { path: "dashboard", label: "Dashboard" },
+    {
+      path: "settings",
+      label: "Settings",
+      children: [
+        { path: "general", label: "General" },
+        {
+          path: "advanced",
+          label: "Advanced",
+          children: [{ path: "debug", label: "Debug" }],
+        },
+      ],
+    },
+    { path: "users", label: "Users" },
+  ];
+
+  it("hides the Back icon at Level 1; the close button still closes the overlay", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    expect(
+      within(overlay).queryByRole("button", { name: "Back" }),
+    ).not.toBeInTheDocument();
+    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
+    fireEvent.click(
+      within(overlay).getByRole("button", { name: "Close navigation" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows the Back icon instead of the Navigation title below Level 1", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    expect(within(overlay).getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(within(overlay).queryByText("Navigation")).not.toBeInTheDocument();
+  });
+
+  it("clicking Back while at Level 3 returns to Level 2", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
+    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
+    fireEvent.click(within(overlay).getByRole("button", { name: "Back" }));
+    expect(within(overlay).queryByText("Debug")).not.toBeInTheDocument();
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    expect(within(overlay).getByText("Advanced")).toBeInTheDocument();
+  });
+
+  it("clicking Back while at Level 2 returns to Level 1", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    fireEvent.click(within(overlay).getByRole("button", { name: "Back" }));
+    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Settings" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
+  });
+
+  it("keeps the accessible name Navigation when drilled below Level 1", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
+    expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
+  });
+});
+
 describe("AppLayout smooth desktop expansion", () => {
   const routesWithLevel3: Route[] = [
     { path: "dashboard", label: "Dashboard" },

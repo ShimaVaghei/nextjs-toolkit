@@ -402,6 +402,16 @@ export function AppLayout({
     handleCloseOverlay();
   };
 
+  const handleBack = useCallback(() => {
+    setExpandedPanels((prev) => {
+      if (prev.level1 === null) return prev;
+      if (prev.level2 !== null && prev.level3Visible) {
+        return { ...prev, level3Visible: false };
+      }
+      return COLLAPSED_PANELS;
+    });
+  }, []);
+
   const handleContentClick = () => {
     if (isOverlayOpen) return;
     if (!isDesktopViewport()) return;
@@ -464,9 +474,32 @@ export function AppLayout({
           className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950"
         >
           <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-700 dark:bg-sidebar">
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              Navigation
-            </span>
+            {expandedPanels.level1 === null ? (
+              <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                Navigation
+              </span>
+            ) : (
+              <button
+                type="button"
+                aria-label="Back"
+                onClick={handleBack}
+                className="rounded-md p-2 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               aria-label="Close navigation"
