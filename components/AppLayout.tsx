@@ -240,7 +240,7 @@ function NavigationPanels({
             : "grid-rows-[0fr]"
         }`}
       >
-        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700 h-full">
           {expandedRoute && expandedRoute.children && (
             <RoutePanel
               routes={expandedRoute.children}
@@ -388,8 +388,8 @@ export function AppLayout({
   }
 
   return (
-    <div className="flex min-h-full flex-col md:flex-row">
-      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-700 dark:bg-neutral-950 md:hidden">
+    <div className="flex min-h-screen flex-col md:flex-row">
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-700 dark:bg-sidebar md:hidden">
         <button
           type="button"
           aria-label="Open navigation"
@@ -414,7 +414,7 @@ export function AppLayout({
         </button>
       </div>
 
-      <div className="hidden md:flex shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden md:sticky md:top-0 md:max-h-screen md:self-start">
+      <div className="hidden md:flex shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden md:sticky md:top-0 md:max-h-screen md:self-start bg-sidebar min-h-screen">
         <NavigationPanels
           routes={routes}
           activeRoute={activeRoute}
@@ -425,7 +425,7 @@ export function AppLayout({
         />
       </div>
 
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 p-4">{children}</div>
 
       {isOverlayOpen && (
         <div
@@ -435,7 +435,7 @@ export function AppLayout({
           aria-label="Navigation"
           className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950"
         >
-          <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-700">
+          <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-700 dark:bg-sidebar">
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               Navigation
             </span>
@@ -460,7 +460,7 @@ export function AppLayout({
               </svg>
             </button>
           </div>
-          <div className="flex flex-1 overflow-x-hidden">
+          <div className="flex flex-1 overflow-x-hidden bg-sidebar">
             <NavigationPanels
               routes={routes}
               activeRoute={activeRoute}
