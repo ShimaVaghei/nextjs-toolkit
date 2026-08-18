@@ -1,6 +1,6 @@
 # Next.js Toolkit — Sidebar Navigation
 
-The app's fixed left sidebar navigation and content area for hierarchical route structures.
+The app's fixed left sidebar navigation and content area for hierarchical route structures, plus a reusable client-side table component for rendering tabular data.
 
 ## Language
 
@@ -39,3 +39,37 @@ _Avoid_: drawer, modal, mobile menu
 **Back icon**:
 The mobile overlay header control that returns the user to the previous Level. It is hidden at Level 1, where only the close button is shown.
 _Avoid_: back button, back chevron, previous
+
+## Table terms
+
+**Table**:
+A reusable client-side component that renders tabular data with pagination, sorting, and filtering, driven by a `TableConfig`. It runs in one of two modes set by `serverSide`.
+_Avoid_: DataTable, DataGrid, table view
+
+**TableConfig**:
+The configuration object passed to `Table`. It declares the `dataSource`, the `columns`, and the `serverSide` mode.
+_Avoid_: DataTableConfig, TableProps
+
+**TableColumn**:
+One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; `sortable`/`filterable` may name a different request key.
+_Avoid_: ColumnSpec, field config
+
+**TableColumnType**:
+The set of column renderers: `text`, `date`, `datetime`, `array`, `image`, `number`.
+_Avoid_: cell kind, column variant
+
+**TableDataRequest**:
+The request object passed to `dataSource`: optional `pagination`, `sort`, and `filters`.
+_Avoid_: DataGetRequest, query params
+
+**TableDataResponse**:
+The object `dataSource` must resolve: the row array plus a `pagination` summary (total, size, page, totalPages).
+_Avoid_: DataGetResponse, page result
+
+**dataSource**:
+The function in `TableConfig` that resolves a `TableDataRequest` into a `TableDataResponse`. In server mode it is called for each state change; in local mode it is called once for the full dataset.
+_Avoid_: fetcher, loadData, endpoint
+
+**serverSide**:
+The `TableConfig` flag choosing the mode. `true` sends pagination/sort/filter options to `dataSource` and trusts its response; `false` fetches all rows once and paginates/sorts/filters in the component.
+_Avoid_: remote, async, mode

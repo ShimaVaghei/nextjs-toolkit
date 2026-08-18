@@ -1,0 +1,27 @@
+Label: wayfinder:map
+
+## Destination
+
+A working, tested, reusable `Table` component in `components/Table.tsx` — dual-mode (server/local) pagination, sorting, and filtering driven by `TableConfig<T>` — plus a demo page in `app/` proving both modes.
+
+## Notes
+
+- Domain: React 19 / Next.js 16 App Router; the component is a client component (`"use client"`). Styling follows `AppLayout` (Tailwind v4, neutral palette + dark mode). Tests are vitest + React Testing Library + jest-dom, matching `AppLayout.test.tsx`.
+- Vocabulary (record in `CONTEXT.md`): `Table`, `TableConfig<T>`, `TableColumn<T>`, `TableColumnType` ('text' | 'date' | 'datetime' | 'array' | 'image' | 'number'), `TableDataRequest`, `TableDataResponse<T>`, `dataSource`, `serverSide`. The component and config keep the file `Table.tsx` (one component per file, named after it).
+- Decisions locked in charting: local mode (`serverSide: false`) calls `dataSource` once for the full set, then filters/sorts/paginates client-side; column keys are unconstrained strings (`Record<string, TableColumn<T>>`); the request/response types are `TableDataRequest` / `TableDataResponse<T>`.
+- Sessions: claim a ticket (set `Status: claimed`) before work; never resolve more than one non-research ticket per session; consult `docs/agents/issue-tracker.md` for the file conventions.
+
+## Decisions so far
+
+<!-- one line per closed ticket: gist + link -->
+
+## Not yet specified
+
+- The exact demo-page composition (which columns/data it exercises) is not ticketable until the rendering, filtering, sorting, and lifecycle tickets resolve. One patch of fog that should graduate into ticket 07's shape or into the build.
+
+## Out of scope
+
+- Virtualization — not requested; the frontier stops before it.
+- Multi-column sort — the `TableDataRequest.sort` shape is single-key.
+- Sticky/resizable columns — not requested.
+- Row selection, cell editing/CRUD, export, URL-state sync — surfaced during charting and not confirmed in scope.
