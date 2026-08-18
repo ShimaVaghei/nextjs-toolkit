@@ -17,6 +17,8 @@ A working, tested, reusable `Table` component in `components/Table.tsx` — dual
 
 - [01 — ARIA & a11y patterns for sortable/paginated tables](.scratch/table/issues/01-aria-a11y-patterns.md) — Use native table markup + `<caption>`; sort = `<button>` in `<th scope>` with `aria-sort` on the one sorted header; filters labelled `Filter by <Column>`, results in a `role="status"` region; pager = `<nav aria-label="Pagination">` with `aria-current="page"` and native `disabled`. Full detail + cited sources in `.scratch/table/research/aria-a11y-patterns.md`.
 
+- [02 — Cell rendering per column type](.scratch/table/issues/02-cell-rendering-per-type.md) — Plain & native take (with B's image + empty): `text` plain; `date`/`datetime` via `Intl` in `<time>`; `array` comma-joined; `image` `h-10 w-10 rounded-lg` with name-based `alt`; `number` plain string; empties render `—` in `text-neutral-400`; `transform` before type rendering, `class`/`dynamicClass` merged on the cell, `hidden` drops the column. Prototype captured on branch `prototype/table-cell-rendering`.
+
 ## Not yet specified
 
 - The exact demo-page composition (which columns/data it exercises) is not ticketable until the rendering, filtering, sorting, and lifecycle tickets resolve. One patch of fog that should graduate into ticket 07's shape or into the build.
