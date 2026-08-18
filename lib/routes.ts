@@ -1,6 +1,7 @@
 import type { Route } from "@/components/AppLayout";
 
 export const appRoutes: Route[] = [
+  { path: "", label: "Home" },
   { path: "dashboard", label: "Dashboard" },
   {
     path: "settings",
