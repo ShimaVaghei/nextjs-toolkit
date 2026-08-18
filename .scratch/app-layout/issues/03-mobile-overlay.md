@@ -4,12 +4,12 @@
 
 **Blocked by:** 02 — Desktop: sticky left column that pushes content
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Mobile-only top bar with hamburger button; hidden on desktop
-- [ ] Hamburger opens a fullscreen overlay with the drill-down navigation (behavior matches existing)
-- [ ] Overlay closes via close button
-- [ ] Overlay closes via Esc key
-- [ ] Overlay closes when navigating to a Leaf node; panels collapse to Level 1
-- [ ] Background scroll locked while overlay open; overlay scrolls internally
-- [ ] Mobile tests reworked to open the overlay first; new tests for close paths and scroll lock
+- [x] Mobile-only top bar with hamburger button; hidden on desktop
+- [x] Hamburger opens a fullscreen overlay with the drill-down navigation (behavior matches existing)
+- [x] Overlay closes via close button
+- [x] Overlay closes via Esc key
+- [x] Overlay closes when navigating to a Leaf node; panels collapse to Level 1
+- [x] Background scroll locked while overlay open; overlay scrolls internally
+- [x] Mobile tests reworked to open the overlay first; new tests for close paths and scroll lock

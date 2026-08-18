@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 export type Route = {
@@ -112,6 +112,172 @@ function RoutePanel({
   );
 }
 
+type ExpandedPanels = {
+  level1: number | null;
+  level2: number | null;
+  level3Visible: boolean;
+};
+
+function NavigationPanels({
+  routes,
+  activeRoute,
+  expandedPanels,
+  onToggle,
+  onChildToggle,
+  onLeafNavigate,
+}: {
+  routes: Route[];
+  activeRoute: ActiveRouteResult;
+  expandedPanels: ExpandedPanels;
+  onToggle: (index: number) => void;
+  onChildToggle: (childIndex: number) => void;
+  onLeafNavigate: (fullPath: string) => void;
+}) {
+  const expandedRoute =
+    expandedPanels.level1 !== null ? routes[expandedPanels.level1] : null;
+  const expandedChild =
+    expandedPanels.level2 !== null &&
+    expandedPanels.level3Visible &&
+    expandedRoute?.children
+      ? expandedRoute.children[expandedPanels.level2]
+      : null;
+
+  return (
+    <>
+      <nav
+        className={`shrink-0 w-full md:w-auto ${
+          expandedRoute && expandedRoute.children
+            ? "hidden md:block"
+            : "block md:block"
+        }`}
+      >
+        <ul className="space-y-1 p-4" role="tree">
+          {routes.map((route, index) => {
+            const hasChildren = route.children && route.children.length > 0;
+            const isLeaf = activeRoute.leaf === route.path;
+            const isAncestor = activeRoute.ancestors.has(route.path);
+            const isActive = isLeaf || isAncestor;
+
+            if (hasChildren) {
+              return (
+                <li key={route.path}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(index)}
+                    aria-expanded={expandedPanels.level1 === index}
+                    aria-level={1}
+                    aria-setsize={routes.length}
+                    aria-posinset={index + 1}
+                    role="treeitem"
+                    tabIndex={0}
+                    className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                      isAncestor
+                        ? "opacity-60 text-neutral-900 dark:text-neutral-100"
+                        : isActive
+                          ? "text-neutral-900 dark:text-neutral-100"
+                          : "text-neutral-600 dark:text-neutral-400"
+                    }`}
+                  >
+                    <span>{route.label}</span>
+                    <svg
+                      className={`h-4 w-4 text-neutral-400 transition-transform ${
+                        expandedPanels.level1 === index ? "rotate-90" : ""
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                </li>
+              );
+            }
+
+            return (
+              <li key={route.path}>
+                <a
+                  href={`/${route.path}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onLeafNavigate(`/${route.path}`);
+                  }}
+                  aria-expanded={false}
+                  aria-level={1}
+                  aria-setsize={routes.length}
+                  aria-posinset={index + 1}
+                  role="treeitem"
+                  tabIndex={0}
+                  className={`block cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                    isLeaf
+                      ? "font-bold text-neutral-900 dark:text-neutral-100"
+                      : isActive
+                        ? "text-neutral-900 dark:text-neutral-100"
+                        : "text-neutral-600 dark:text-neutral-400"
+                  }`}
+                >
+                  {route.label}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
+          expandedChild && expandedChild.children
+            ? "hidden md:block"
+            : ""
+        } ${
+          expandedRoute && expandedRoute.children
+            ? "grid-rows-[1fr]"
+            : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
+          {expandedRoute && expandedRoute.children && (
+            <RoutePanel
+              routes={expandedRoute.children}
+              basePath={`/${expandedRoute.path}`}
+              activeRoute={activeRoute}
+              onChildToggle={onChildToggle}
+              expandedChildIndex={expandedPanels.level2}
+              onLeafNavigate={onLeafNavigate}
+              level={2}
+            />
+          )}
+        </div>
+      </div>
+
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
+          expandedChild && expandedChild.children
+            ? "grid-rows-[1fr]"
+            : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
+          {expandedChild && expandedChild.children && (
+            <RoutePanel
+              routes={expandedChild.children}
+              basePath={`/${expandedRoute!.path}/${expandedChild.path}`}
+              activeRoute={activeRoute}
+              onLeafNavigate={onLeafNavigate}
+              level={3}
+            />
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /**
  * Computes the active leaf node and its ancestor paths based on the current pathname.
  *
@@ -157,14 +323,35 @@ export function AppLayout({
   routes: Route[];
   children: ReactNode;
 }) {
-  const [expandedPanels, setExpandedPanels] = useState<{
-    level1: number | null;
-    level2: number | null;
-    level3Visible: boolean;
-  }>({ level1: null, level2: null, level3Visible: false });
+  const [expandedPanels, setExpandedPanels] = useState<ExpandedPanels>({
+    level1: null,
+    level2: null,
+    level3Visible: false,
+  });
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const activeRoute = computeActiveRoute(pathname, routes);
+
+  useEffect(() => {
+    if (!isOverlayOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOverlayOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isOverlayOpen]);
+
+  useEffect(() => {
+    if (!isOverlayOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOverlayOpen]);
 
   const handleToggle = (index: number) => {
     setExpandedPanels((prev) => ({
@@ -188,6 +375,7 @@ export function AppLayout({
 
   const handleNavigate = () => {
     setExpandedPanels({ level1: null, level2: null, level3Visible: false });
+    setIsOverlayOpen(false);
   };
 
   const handleLeafNavigate = (fullPath: string) => {
@@ -199,144 +387,91 @@ export function AppLayout({
     return <div>{children}</div>;
   }
 
-  const expandedRoute = expandedPanels.level1 !== null ? routes[expandedPanels.level1] : null;
-  const expandedChild =
-    expandedPanels.level2 !== null &&
-    expandedPanels.level3Visible &&
-    expandedRoute?.children
-      ? expandedRoute.children[expandedPanels.level2]
-      : null;
-
   return (
-    <div className="flex min-h-full">
-      <div className="flex shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden md:sticky md:top-0 md:max-h-screen md:self-start">
-        <nav className={`shrink-0 w-full md:w-auto ${expandedRoute && expandedRoute.children ? "hidden md:block" : "block md:block"}`}>
-          <ul className="space-y-1 p-4" role="tree">
-            {routes.map((route, index) => {
-              const hasChildren = route.children && route.children.length > 0;
-              const isLeaf = activeRoute.leaf === route.path;
-              const isAncestor = activeRoute.ancestors.has(route.path);
-              const isActive = isLeaf || isAncestor;
-
-              if (hasChildren) {
-                return (
-                  <li key={route.path}>
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(index)}
-                      aria-expanded={expandedPanels.level1 === index}
-                      aria-level={1}
-                      aria-setsize={routes.length}
-                      aria-posinset={index + 1}
-                      role="treeitem"
-                      tabIndex={0}
-                      className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                        isAncestor
-                          ? "opacity-60 text-neutral-900 dark:text-neutral-100"
-                          : isActive
-                            ? "text-neutral-900 dark:text-neutral-100"
-                            : "text-neutral-600 dark:text-neutral-400"
-                      }`}
-                    >
-                      <span>{route.label}</span>
-                      <svg
-                        className={`h-4 w-4 text-neutral-400 transition-transform ${
-                          expandedPanels.level1 === index ? "rotate-90" : ""
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </button>
-                  </li>
-                );
-              }
-
-              return (
-                <li key={route.path}>
-                  <a
-                    href={`/${route.path}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleLeafNavigate(`/${route.path}`);
-                    }}
-                    aria-expanded={false}
-                    aria-level={1}
-                    aria-setsize={routes.length}
-                    aria-posinset={index + 1}
-                    role="treeitem"
-                    tabIndex={0}
-                    className={`block cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                      isLeaf
-                        ? "font-bold text-neutral-900 dark:text-neutral-100"
-                        : isActive
-                          ? "text-neutral-900 dark:text-neutral-100"
-                          : "text-neutral-600 dark:text-neutral-400"
-                    }`}
-                  >
-                    {route.label}
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div
-          className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
-            expandedChild && expandedChild.children
-              ? "hidden md:block"
-              : ""
-          } ${
-            expandedRoute && expandedRoute.children
-              ? "grid-rows-[1fr]"
-              : "grid-rows-[0fr]"
-          }`}
+    <div className="flex min-h-full flex-col md:flex-row">
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-700 dark:bg-neutral-950 md:hidden">
+        <button
+          type="button"
+          aria-label="Open navigation"
+          aria-expanded={isOverlayOpen}
+          aria-controls="mobile-navigation"
+          onClick={() => setIsOverlayOpen(true)}
+          className="rounded-md p-2 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
-          <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
-            {expandedRoute && expandedRoute.children && (
-              <RoutePanel
-                routes={expandedRoute.children}
-                basePath={`/${expandedRoute.path}`}
-                activeRoute={activeRoute}
-                onChildToggle={handleChildToggle}
-                expandedChildIndex={expandedPanels.level2}
-                onLeafNavigate={handleLeafNavigate}
-                level={2}
-              />
-            )}
-          </div>
-        </div>
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
+      </div>
 
-        <div
-          className={`grid transition-[grid-template-rows] duration-300 ease-in-out w-full md:w-auto ${
-            expandedChild && expandedChild.children
-              ? "grid-rows-[1fr]"
-              : "grid-rows-[0fr]"
-          }`}
-        >
-          <div className="shrink-0 overflow-hidden border-l border-neutral-200 dark:border-neutral-700">
-            {expandedChild && expandedChild.children && (
-              <RoutePanel
-                routes={expandedChild.children}
-                basePath={`/${expandedRoute!.path}/${expandedChild.path}`}
-                activeRoute={activeRoute}
-                onLeafNavigate={handleLeafNavigate}
-                level={3}
-              />
-            )}
-          </div>
-        </div>
+      <div className="hidden md:flex shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden md:sticky md:top-0 md:max-h-screen md:self-start">
+        <NavigationPanels
+          routes={routes}
+          activeRoute={activeRoute}
+          expandedPanels={expandedPanels}
+          onToggle={handleToggle}
+          onChildToggle={handleChildToggle}
+          onLeafNavigate={handleLeafNavigate}
+        />
       </div>
 
       <div className="flex-1">{children}</div>
+
+      {isOverlayOpen && (
+        <div
+          id="mobile-navigation"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+          className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950"
+        >
+          <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-700">
+            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              Navigation
+            </span>
+            <button
+              type="button"
+              aria-label="Close navigation"
+              onClick={() => setIsOverlayOpen(false)}
+              className="rounded-md p-2 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+          <div className="flex flex-1 overflow-x-hidden">
+            <NavigationPanels
+              routes={routes}
+              activeRoute={activeRoute}
+              expandedPanels={expandedPanels}
+              onToggle={handleToggle}
+              onChildToggle={handleChildToggle}
+              onLeafNavigate={handleLeafNavigate}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
