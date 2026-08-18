@@ -1,6 +1,6 @@
 # Next.js Toolkit — Sidebar Navigation
 
-Reusable sidebar navigation component for hierarchical route structures.
+The app's fixed left sidebar navigation and content area for hierarchical route structures.
 
 ## Language
 
@@ -23,3 +23,7 @@ _Avoid_: depth, tier
 **Collapsible section**:
 A non-leaf Route whose children are hidden until clicked. Toggles open/closed with animation.
 _Avoid_: expandable, toggleable
+
+**AppLayout**:
+A component that composes the navigation sidebar (rendered from Routes, seeded in `lib/routes.ts`) with the page content passed as `children`. The sidebar is pinned to the left and pushes the content to the right as it expands. Mounted in the root layout, so every page in the app lives inside it.
+_Avoid_: SidebarLayout, AppShell, wrapper, frame
