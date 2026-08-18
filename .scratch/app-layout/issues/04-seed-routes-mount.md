@@ -4,9 +4,9 @@
 
 **Blocked by:** 03 — Mobile: top bar, hamburger, fullscreen overlay
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Seeded route config module exists with placeholder Routes
-- [ ] Root layout renders `AppLayout` with the seeded Routes, wrapping all page content
-- [ ] Running the app shows the navigation shell on the homepage; desktop push and mobile overlay both work
-- [ ] Empty-routes handling retained (layout renders gracefully with no Routes)
+- [x] Seeded route config module exists with placeholder Routes
+- [x] Root layout renders `AppLayout` with the seeded Routes, wrapping all page content
+- [x] Running the app shows the navigation shell on the homepage; desktop push and mobile overlay both work
+- [x] Empty-routes handling retained (layout renders gracefully with no Routes)

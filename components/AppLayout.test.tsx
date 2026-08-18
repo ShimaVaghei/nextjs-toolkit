@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
+import { appRoutes } from "../lib/routes";
 import type { Route } from "./AppLayout";
 
 let mockPathname = "/";
@@ -43,6 +44,16 @@ describe("AppLayout", () => {
   it("renders children when routes is empty", () => {
     render(<AppLayout routes={[]}>{pageContent}</AppLayout>);
     expect(screen.getByText("Page content")).toBeInTheDocument();
+  });
+
+  it("renders the seeded app routes and drills into a nested panel", () => {
+    render(<AppLayout routes={appRoutes}>{pageContent}</AppLayout>);
+    expect(screen.getByRole("treeitem", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Users" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
+    expect(screen.getByRole("treeitem", { name: "General" })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Advanced" })).toBeInTheDocument();
   });
 
   it("renders Level 1 routes as a vertical list", () => {

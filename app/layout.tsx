@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Saira } from "next/font/google";
+import { AppLayout } from "@/components/AppLayout";
+import { appRoutes } from "@/lib/routes";
 import "./globals.css";
 
 const saira = Saira({
@@ -18,7 +20,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${saira.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AppLayout routes={appRoutes}>{children}</AppLayout>
+      </body>
     </html>
   );
 }
