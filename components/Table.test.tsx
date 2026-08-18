@@ -179,3 +179,215 @@ describe("Table local mode", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Showing 0–0 of 0");
   });
 });
+
+describe("Table column type renderers", () => {
+  type Item = {
+    id: number;
+    name: string;
+    joined: Date | string | null;
+    updated: Date | null;
+    tags: string[] | null;
+    avatar: string | null;
+    score: number | null;
+  };
+
+  const itemRows: Item[] = [
+    {
+      id: 1,
+      name: "Ada",
+      joined: new Date(2023, 5, 12),
+      updated: new Date(2023, 10, 2, 14, 20),
+      tags: ["design", "admin"],
+      avatar: "/avatars/ada.png",
+      score: 1234.5,
+    },
+    {
+      id: 2,
+      name: "Grace",
+      joined: null,
+      updated: null,
+      tags: null,
+      avatar: null,
+      score: null,
+    },
+  ];
+
+  const typeColumns: TableConfig<Item>["columns"] = {
+    name: { type: "text", label: "Name" },
+    joined: { type: "date", label: "Joined" },
+    updated: { type: "datetime", label: "Updated" },
+    tags: { type: "array", label: "Tags" },
+    avatar: { type: "image", label: "Avatar" },
+    score: { type: "number", label: "Score" },
+  };
+
+  function typeConfig(
+    rows: Item[],
+    overrides: Partial<TableConfig<Item>> = {},
+  ): TableConfig<Item> {
+    return {
+      dataSource: () => ({ rows }),
+      columns: typeColumns,
+      ...overrides,
+    };
+  }
+
+  it("renders date cells as Intl short dates inside a native <time dateTime>", () => {
+    render(<Table config={typeConfig([itemRows[0]])} />);
+
+    const dateTime = screen
+      .getByText("Jun 12, 2023")
+      .closest("time") as HTMLElement;
+    expect(dateTime).toHaveAttribute("datetime", "2023-06-12");
+  });
+
+  it("renders datetime cells as Intl date + time inside a native <time dateTime>", () => {
+    render(<Table config={typeConfig([itemRows[0]])} />);
+
+    const dateTime = screen
+      .getByText("Nov 2, 2023, 2:20 PM")
+      .closest("time") as HTMLElement;
+    expect(dateTime).toHaveAttribute("datetime", "2023-11-02T14:20");
+  });
+
+  it("accepts date strings and coerces them through the same date formatter", () => {
+    const row = { ...itemRows[0], joined: "2023-06-12T12:00:00" };
+    render(<Table config={typeConfig([row])} />);
+
+    expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw string for an unparseable date value", () => {
+    const row = { ...itemRows[0], joined: "garbage" };
+    render(<Table config={typeConfig([row])} />);
+
+    const text = screen.getByText("garbage");
+    expect(text).toBeInTheDocument();
+    expect(text.closest("time")).toBeNull();
+  });
+
+  it("renders array cells as a comma-joined string", () => {
+    render(<Table config={typeConfig([itemRows[0]])} />);
+
+    expect(screen.getByText("design, admin")).toBeInTheDocument();
+  });
+
+  it("renders image cells as a small rounded img with a name-derived alt", () => {
+    render(<Table config={typeConfig([itemRows[0]])} />);
+
+    const img = screen.getByRole("img", { name: "Ada thumbnail" });
+    expect(img).toHaveAttribute("src", "/avatars/ada.png");
+    expect(img).toHaveClass("h-10", "w-10", "rounded-lg", "shadow-sm");
+  });
+
+  it("renders image cells with an empty alt when the row has no name", () => {
+    const { container } = render(
+      <Table config={typeConfig([{ ...itemRows[0], name: "" }])} />,
+    );
+
+    const img = container.querySelector("img") as HTMLImageElement;
+    expect(img).toHaveAttribute("alt", "");
+    expect(img).toHaveAttribute("src", "/avatars/ada.png");
+  });
+
+  it("renders number cells as plain left-aligned raw strings", () => {
+    render(<Table config={typeConfig([itemRows[0]])} />);
+
+    const score = screen.getByText("1234.5");
+    expect(score).toBeInTheDocument();
+    expect(screen.queryByText("1,234.5")).not.toBeInTheDocument();
+    const td = score.closest("td") as HTMLElement;
+    expect(td).toHaveClass("text-left");
+  });
+
+  it("runs a column transform before type rendering", () => {
+    const columns: TableConfig<Item>["columns"] = {
+      joined: { type: "date", transform: () => new Date(2023, 5, 12) },
+    };
+    render(
+      <Table
+        config={{
+          dataSource: () => ({ rows: [{ ...itemRows[0], joined: "garbage" }] }),
+          columns,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
+    expect(screen.queryByText("garbage")).not.toBeInTheDocument();
+  });
+
+  it("renders the em-dash when a transform returns null", () => {
+    const columns: TableConfig<Item>["columns"] = {
+      name: { type: "text", transform: () => null },
+    };
+    render(
+      <Table
+        config={{
+          dataSource: () => ({ rows: [{ ...itemRows[0], name: "Ada" }] }),
+          columns,
+        }}
+      />,
+    );
+
+    const dash = screen.getByText("—");
+    expect(dash).toHaveClass("text-neutral-400");
+    expect(screen.queryByText("Ada")).not.toBeInTheDocument();
+  });
+
+  it("merges a static class and per-row dynamicClass onto the cell", () => {
+    const columns: TableConfig<Item>["columns"] = {
+      name: {
+        type: "text",
+        class: "font-medium",
+        dynamicClass: (row) =>
+          row.score != null && row.score > 100
+            ? "text-emerald-600"
+            : "text-red-600",
+      },
+    };
+    render(
+      <Table
+        config={{
+          dataSource: () => ({ rows: itemRows }),
+          columns,
+        }}
+      />,
+    );
+
+    const adaCell = screen.getByText("Ada").closest("td") as HTMLElement;
+    expect(adaCell).toHaveClass("font-medium", "text-emerald-600");
+    const graceCell = screen.getByText("Grace").closest("td") as HTMLElement;
+    expect(graceCell).toHaveClass("font-medium", "text-red-600");
+  });
+
+  it("drops hidden columns entirely", () => {
+    const columns: TableConfig<Item>["columns"] = {
+      name: { type: "text" },
+      secret: { type: "text", hidden: true },
+    };
+    const row = { ...itemRows[0], secret: "s3cret" } as Item & {
+      secret: string;
+    };
+    render(
+      <Table
+        config={{
+          dataSource: () => ({ rows: [row] }),
+          columns,
+        }}
+      />,
+    );
+
+    expect(screen.getAllByRole("columnheader")).toHaveLength(1);
+    expect(screen.queryByRole("columnheader", { name: "secret" })).not.toBeInTheDocument();
+    expect(screen.queryByText("s3cret")).not.toBeInTheDocument();
+  });
+
+  it("renders the muted em-dash for null/undefined values of every type", () => {
+    render(<Table config={typeConfig([itemRows[1]])} />);
+
+    const dashes = screen.getAllByText("—");
+    expect(dashes).toHaveLength(5);
+    dashes.forEach((dash) => expect(dash).toHaveClass("text-neutral-400"));
+  });
+});

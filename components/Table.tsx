@@ -70,8 +70,68 @@ const PAGER_BUTTON_CLASS =
   "rounded-md border border-neutral-300 px-2.5 py-1 text-sm dark:border-neutral-700";
 const PAGER_EDGE_BUTTON_CLASS = `${PAGER_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`;
 
+const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
+
+const DATETIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+});
+
+const IMAGE_CLASS = "h-10 w-10 rounded-lg shadow-sm";
+
 function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined;
+}
+
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function buildDateTimeAttribute(date: Date, includeTime: boolean): string {
+  const base = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  if (!includeTime) {
+    return base;
+  }
+  return `${base}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function renderTimeCell(value: unknown, includeTime: boolean): ReactNode {
+  const date = toDate(value);
+  if (!date) {
+    return <>{String(value)}</>;
+  }
+  return (
+    <time dateTime={buildDateTimeAttribute(date, includeTime)}>
+      {(includeTime ? DATETIME_FORMAT : DATE_FORMAT).format(date)}
+    </time>
+  );
+}
+
+function renderImageCell<T>(value: unknown, row: T): ReactNode {
+  const rawName = (row as Record<string, unknown>)["name"];
+  const alt =
+    typeof rawName === "string" && rawName.trim() !== ""
+      ? `${rawName} thumbnail`
+      : "";
+  return <img src={String(value)} alt={alt} className={IMAGE_CLASS} />;
 }
 
 function renderCell<T>(value: unknown, column: TableColumn<T>, row: T): ReactNode {
@@ -79,7 +139,20 @@ function renderCell<T>(value: unknown, column: TableColumn<T>, row: T): ReactNod
   if (isEmptyValue(display)) {
     return EMPTY_MARK;
   }
-  return String(display);
+  switch (column.type) {
+    case "date":
+      return renderTimeCell(display, false);
+    case "datetime":
+      return renderTimeCell(display, true);
+    case "array":
+      return Array.isArray(display) ? display.join(", ") : String(display);
+    case "image":
+      return renderImageCell(display, row);
+    case "number":
+    case "text":
+    default:
+      return String(display);
+  }
 }
 
 export function Table<T>({ config }: { config: TableConfig<T> }) {
@@ -161,14 +234,19 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                 key={index}
                 className="border-b border-neutral-200 dark:border-neutral-800"
               >
-                {visibleColumns.map(([key, column]) => (
-                  <td
-                    key={key}
-                    className="px-3 py-2 align-top text-neutral-700 dark:text-neutral-300"
-                  >
-                    {renderCell(row[key as keyof T], column, row)}
-                  </td>
-                ))}
+                {visibleColumns.map(([key, column]) => {
+                  const cellClass = [column.class, column.dynamicClass?.(row)]
+                    .filter((c): c is string => Boolean(c))
+                    .join(" ");
+                  return (
+                    <td
+                      key={key}
+                      className={`px-3 py-2 align-top text-left text-neutral-700 dark:text-neutral-300${cellClass ? ` ${cellClass}` : ""}`}
+                    >
+                      {renderCell(row[key as keyof T], column, row)}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           )}
