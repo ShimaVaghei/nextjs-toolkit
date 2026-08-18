@@ -1,7 +1,7 @@
 # 07 — Demo page wiring
 
 Type: task
-Status: open
+Status: closed
 Blocked by: 06
 
 ## Question

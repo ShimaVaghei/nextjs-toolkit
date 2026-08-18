@@ -1,7 +1,7 @@
 # 06 — Build `Table` + tests
 
 Type: task
-Status: open
+Status: closed
 Blocked by: 01, 02, 03, 04, 05
 
 ## Question
