@@ -5,9 +5,15 @@ import {
   fireEvent,
   cleanup,
   within,
+  act,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Table, type TableConfig } from "./Table";
+import {
+  Table,
+  type TableConfig,
+  type TableDataRequest,
+  type TableDataResponse,
+} from "./Table";
 
 type Person = {
   id: number;
@@ -894,5 +900,405 @@ describe("Table local filter", () => {
     expect(
       screen.queryByText("No results match your filters"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Table server mode", () => {
+  type ServerRow = {
+    id: number;
+    name: string;
+    score: number;
+  };
+
+  const serverRows: ServerRow[] = Array.from({ length: 25 }, (_, i) => ({
+    id: i + 1,
+    name: `Person ${i + 1}`,
+    score: (i + 1) * 10,
+  }));
+
+  const serverColumns: TableConfig<ServerRow>["columns"] = {
+    name: {
+      type: "text",
+      label: "Name",
+      sortable: "name",
+      filterable: "name",
+    },
+    score: {
+      type: "number",
+      label: "Score",
+      sortable: "score_key",
+      filterable: "score_filter",
+    },
+  };
+
+  function serverConfig(
+    dataSource: TableConfig<ServerRow>["dataSource"],
+    overrides: Partial<TableConfig<ServerRow>> = {},
+  ): TableConfig<ServerRow> {
+    return { dataSource, columns: serverColumns, serverSide: true, ...overrides };
+  }
+
+  const pageOne: TableDataResponse<ServerRow> = {
+    rows: serverRows.slice(0, 10),
+    pagination: { total: 25, size: 10, page: 1, totalPages: 3 },
+  };
+  const pageTwo: TableDataResponse<ServerRow> = {
+    rows: serverRows.slice(10, 20),
+    pagination: { total: 25, size: 10, page: 2, totalPages: 3 },
+  };
+  const pageThree: TableDataResponse<ServerRow> = {
+    rows: serverRows.slice(20, 25),
+    pagination: { total: 25, size: 10, page: 3, totalPages: 3 },
+  };
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it("fires dataSource on mount and immediately on page change, carrying pagination and filters", async () => {
+    const dataSource = vi.fn(
+      async (request: TableDataRequest): Promise<TableDataResponse<ServerRow>> => {
+        const size = request.pagination?.size ?? 10;
+        const page = request.pagination?.page ?? 1;
+        return {
+          rows: serverRows.slice((page - 1) * size, page * size),
+          pagination: {
+            total: serverRows.length,
+            size,
+            page,
+            totalPages: Math.ceil(serverRows.length / size),
+          },
+        };
+      },
+    );
+
+    render(<Table config={serverConfig(dataSource)} />);
+
+    expect(dataSource).toHaveBeenCalledTimes(1);
+    expect(dataSource).toHaveBeenLastCalledWith({
+      pagination: { page: 1, size: 10 },
+      filters: {},
+    });
+
+    await act(async () => {});
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+
+    expect(dataSource).toHaveBeenCalledTimes(2);
+    expect(dataSource).toHaveBeenLastCalledWith({
+      pagination: { page: 2, size: 10 },
+      filters: {},
+    });
+
+    await act(async () => {});
+    expect(screen.getByText("Person 11")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 11–20 of 25");
+  });
+
+  it("fires immediately on sort change, resets the page to 1, and uses the sortable request key", async () => {
+    const dataSource = vi.fn(
+      async (request: TableDataRequest): Promise<TableDataResponse<ServerRow>> => ({
+        rows: serverRows,
+        pagination: {
+          total: serverRows.length,
+          size: 10,
+          page: request.pagination?.page ?? 1,
+          totalPages: 3,
+        },
+      }),
+    );
+
+    render(
+      <Table config={serverConfig(dataSource, { pagination: { page: 3 } })} />,
+    );
+    await act(async () => {});
+    dataSource.mockClear();
+
+    const scoreHeader = screen.getByRole("columnheader", { name: /score/i });
+    fireEvent.click(within(scoreHeader).getByRole("button", { name: "Score" }));
+
+    expect(dataSource).toHaveBeenCalledTimes(1);
+    expect(dataSource).toHaveBeenLastCalledWith({
+      pagination: { page: 1, size: 10 },
+      sort: { key: "score_key", direction: "ascending" },
+      filters: {},
+    });
+
+    await act(async () => {});
+  });
+
+  it("debounces filter changes ~300ms, resets the page to 1 in the same request, and uses the filterable request key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(
+        async (): Promise<TableDataResponse<ServerRow>> => ({
+          rows: [],
+          pagination: { total: 0, size: 10, page: 1, totalPages: 1 },
+        }),
+      );
+
+      render(
+        <Table config={serverConfig(dataSource, { pagination: { page: 3 } })} />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Score" }));
+      fireEvent.change(screen.getByLabelText("Filter by Score"), {
+        target: { value: "10" },
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(dataSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenCalledTimes(1);
+      expect(dataSource).toHaveBeenLastCalledWith({
+        pagination: { page: 1, size: 10 },
+        filters: { score_filter: 10 },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps prior rows dimmed with a spinner in the status region while loading", async () => {
+    const d1 = deferred<TableDataResponse<ServerRow>>();
+    const d2 = deferred<TableDataResponse<ServerRow>>();
+    const dataSource = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+
+    render(<Table config={serverConfig(dataSource)} />);
+
+    await act(async () => {
+      d1.resolve(pageOne);
+    });
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+
+    const tbody = screen.getByText("Person 1").closest("tbody") as HTMLElement;
+    expect(tbody).toHaveClass("opacity-50");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+
+    await act(async () => {
+      d2.resolve(pageTwo);
+    });
+
+    const tbodyAfter = screen
+      .getByText("Person 11")
+      .closest("tbody") as HTMLElement;
+    expect(tbodyAfter).not.toHaveClass("opacity-50");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 11–20 of 25");
+  });
+
+  it("replaces the body with a neutral message and a Retry that re-fires the last request", async () => {
+    const d1 = deferred<TableDataResponse<ServerRow>>();
+    const d2 = deferred<TableDataResponse<ServerRow>>();
+    const dataSource = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+
+    render(
+      <Table config={serverConfig(dataSource, { pagination: { page: 2 } })} />,
+    );
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+
+    expect(screen.getAllByText("Couldn't load data").length).toBeGreaterThan(0);
+    expect(screen.getByRole("status")).toHaveTextContent("Couldn't load data");
+    const retry = screen.getByRole("button", { name: "Retry" });
+    expect(retry).toBeInTheDocument();
+
+    fireEvent.click(retry);
+
+    expect(dataSource).toHaveBeenCalledTimes(2);
+    expect(dataSource).toHaveBeenLastCalledWith({
+      pagination: { page: 2, size: 10 },
+      filters: {},
+    });
+
+    await act(async () => {
+      d2.resolve(pageTwo);
+    });
+
+    expect(screen.getByText("Person 11")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("drops out-of-order responses so only the latest request's result applies", async () => {
+    const d1 = deferred<TableDataResponse<ServerRow>>();
+    const d2 = deferred<TableDataResponse<ServerRow>>();
+    const d3 = deferred<TableDataResponse<ServerRow>>();
+    const dataSource = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise)
+      .mockReturnValueOnce(d3.promise);
+
+    render(<Table config={serverConfig(dataSource)} />);
+
+    await act(async () => {
+      d1.resolve(pageOne);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+
+    await act(async () => {
+      d3.resolve(pageThree);
+    });
+    expect(screen.getByText("Person 21")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 21–25 of 25");
+
+    await act(async () => {
+      d2.resolve(pageTwo);
+    });
+
+    expect(screen.getByText("Person 21")).toBeInTheDocument();
+    expect(screen.queryByText("Person 11")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 21–25 of 25");
+  });
+
+  it("keeps the failure visible when an earlier request succeeds after a later one failed", async () => {
+    const d1 = deferred<TableDataResponse<ServerRow>>();
+    const d2 = deferred<TableDataResponse<ServerRow>>();
+    const d3 = deferred<TableDataResponse<ServerRow>>();
+    const dataSource = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise)
+      .mockReturnValueOnce(d3.promise);
+
+    render(<Table config={serverConfig(dataSource)} />);
+
+    await act(async () => {
+      d1.resolve(pageOne);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+
+    await act(async () => {
+      d3.reject(new Error("boom"));
+    });
+    expect(screen.getAllByText("Couldn't load data").length).toBeGreaterThan(0);
+
+    await act(async () => {
+      d2.resolve(pageTwo);
+    });
+
+    expect(screen.getAllByText("Couldn't load data").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Person 11")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("mirrors the response pagination in the pager without re-deriving or clamping", async () => {
+    const dataSource = vi.fn(async () => ({
+      rows: serverRows.slice(0, 3),
+      pagination: { total: 42, size: 10, page: 3, totalPages: 5 },
+    }));
+    render(<Table config={serverConfig(dataSource)} />);
+    await act(async () => {});
+
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 21–30 of 42");
+
+    const nav = screen.getByRole("navigation", { name: "Pagination" });
+    expect(within(nav).getByRole("button", { name: "Previous" })).toBeEnabled();
+    expect(within(nav).getByRole("button", { name: "Next" })).toBeEnabled();
+
+    const current = within(nav)
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-current") === "page");
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveTextContent("3");
+    expect(within(nav).getByRole("button", { name: "5" })).toBeInTheDocument();
+  });
+
+  it("falls back to default pagination when the response omits it", async () => {
+    const dataSource = vi.fn(async () => ({
+      rows: serverRows.slice(0, 3),
+    }));
+    render(
+      <Table config={serverConfig(dataSource, { pagination: { size: 5 } })} />,
+    );
+    await act(async () => {});
+
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1–3 of 3");
+
+    const nav = screen.getByRole("navigation", { name: "Pagination" });
+    const current = within(nav)
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-current") === "page");
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveTextContent("1");
+    expect(within(nav).getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(within(nav).getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("keys the empty-state message to the last-confirmed request's filters, not live typing", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({
+        rows: [],
+        pagination: { total: 0, size: 10, page: 1, totalPages: 1 },
+      }));
+      render(<Table config={serverConfig(dataSource)} />);
+      await act(async () => {});
+      expect(screen.getByText("No data yet")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "zzz" },
+      });
+
+      expect(screen.getByText("No data yet")).toBeInTheDocument();
+      expect(
+        screen.queryByText("No results match your filters"),
+      ).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(
+        screen.getByText("No results match your filters"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(
+        screen.getByText("No results match your filters"),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(screen.getByText("No data yet")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

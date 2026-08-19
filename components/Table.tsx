@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -89,6 +90,32 @@ const DATETIME_FORMAT = new Intl.DateTimeFormat("en-US", {
 
 const IMAGE_CLASS = "h-10 w-10 rounded-lg shadow-sm";
 
+const LOADING_TBODY_CLASS = "opacity-50 transition-opacity";
+
+const LOADING_SPINNER = (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 16 16"
+    fill="none"
+    className="inline-block h-3.5 w-3.5 animate-spin"
+  >
+    <circle
+      cx="8"
+      cy="8"
+      r="6"
+      stroke="currentColor"
+      strokeOpacity="0.25"
+      strokeWidth="2"
+    />
+    <path
+      d="M14 8a6 6 0 0 0-6-6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined;
 }
@@ -134,6 +161,13 @@ function cycleSort(current: TableSort | null, key: string): TableSort | null {
     return { key, direction: "descending" };
   }
   return null;
+}
+
+function resolveRequestKey(
+  columnKey: string,
+  requestKey: string | false | undefined,
+): string {
+  return typeof requestKey === "string" ? requestKey : columnKey;
 }
 
 function toDate(value: unknown): Date | null {
@@ -381,13 +415,26 @@ function FilterControl<T>({
 
 export function Table<T>({ config }: { config: TableConfig<T> }) {
   const dataSourceRef = useRef(config.dataSource);
+  const columnsRef = useRef(config.columns);
+  useEffect(() => {
+    columnsRef.current = config.columns;
+  });
+  const serverSide = Boolean(config.serverSide);
   const [rows, setRows] = useState<T[] | null>(null);
   const [sort, setSort] = useState<TableSort | null>(null);
   const [filters, setFilters] = useState<Record<string, TableFilterScalar>>({});
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [pagination, setPagination] = useState(() => ({
     page: Math.max(1, config.pagination?.page ?? 1),
     size: config.pagination?.size ?? 10,
   }));
+  const [loading, setLoading] = useState(serverSide);
+  const [error, setError] = useState(false);
+  const [mirroredPagination, setMirroredPagination] =
+    useState<TablePagination | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+  const requestIdRef = useRef(0);
+  const prevFiltersRef = useRef(filters);
 
   const updateFilter = (
     key: string,
@@ -410,7 +457,67 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     setFilters({});
   };
 
+  const beginRequest = useCallback(() => {
+    if (!serverSide) {
+      return;
+    }
+    setLoading(true);
+    setError(false);
+  }, [serverSide]);
+
+  const resetPageToFirst = useCallback(() => {
+    setPagination((current) =>
+      current.page === 1 ? current : { ...current, page: 1 },
+    );
+  }, []);
+
+  const handleSortClick = (key: string) => {
+    const next = cycleSort(sort, key);
+    setSort(next);
+    if (serverSide) {
+      beginRequest();
+      if (next !== sort) {
+        resetPageToFirst();
+      }
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    beginRequest();
+    setPagination((current) => ({ ...current, page }));
+  };
+
+  const handleRetry = () => {
+    beginRequest();
+    setRetryToken((token) => token + 1);
+  };
+
+  // Server mode debounces filter changes (~300ms); the page resets to 1 in the
+  // same debounced request.
   useEffect(() => {
+    if (!serverSide) {
+      return;
+    }
+    const changed = prevFiltersRef.current !== filters;
+    prevFiltersRef.current = filters;
+    if (!changed) {
+      return;
+    }
+    const id = setTimeout(() => {
+      beginRequest();
+      setDebouncedFilters(filters);
+      resetPageToFirst();
+    }, 300);
+    return () => {
+      clearTimeout(id);
+    };
+  }, [filters, serverSide, beginRequest, resetPageToFirst]);
+
+  // Local mode fetches the full dataset exactly once.
+  useEffect(() => {
+    if (serverSide) {
+      return;
+    }
     let active = true;
     const response = dataSourceRef.current({});
     if (typeof (response as Promise<TableDataResponse<T>>).then === "function") {
@@ -423,7 +530,78 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [serverSide]);
+
+  // Server mode: fire dataSource on mount and immediately on pagination/sort
+  // change, drop out-of-order responses via a monotonic request id plus the
+  // effect-cleanup ignore flag.
+  useEffect(() => {
+    if (!serverSide) {
+      return;
+    }
+    const requestId = ++requestIdRef.current;
+    let active = true;
+
+    const request: TableDataRequest = {
+      pagination: { page: pagination.page, size: pagination.size },
+      ...(sort
+        ? {
+            sort: {
+              key: resolveRequestKey(
+                sort.key,
+                columnsRef.current[sort.key]?.sortable,
+              ),
+              direction: sort.direction,
+            },
+          }
+        : {}),
+      filters: Object.fromEntries(
+        Object.entries(debouncedFilters).map(([key, value]) => [
+          resolveRequestKey(key, columnsRef.current[key]?.filterable),
+          value,
+        ]),
+      ),
+    };
+
+    const fail = () => {
+      if (!active || requestIdRef.current !== requestId) {
+        return;
+      }
+      setError(true);
+      setLoading(false);
+    };
+
+    let responsePromise: Promise<TableDataResponse<T>>;
+    try {
+      responsePromise = Promise.resolve(dataSourceRef.current(request));
+    } catch {
+      fail();
+      return;
+    }
+    responsePromise.then(
+      (response) => {
+        if (!active || requestIdRef.current !== requestId) {
+          return;
+        }
+        setRows(response.rows);
+        setMirroredPagination(response.pagination ?? null);
+        setLoading(false);
+      },
+      () => {
+        fail();
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    serverSide,
+    pagination.page,
+    pagination.size,
+    sort,
+    debouncedFilters,
+    retryToken,
+  ]);
 
   const visibleColumns = useMemo(
     () => Object.entries(config.columns).filter(([, column]) => !column.hidden),
@@ -472,10 +650,29 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     });
   }, [filteredRows, sort, config.columns]);
   const pageRows = sortedRows.slice(start, end);
-  const from = total === 0 ? 0 : start + 1;
-  const to = total === 0 ? 0 : end;
 
-  if (rows === null) {
+  const displayPagination: TablePagination = serverSide
+    ? mirroredPagination ?? {
+        total: rows?.length ?? 0,
+        size: pagination.size,
+        page: 1,
+        totalPages: Math.max(1, Math.ceil((rows?.length ?? 0) / pagination.size)),
+      }
+    : { total, size, page, totalPages };
+  const displayFrom =
+    displayPagination.total === 0
+      ? 0
+      : (displayPagination.page - 1) * displayPagination.size + 1;
+  const displayTo = Math.min(
+    displayPagination.page * displayPagination.size,
+    displayPagination.total,
+  );
+  const bodyRows = serverSide ? rows ?? [] : pageRows;
+  const hasActiveFilters = serverSide
+    ? Object.keys(debouncedFilters).length > 0
+    : Object.keys(filters).length > 0;
+
+  if (!serverSide && rows === null) {
     return null;
   }
 
@@ -508,7 +705,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                     {column.sortable ? (
                       <button
                         type="button"
-                        onClick={() => setSort((current) => cycleSort(current, key))}
+                        onClick={() => handleSortClick(key)}
                         className="flex cursor-pointer items-center gap-1"
                       >
                         {column.label ?? key}
@@ -535,31 +732,53 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
             })}
           </tr>
         </thead>
-        <tbody>
-          {total === 0 ? (
+        <tbody
+          className={
+            serverSide && loading && !error ? LOADING_TBODY_CLASS : undefined
+          }
+        >
+          {error ? (
             <tr>
               <td
                 colSpan={visibleColumns.length}
                 className="px-3 py-8 text-center text-neutral-500"
               >
-                {Object.keys(filters).length > 0 ? (
-                  <>
-                    <span>No results match your filters</span>
-                    <button
-                      type="button"
-                      onClick={clearAllFilters}
-                      className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-300"
-                    >
-                      Clear filters
-                    </button>
-                  </>
-                ) : (
-                  "No data yet"
-                )}
+                <span>{"Couldn't load data"}</span>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-300"
+                >
+                  Retry
+                </button>
               </td>
             </tr>
+          ) : displayPagination.total === 0 ? (
+            serverSide && rows === null ? null : (
+              <tr>
+                <td
+                  colSpan={visibleColumns.length}
+                  className="px-3 py-8 text-center text-neutral-500"
+                >
+                  {hasActiveFilters ? (
+                    <>
+                      <span>No results match your filters</span>
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      >
+                        Clear filters
+                      </button>
+                    </>
+                  ) : (
+                    "No data yet"
+                  )}
+                </td>
+              </tr>
+            )
           ) : (
-            pageRows.map((row, index) => (
+            bodyRows.map((row, index) => (
               <tr
                 key={index}
                 className="border-b border-neutral-200 dark:border-neutral-800"
@@ -588,24 +807,38 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
         aria-live="polite"
         className="mt-2 text-sm text-neutral-500"
       >
-        Showing {from}–{to} of {total}
+        {error ? (
+          "Couldn't load data"
+        ) : serverSide && loading ? (
+          <span className="flex items-center gap-1.5">
+            {LOADING_SPINNER}
+            Loading…
+          </span>
+        ) : (
+          `Showing ${displayFrom}–${displayTo} of ${displayPagination.total}`
+        )}
       </div>
 
       <nav aria-label="Pagination" className="mt-3 flex items-center gap-1">
         <button
           type="button"
-          onClick={() => setPagination((p) => ({ ...p, page: page - 1 }))}
-          disabled={page <= 1}
+          onClick={() => handlePageChange(displayPagination.page - 1)}
+          disabled={displayPagination.page <= 1}
           className={PAGER_EDGE_BUTTON_CLASS}
         >
           Previous
         </button>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+        {Array.from(
+          { length: displayPagination.totalPages },
+          (_, i) => i + 1,
+        ).map((p) => (
           <button
             key={p}
             type="button"
-            onClick={() => setPagination((state) => ({ ...state, page: p }))}
-            aria-current={p === page ? "page" : undefined}
+            onClick={() => handlePageChange(p)}
+            aria-current={
+              p === displayPagination.page ? "page" : undefined
+            }
             className={PAGER_BUTTON_CLASS}
           >
             {p}
@@ -613,8 +846,8 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
         ))}
         <button
           type="button"
-          onClick={() => setPagination((p) => ({ ...p, page: page + 1 }))}
-          disabled={page >= totalPages}
+          onClick={() => handlePageChange(displayPagination.page + 1)}
+          disabled={displayPagination.page >= displayPagination.totalPages}
           className={PAGER_EDGE_BUTTON_CLASS}
         >
           Next
