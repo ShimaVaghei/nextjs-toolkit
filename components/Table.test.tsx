@@ -901,6 +901,61 @@ describe("Table local filter", () => {
       screen.queryByText("No results match your filters"),
     ).not.toBeInTheDocument();
   });
+
+  it("closes an open filter popover when the user clicks anywhere outside it and its trigger", () => {
+    render(<Table config={filterConfig()} />);
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    fireEvent.click(trigger);
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("toggles its own popover closed when the filter trigger is clicked again", () => {
+    render(<Table config={filterConfig()} />);
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    fireEvent.click(trigger);
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+
+    fireEvent.click(trigger);
+
+    expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps only one filter popover open at a time across columns", () => {
+    render(<Table config={filterConfig()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+
+    const scoreTrigger = screen.getByRole("button", { name: "Filter Score" });
+    fireEvent.pointerDown(scoreTrigger);
+    fireEvent.click(scoreTrigger);
+
+    expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by Score")).toBeInTheDocument();
+    expect(scoreTrigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("keeps the filter popover open while the user types in its input", () => {
+    render(<Table config={filterConfig()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+    const input = screen.getByLabelText("Filter by Name");
+
+    fireEvent.keyDown(input, { key: "a" });
+    fireEvent.change(input, { target: { value: "LOVE" } });
+    fireEvent.pointerDown(input);
+
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+  });
 });
 
 describe("Table server mode", () => {

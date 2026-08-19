@@ -323,22 +323,49 @@ function FilterControl<T>({
   column,
   value,
   onChange,
+  open,
+  onOpenChange,
 }: {
   columnKey: string;
   column: TableColumn<T>;
   value: TableFilterScalar | undefined;
   onChange: (value: TableFilterScalar | undefined) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const popoverId = useId();
   const inputId = `${popoverId}-input`;
+  const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
   const label = column.label ?? columnKey;
   const isNumber = column.type === "number";
   const inputValue = value === undefined ? "" : String(value);
 
-  const close = () => {
-    setOpen(false);
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  });
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        onOpenChangeRef.current(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [open]);
+
+  const closeAndFocus = () => {
+    onOpenChangeRef.current(false);
     triggerRef.current?.focus();
   };
 
@@ -359,14 +386,14 @@ function FilterControl<T>({
   };
 
   return (
-    <>
+    <div ref={containerRef} className="inline-block">
       <button
         ref={triggerRef}
         type="button"
         aria-label={`Filter ${label}`}
         aria-expanded={open}
         aria-controls={popoverId}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => onOpenChange(!open)}
         className={`flex cursor-pointer items-center rounded p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200${
           value !== undefined ? " text-neutral-900 dark:text-neutral-100" : ""
         }`}
@@ -404,14 +431,14 @@ function FilterControl<T>({
             onChange={(event) => handleChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
-                close();
+                closeAndFocus();
               }
             }}
             className="w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           />
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -425,6 +452,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
   const [rows, setRows] = useState<T[] | null>(null);
   const [sort, setSort] = useState<TableSort | null>(null);
   const [filters, setFilters] = useState<Record<string, TableFilterScalar>>({});
+  const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null);
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [pagination, setPagination] = useState(() => ({
     page: Math.max(1, config.pagination?.page ?? 1),
@@ -726,6 +754,10 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                         column={column}
                         value={filters[key]}
                         onChange={(value) => updateFilter(key, value)}
+                        open={openFilterColumn === key}
+                        onOpenChange={(nextOpen) =>
+                          setOpenFilterColumn(nextOpen ? key : null)
+                        }
                       />
                     ) : null}
                   </div>
