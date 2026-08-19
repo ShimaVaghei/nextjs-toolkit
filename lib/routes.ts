@@ -2,19 +2,10 @@ import type { Route } from "@/components/AppLayout";
 
 export const appRoutes: Route[] = [
   { path: "", label: "Home" },
-  { path: "dashboard", label: "Dashboard" },
   {
-    path: "settings",
-    label: "Settings",
-    children: [
-      { path: "general", label: "General" },
-      {
-        path: "advanced",
-        label: "Advanced",
-        children: [{ path: "debug", label: "Debug" }],
-      },
-    ],
+    path: "table", label: "Table", children: [
+      { path: "local", label: "Local" },
+      { path: "server", label: "Server" },
+    ]
   },
-  { path: "users", label: "Users" },
-  { path: "table", label: "Table" },
 ];

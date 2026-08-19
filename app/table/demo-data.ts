@@ -1,4 +1,5 @@
 import type {
+  TableColumns,
   TableColumnType,
   TableDataRequest,
   TableDataResponse,
@@ -27,13 +28,6 @@ export type TeamMember = {
   skills: string[];
   avatar: string;
   projects: number;
-};
-
-type DemoColumn = {
-  type: TableColumnType;
-  label: string;
-  sortable?: string;
-  filterable?: string;
 };
 
 const AVATARS = ["/next.svg", "/vercel.svg", "/globe.svg", "/window.svg", "/file.svg"];
@@ -86,7 +80,7 @@ const PROJECT_TAGS = [
   "api",
 ];
 
-export const projectColumns = {
+export const projectColumns: TableColumns<Project> = {
   name: {
     type: "text",
     label: "Project",
@@ -130,7 +124,7 @@ export const projectColumns = {
     sortable: "score",
     filterable: "score",
   },
-} satisfies Record<string, DemoColumn>;
+};
 
 const PROJECT_TYPES: Record<string, TableColumnType> = Object.fromEntries(
   Object.entries(projectColumns).map(([key, column]) => [key, column.type]),
@@ -159,7 +153,7 @@ export const projects: Project[] = Array.from({ length: 57 }, (_, i) => {
   };
 });
 
-export const teamColumns = {
+export const teamColumns: TableColumns<TeamMember> = {
   name: { type: "text", label: "Name", sortable: "name", filterable: "name" },
   role: { type: "text", label: "Role", sortable: "role", filterable: "role" },
   joined: { type: "date", label: "Joined", sortable: "joined", filterable: "joined" },
@@ -177,7 +171,7 @@ export const teamColumns = {
     sortable: "projects",
     filterable: "projects",
   },
-} satisfies Record<string, DemoColumn>;
+};
 
 const MEMBER_NAMES = [
   "Ada Lovelace",

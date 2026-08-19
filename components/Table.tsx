@@ -58,12 +58,14 @@ export type TableDataResponse<T> = {
   pagination?: TablePagination;
 };
 
+export type TableColumns<T> = Record<string, TableColumn<T>>;
+
 export type TableConfig<T> = {
   caption?: string;
   dataSource: (
     request: TableDataRequest,
   ) => TableDataResponse<T> | Promise<TableDataResponse<T>>;
-  columns: Record<string, TableColumn<T>>;
+  columns: TableColumns<T>;
   serverSide?: boolean;
   pagination?: { page?: number; size?: number };
 };
@@ -71,7 +73,7 @@ export type TableConfig<T> = {
 const EMPTY_MARK = <span className="text-neutral-400">—</span>;
 
 const PAGER_BUTTON_CLASS =
-  "rounded-md border border-neutral-300 px-2.5 py-1 text-sm dark:border-neutral-700";
+  "rounded-md border border-neutral-300 px-2.5 py-1 text-sm dark:border-neutral-700 cursor-pointer";
 const PAGER_EDGE_BUTTON_CLASS = `${PAGER_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`;
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
@@ -747,7 +749,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                 <button
                   type="button"
                   onClick={handleRetry}
-                  className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-400"
                 >
                   Retry
                 </button>
@@ -766,7 +768,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                       <button
                         type="button"
                         onClick={clearAllFilters}
-                        className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-300"
+                        className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-400 cursor-pointer"
                       >
                         Clear filters
                       </button>
@@ -790,7 +792,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                   return (
                     <td
                       key={key}
-                      className={`px-3 py-2 align-top text-left text-neutral-700 dark:text-neutral-300${cellClass ? ` ${cellClass}` : ""}`}
+                      className={`px-3 py-2 align-top text-left text-neutral-700 dark:text-neutral-400${cellClass ? ` ${cellClass}` : ""}`}
                     >
                       {renderCell(row[key as keyof T], column, row)}
                     </td>
