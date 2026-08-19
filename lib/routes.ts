@@ -16,4 +16,5 @@ export const appRoutes: Route[] = [
     ],
   },
   { path: "users", label: "Users" },
+  { path: "table", label: "Table" },
 ];
