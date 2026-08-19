@@ -117,6 +117,44 @@ describe("Table local mode", () => {
     expect(current[0]).toHaveTextContent("3");
   });
 
+  it("styles the current page button with a filled/inverted neutral style in light and dark mode, leaving other buttons unchanged", () => {
+    render(<Table config={makeConfig(people)} />);
+
+    const nav = screen.getByRole("navigation", { name: "Pagination" });
+    const current = currentPageButtons();
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveAttribute("aria-current", "page");
+    expect(current[0]).toHaveClass(
+      "bg-neutral-900",
+      "text-white",
+      "dark:bg-neutral-100",
+      "dark:text-neutral-900",
+    );
+
+    within(nav)
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-current") !== "page")
+      .forEach((button) => {
+        expect(button).not.toHaveClass("bg-neutral-900", "text-white");
+      });
+  });
+
+  it("keeps the filled style on the current page button as the user navigates", () => {
+    render(<Table config={makeConfig(people)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+
+    const current = currentPageButtons();
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveTextContent("2");
+    expect(current[0]).toHaveAttribute("aria-current", "page");
+    expect(current[0]).toHaveClass("bg-neutral-900", "text-white");
+    expect(screen.getByRole("button", { name: "1" })).not.toHaveClass(
+      "bg-neutral-900",
+      "text-white",
+    );
+  });
+
   it("navigating pages updates the rendered rows and the summary", () => {
     render(<Table config={makeConfig(people)} />);
 

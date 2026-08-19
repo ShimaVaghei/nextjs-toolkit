@@ -72,8 +72,10 @@ export type TableConfig<T> = {
 
 const EMPTY_MARK = <span className="text-neutral-400">—</span>;
 
-const PAGER_BUTTON_CLASS =
-  "rounded-md border border-neutral-300 px-2.5 py-1 text-sm dark:border-neutral-700 cursor-pointer";
+const PAGER_BUTTON_BASE_CLASS =
+  "rounded-md border px-2.5 py-1 text-sm cursor-pointer";
+const PAGER_BUTTON_CLASS = `${PAGER_BUTTON_BASE_CLASS} border-neutral-300 dark:border-neutral-700`;
+const PAGER_CURRENT_BUTTON_CLASS = `${PAGER_BUTTON_BASE_CLASS} border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900`;
 const PAGER_EDGE_BUTTON_CLASS = `${PAGER_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`;
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
@@ -873,7 +875,11 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
             aria-current={
               p === displayPagination.page ? "page" : undefined
             }
-            className={PAGER_BUTTON_CLASS}
+            className={
+              p === displayPagination.page
+                ? PAGER_CURRENT_BUTTON_CLASS
+                : PAGER_BUTTON_CLASS
+            }
           >
             {p}
           </button>
