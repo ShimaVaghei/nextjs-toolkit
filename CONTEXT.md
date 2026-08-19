@@ -43,7 +43,7 @@ _Avoid_: back button, back chevron, previous
 ## Table terms
 
 **Table**:
-A reusable client-side component that renders tabular data with pagination, sorting, and filtering, driven by a `TableConfig`. It runs in one of two modes set by `serverSide`.
+A reusable client-side component that renders tabular data with pagination, sorting, and filtering, driven by a `TableConfig`. It runs in one of two modes set by `serverSide`. A parent can trigger a reload through the imperative `TableHandle` exposed via the `ref` prop.
 _Avoid_: DataTable, DataGrid, table view
 
 **TableConfig**:
@@ -51,7 +51,7 @@ The configuration object passed to `Table`. It declares the `dataSource`, the `c
 _Avoid_: DataTableConfig, TableProps
 
 **TableColumn**:
-One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); `sortable`/`filterable` may name a different request key.
+One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); `sortable`/`filterable` are `string | boolean` — `true` enables the feature with the column's own key as the request key, a string enables it with a different request key, and `false`/omitted disables it.
 _Avoid_: ColumnSpec, field config
 
 **TableColumnType**:
@@ -71,9 +71,13 @@ The object `dataSource` must resolve: the row array plus a `pagination` summary 
 _Avoid_: DataGetResponse, page result
 
 **dataSource**:
-The function in `TableConfig` that resolves a `TableDataRequest` into a `TableDataResponse`. In server mode it is called for each state change; in local mode it is called once for the full dataset.
+The async function in `TableConfig` that resolves a `TableDataRequest` into a `TableDataResponse`, always returning a `Promise`. In server mode it is called for each state change; in local mode it is called once for the full dataset and again on refresh.
 _Avoid_: fetcher, loadData, endpoint
 
 **serverSide**:
 The `TableConfig` flag choosing the mode. `true` sends pagination/sort/filter options to `dataSource` and trusts its response; `false` fetches all rows once and paginates/sorts/filters in the component.
 _Avoid_: remote, async, mode
+
+**TableHandle**:
+The imperative handle a parent obtains from `Table` via the `ref` prop, exposing a single `refresh()` method. Calling it re-fires the current request in server mode or re-fetches the full dataset in local mode.
+_Avoid_: refreshProp, onRefresh
