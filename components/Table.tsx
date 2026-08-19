@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -18,7 +19,9 @@ export type TableColumnType =
 
 export type TableSortDirection = "ascending" | "descending";
 
-export type TableFilterValue = string | number | (string | number)[];
+export type TableFilterScalar = string | number;
+
+export type TableFilterValue = TableFilterScalar | TableFilterScalar[];
 
 export type TableSort = {
   key: string;
@@ -144,6 +147,87 @@ function toDate(value: unknown): Date | null {
   return null;
 }
 
+function toMatchDate(value: unknown): Date | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(value);
+    if (dateOnly) {
+      const [year, month, day] = value.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
+function sameDateParts(
+  value: unknown,
+  filter: TableFilterScalar,
+  includeTime: boolean,
+): boolean {
+  const valueDate = toMatchDate(value);
+  const filterDate = toMatchDate(filter);
+  if (!valueDate || !filterDate) {
+    return false;
+  }
+  if (
+    valueDate.getFullYear() !== filterDate.getFullYear() ||
+    valueDate.getMonth() !== filterDate.getMonth() ||
+    valueDate.getDate() !== filterDate.getDate()
+  ) {
+    return false;
+  }
+  if (includeTime) {
+    if (
+      valueDate.getHours() !== filterDate.getHours() ||
+      valueDate.getMinutes() !== filterDate.getMinutes() ||
+      valueDate.getSeconds() !== filterDate.getSeconds()
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function containsCaseInsensitive(
+  value: unknown,
+  filter: TableFilterScalar,
+): boolean {
+  const text = Array.isArray(value) ? value.join(", ") : String(value);
+  return text.toLowerCase().includes(String(filter).toLowerCase());
+}
+
+function matchesFilter<T>(
+  value: unknown,
+  column: TableColumn<T>,
+  filter: TableFilterScalar,
+): boolean {
+  if (isEmptyValue(value)) {
+    return false;
+  }
+  switch (column.type) {
+    case "text":
+    case "array":
+      return containsCaseInsensitive(value, filter);
+    case "date":
+      return sameDateParts(value, filter, false);
+    case "datetime":
+      return sameDateParts(value, filter, true);
+    case "number":
+      return Number(value) === Number(filter);
+    case "image":
+    default:
+      return false;
+  }
+}
+
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
@@ -198,14 +282,133 @@ function renderCell<T>(value: unknown, column: TableColumn<T>, row: T): ReactNod
   }
 }
 
+function FilterControl<T>({
+  columnKey,
+  column,
+  value,
+  onChange,
+}: {
+  columnKey: string;
+  column: TableColumn<T>;
+  value: TableFilterScalar | undefined;
+  onChange: (value: TableFilterScalar | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const popoverId = useId();
+  const inputId = `${popoverId}-input`;
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const label = column.label ?? columnKey;
+  const isNumber = column.type === "number";
+  const inputValue = value === undefined ? "" : String(value);
+
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const handleChange = (raw: string) => {
+    if (raw === "") {
+      onChange(undefined);
+      return;
+    }
+    if (isNumber) {
+      const num = Number(raw);
+      if (Number.isNaN(num)) {
+        return;
+      }
+      onChange(num);
+    } else {
+      onChange(raw);
+    }
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`Filter ${label}`}
+        aria-expanded={open}
+        aria-controls={popoverId}
+        onClick={() => setOpen((current) => !current)}
+        className={`flex cursor-pointer items-center rounded p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200${
+          value !== undefined ? " text-neutral-900 dark:text-neutral-100" : ""
+        }`}
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-3.5 w-3.5"
+        >
+          <path d="M1.5 2h13l-5 6v4.5l-3 1.5V8l-5-6z" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          id={popoverId}
+          role="group"
+          className="absolute left-0 top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
+        >
+          <label
+            htmlFor={inputId}
+            className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
+            Filter by {label}
+          </label>
+          <input
+            id={inputId}
+            type={isNumber ? "number" : "text"}
+            value={inputValue}
+            autoFocus
+            onChange={(event) => handleChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                close();
+              }
+            }}
+            className="w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function Table<T>({ config }: { config: TableConfig<T> }) {
   const dataSourceRef = useRef(config.dataSource);
   const [rows, setRows] = useState<T[] | null>(null);
   const [sort, setSort] = useState<TableSort | null>(null);
+  const [filters, setFilters] = useState<Record<string, TableFilterScalar>>({});
   const [pagination, setPagination] = useState(() => ({
     page: Math.max(1, config.pagination?.page ?? 1),
     size: config.pagination?.size ?? 10,
   }));
+
+  const updateFilter = (
+    key: string,
+    value: TableFilterScalar | undefined,
+  ) => {
+    setFilters((current) => {
+      if (value === undefined) {
+        if (!(key in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }
+      return { ...current, [key]: value };
+    });
+  };
+
+  const clearAllFilters = () => {
+    setFilters({});
+  };
 
   useEffect(() => {
     let active = true;
@@ -227,19 +430,34 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     [config.columns],
   );
 
-  const total = rows?.length ?? 0;
+  const filteredRows = useMemo(() => {
+    if (!rows) {
+      return [];
+    }
+    const entries = Object.entries(filters);
+    if (entries.length === 0) {
+      return rows;
+    }
+    return rows.filter((row) =>
+      entries.every(([key, filter]) =>
+        matchesFilter(row[key as keyof T], config.columns[key], filter),
+      ),
+    );
+  }, [rows, filters, config.columns]);
+
+  const total = filteredRows.length;
   const size = pagination.size;
   const totalPages = Math.max(1, Math.ceil(total / size));
   const page = Math.min(Math.max(pagination.page, 1), totalPages);
   const start = (page - 1) * size;
   const end = Math.min(start + size, total);
   const sortedRows = useMemo(() => {
-    if (!sort || !rows) {
-      return rows ?? [];
+    if (!sort) {
+      return filteredRows;
     }
     const column = config.columns[sort.key];
     const factor = sort.direction === "ascending" ? 1 : -1;
-    return [...rows].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       const aValue = a[sort.key as keyof T];
       const bValue = b[sort.key as keyof T];
       const aEmpty = isSortEmpty(aValue);
@@ -252,7 +470,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
       }
       return compareRawValues(aValue, bValue, column.type) * factor;
     });
-  }, [rows, sort, config.columns]);
+  }, [filteredRows, sort, config.columns]);
   const pageRows = sortedRows.slice(start, end);
   const from = total === 0 ? 0 : start + 1;
   const to = total === 0 ? 0 : end;
@@ -284,24 +502,34 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                         ? "none"
                         : undefined
                   }
-                  className="px-3 py-2 font-medium text-neutral-900 dark:text-neutral-100"
+                  className="relative px-3 py-2 font-medium text-neutral-900 dark:text-neutral-100"
                 >
-                  {column.sortable ? (
-                    <button
-                      type="button"
-                      onClick={() => setSort((current) => cycleSort(current, key))}
-                      className="flex cursor-pointer items-center gap-1"
-                    >
-                      {column.label ?? key}
-                      {sorted ? (
-                        <span aria-hidden="true">
-                          {sort.direction === "ascending" ? "\u2191" : "\u2193"}
-                        </span>
-                      ) : null}
-                    </button>
-                  ) : (
-                    (column.label ?? key)
-                  )}
+                  <div className="flex items-center gap-1">
+                    {column.sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => setSort((current) => cycleSort(current, key))}
+                        className="flex cursor-pointer items-center gap-1"
+                      >
+                        {column.label ?? key}
+                        {sorted ? (
+                          <span aria-hidden="true">
+                            {sort.direction === "ascending" ? "\u2191" : "\u2193"}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : (
+                      (column.label ?? key)
+                    )}
+                    {column.filterable ? (
+                      <FilterControl
+                        columnKey={key}
+                        column={column}
+                        value={filters[key]}
+                        onChange={(value) => updateFilter(key, value)}
+                      />
+                    ) : null}
+                  </div>
                 </th>
               );
             })}
@@ -314,7 +542,20 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                 colSpan={visibleColumns.length}
                 className="px-3 py-8 text-center text-neutral-500"
               >
-                No data yet
+                {Object.keys(filters).length > 0 ? (
+                  <>
+                    <span>No results match your filters</span>
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    >
+                      Clear filters
+                    </button>
+                  </>
+                ) : (
+                  "No data yet"
+                )}
               </td>
             </tr>
           ) : (

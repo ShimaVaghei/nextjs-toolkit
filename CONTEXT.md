@@ -62,6 +62,10 @@ _Avoid_: cell kind, column variant
 The request object passed to `dataSource`: optional `pagination`, `sort`, and `filters`. `filters` values are `string | number | (string | number)[]`; a cleared filter is omitted from the record.
 _Avoid_: DataGetRequest, query params
 
+**TableFilterScalar**:
+The scalar filter value a filter control can emit: `string | number`. The active-filters record accepts scalar values only; arrays are reserved for a later multi-value filter feature.
+_Avoid_: filterValue, scalar
+
 **TableDataResponse**:
 The object `dataSource` must resolve: the row array plus a `pagination` summary (total, size, page, totalPages).
 _Avoid_: DataGetResponse, page result

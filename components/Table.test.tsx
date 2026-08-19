@@ -612,3 +612,287 @@ describe("Table local sort", () => {
     expect(within(joined).queryByRole("button")).not.toBeInTheDocument();
   });
 });
+
+describe("Table local filter", () => {
+  type FilterItem = {
+    id: number;
+    name: string;
+    joined: string | Date | null;
+    updated: string | null;
+    tags: string[] | null;
+    score: number | null;
+    avatar: string | null;
+  };
+
+  const filterRows: FilterItem[] = [
+    {
+      id: 1,
+      name: "Ada Lovelace",
+      joined: "2023-06-12",
+      updated: "2023-11-02T14:20",
+      tags: ["design", "admin"],
+      score: 1234.5,
+      avatar: "/avatars/ada.png",
+    },
+    {
+      id: 2,
+      name: "Grace Hopper",
+      joined: "2022-06-10",
+      updated: "2022-08-15T09:00",
+      tags: ["ops"],
+      score: 100,
+      avatar: "/avatars/grace.png",
+    },
+    {
+      id: 3,
+      name: "Alan Turing",
+      joined: "2023-06-12",
+      updated: "2024-01-01T00:00",
+      tags: ["math", "crypto"],
+      score: 10,
+      avatar: "/avatars/alan.png",
+    },
+  ];
+
+  const filterColumns: TableConfig<FilterItem>["columns"] = {
+    name: { type: "text", label: "Name", filterable: "name" },
+    joined: { type: "date", label: "Joined", filterable: "joined" },
+    updated: { type: "datetime", label: "Updated", filterable: "updated" },
+    tags: { type: "array", label: "Tags", filterable: "tags" },
+    score: { type: "number", label: "Score", filterable: "score" },
+    avatar: { type: "image", label: "Avatar", filterable: "avatar" },
+  };
+
+  function filterConfig(
+    rows: FilterItem[] = filterRows,
+    overrides: Partial<TableConfig<FilterItem>> = {},
+  ): TableConfig<FilterItem> {
+    return {
+      dataSource: () => ({ rows }),
+      columns: filterColumns,
+      ...overrides,
+    };
+  }
+
+  const clickFilterTrigger = (name: string) =>
+    fireEvent.click(screen.getByRole("button", { name: `Filter ${name}` }));
+
+  it("renders no filter trigger for a column without filterable", () => {
+    render(<Table config={makeConfig(people)} />);
+
+    expect(
+      screen.queryByRole("button", { name: /^Filter / }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens a labelled filter popover from the header trigger, closes on Escape, and returns focus", () => {
+    render(<Table config={filterConfig()} />);
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveAttribute("aria-controls");
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const input = screen.getByLabelText("Filter by Name");
+    expect(input).toHaveFocus();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("renders a number input for number columns and a text input for every other type", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Score");
+    expect(screen.getByLabelText("Filter by Score")).toHaveAttribute(
+      "type",
+      "number",
+    );
+
+    clickFilterTrigger("Joined");
+    expect(screen.getByLabelText("Filter by Joined")).toHaveAttribute(
+      "type",
+      "text",
+    );
+    clickFilterTrigger("Tags");
+    expect(screen.getByLabelText("Filter by Tags")).toHaveAttribute(
+      "type",
+      "text",
+    );
+    clickFilterTrigger("Updated");
+    expect(screen.getByLabelText("Filter by Updated")).toHaveAttribute(
+      "type",
+      "text",
+    );
+  });
+
+  it("matches text filters case-insensitively on containment and updates the summary", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alan Turing")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1–1 of 1");
+  });
+
+  it("matches array filters case-insensitively on the joined value", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Tags");
+    fireEvent.change(screen.getByLabelText("Filter by Tags"), {
+      target: { value: "CRYPTO" },
+    });
+
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+    expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+  });
+
+  it("matches number filters exactly, never by prefix or containment", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Score");
+    const input = screen.getByLabelText("Filter by Score");
+
+    fireEvent.change(input, { target: { value: "10" } });
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "1234" } });
+    expect(
+      screen.getByText("No results match your filters"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "1234.5" } });
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+  });
+
+  it("matches date filters exactly on the date parts", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Joined");
+    const input = screen.getByLabelText("Filter by Joined");
+
+    fireEvent.change(input, { target: { value: "2023-06-12" } });
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "garbage" } });
+    expect(
+      screen.getByText("No results match your filters"),
+    ).toBeInTheDocument();
+  });
+
+  it("matches datetime filters exactly on the date and time parts", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Updated");
+    const input = screen.getByLabelText("Filter by Updated");
+
+    fireEvent.change(input, { target: { value: "2023-11-02T14:20" } });
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alan Turing")).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "2023-11-02T14:20:30" } });
+    expect(
+      screen.getByText("No results match your filters"),
+    ).toBeInTheDocument();
+  });
+
+  it("matches a Date-instance cell value to a date-only filter string", () => {
+    const rows: FilterItem[] = [
+      {
+        id: 1,
+        name: "Ada",
+        joined: new Date(2023, 5, 12),
+        updated: "2023-11-02T14:20",
+        tags: ["a"],
+        score: 1,
+        avatar: "/a.png",
+      },
+    ];
+    render(<Table config={filterConfig(rows)} />);
+
+    clickFilterTrigger("Joined");
+    fireEvent.change(screen.getByLabelText("Filter by Joined"), {
+      target: { value: "2023-06-12" },
+    });
+
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+  });
+
+  it("yields zero results for any filter value on a filterable image column", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Avatar");
+    fireEvent.change(screen.getByLabelText("Filter by Avatar"), {
+      target: { value: "/avatars/ada.png" },
+    });
+
+    expect(
+      screen.getByText("No results match your filters"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
+  });
+
+  it("removes a column from the active filters when its input is cleared", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Name");
+    const input = screen.getByLabelText("Filter by Name");
+    fireEvent.change(input, { target: { value: "LOVE" } });
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "" } });
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
+  });
+
+  it("combines filters across columns with AND semantics", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "a" },
+    });
+    clickFilterTrigger("Score");
+    fireEvent.change(screen.getByLabelText("Filter by Score"), {
+      target: { value: "10" },
+    });
+
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+    expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+  });
+
+  it("shows 'No results match your filters' with a Clear filters action that removes every filter", () => {
+    render(<Table config={filterConfig()} />);
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No results match your filters"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(
+      screen.queryByText("No results match your filters"),
+    ).not.toBeInTheDocument();
+  });
+});
