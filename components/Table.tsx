@@ -4,10 +4,12 @@ import {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
   type ReactNode,
+  type Ref,
 } from "react";
 
 export type TableColumnType =
@@ -70,6 +72,10 @@ export type TableConfig<T> = {
   pagination?: { page?: number; size?: number };
 };
 
+export type TableHandle = {
+  refresh: () => void;
+};
+
 const EMPTY_MARK = <span className="text-neutral-400">—</span>;
 
 const PAGER_BUTTON_BASE_CLASS =
@@ -117,6 +123,22 @@ const LOADING_SPINNER = (
       strokeWidth="2"
       strokeLinecap="round"
     />
+  </svg>
+);
+
+const REFRESH_ICON = (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-3.5 w-3.5"
+  >
+    <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+    <path d="M13.5 1.5v2.6h-2.6" />
   </svg>
 );
 
@@ -444,7 +466,13 @@ function FilterControl<T>({
   );
 }
 
-export function Table<T>({ config }: { config: TableConfig<T> }) {
+export function Table<T>({
+  config,
+  ref,
+}: {
+  config: TableConfig<T>;
+  ref?: Ref<TableHandle>;
+}) {
   const dataSourceRef = useRef(config.dataSource);
   const columnsRef = useRef(config.columns);
   useEffect(() => {
@@ -464,7 +492,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
   const [error, setError] = useState(false);
   const [mirroredPagination, setMirroredPagination] =
     useState<TablePagination | null>(null);
-  const [retryToken, setRetryToken] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
   const requestIdRef = useRef(0);
   const prevFiltersRef = useRef(filters);
 
@@ -500,6 +528,13 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     );
   }, []);
 
+  const reload = useCallback(() => {
+    beginRequest();
+    setReloadToken((token) => token + 1);
+  }, [beginRequest]);
+
+  useImperativeHandle(ref, () => ({ refresh: reload }), [reload]);
+
   const handleSortClick = (key: string) => {
     const next = cycleSort(sort, key);
     setSort(next);
@@ -516,11 +551,6 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
       beginRequest();
     }
     setPagination((current) => ({ ...current, page }));
-  };
-
-  const handleRetry = () => {
-    beginRequest();
-    setRetryToken((token) => token + 1);
   };
 
   // Server mode debounces filter changes (~300ms); the page resets to 1 in the
@@ -544,7 +574,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     };
   }, [filters, serverSide, beginRequest, resetPageToFirst]);
 
-  // Local mode fetches the full dataset on mount and again on each Retry.
+  // Local mode fetches the full dataset on mount and again on each reload.
   useEffect(() => {
     if (serverSide) {
       return;
@@ -568,7 +598,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     return () => {
       active = false;
     };
-  }, [serverSide, retryToken]);
+  }, [serverSide, reloadToken]);
 
   // Server mode: fire dataSource on mount and immediately on pagination/sort
   // change, drop out-of-order responses via a monotonic request id plus the
@@ -638,7 +668,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     pagination.size,
     sort,
     debouncedFilters,
-    retryToken,
+    reloadToken,
   ]);
 
   const visibleColumns = useMemo(
@@ -713,9 +743,20 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
   return (
     <div>
       <table className="w-full border-collapse text-sm">
-        {config.caption ? (
-          <caption className="pb-2 text-left text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-            {config.caption}
+        {config.caption || serverSide ? (
+          <caption className="flex items-center justify-between pb-2 text-left text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            {config.caption ? <span>{config.caption}</span> : null}
+            {serverSide ? (
+              <button
+                type="button"
+                aria-label="Refresh"
+                disabled={loading}
+                onClick={reload}
+                className="cursor-pointer rounded p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {REFRESH_ICON}
+              </button>
+            ) : null}
           </caption>
         ) : null}
         <thead>
@@ -782,7 +823,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
                 <span>{"Couldn't load data"}</span>
                 <button
                   type="button"
-                  onClick={handleRetry}
+                  onClick={reload}
                   className="ml-2 underline decoration-dotted underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-400"
                 >
                   Retry

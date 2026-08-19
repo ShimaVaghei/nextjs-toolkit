@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { createRef } from "react";
 import {
   render,
   screen,
@@ -13,6 +14,7 @@ import {
   type TableConfig,
   type TableDataRequest,
   type TableDataResponse,
+  type TableHandle,
 } from "./Table";
 
 type Person = {
@@ -317,6 +319,48 @@ describe("Table local mode", () => {
     expect(
       screen.queryByRole("button", { name: "Retry" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not render a Refresh button in local mode", async () => {
+    await renderLocal(makeConfig(people));
+
+    expect(
+      screen.queryByRole("button", { name: "Refresh" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("re-fetches the full dataset on ref.refresh() with the loading dim and spinner", async () => {
+    const d1 = deferred<TableDataResponse<Person>>();
+    const d2 = deferred<TableDataResponse<Person>>();
+    const dataSource: TableConfig<Person>["dataSource"] = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+
+    const ref = createRef<TableHandle>();
+    render(<Table config={{ dataSource, columns }} ref={ref} />);
+
+    await act(async () => {
+      d1.resolve({ rows: people });
+    });
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+
+    expect(ref.current).not.toBeNull();
+    act(() => {
+      ref.current?.refresh();
+    });
+
+    expect(dataSource).toHaveBeenCalledTimes(2);
+    expect(dataSource).toHaveBeenLastCalledWith({});
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    expect(screen.getAllByRole("rowgroup")[1]).toHaveClass("opacity-50");
+
+    await act(async () => {
+      d2.resolve({ rows: people.slice(0, 5) });
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1–5 of 5");
+    expect(screen.queryByText("Person 6")).not.toBeInTheDocument();
   });
 });
 
@@ -1455,6 +1499,136 @@ describe("Table server mode", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("renders a Refresh button in the top-right of the caption row", async () => {
+    const dataSource = vi.fn(async () => pageOne);
+    const { container } = render(
+      <Table config={serverConfig(dataSource, { caption: "Server table" })} />,
+    );
+    await act(async () => {});
+
+    const caption = container.querySelector("caption") as HTMLElement;
+    expect(caption).toBeInTheDocument();
+    expect(caption).toHaveClass("justify-between");
+    expect(caption).toHaveTextContent("Server table");
+    const refresh = screen.getByRole("button", { name: "Refresh" });
+    expect(caption).toContainElement(refresh);
+  });
+
+  it("disables the Refresh button while a request is in flight and enables it once resolved", async () => {
+    const d = deferred<TableDataResponse<ServerRow>>();
+    const dataSource = vi.fn(() => d.promise);
+    render(<Table config={serverConfig(dataSource)} />);
+
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
+
+    await act(async () => {
+      d.resolve(pageOne);
+    });
+
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
+
+  it("re-fires the current request on Refresh click, keeping page, sort, and filters", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(
+        async (
+          request: TableDataRequest,
+        ): Promise<TableDataResponse<ServerRow>> => ({
+          rows: serverRows.slice(0, 10),
+          pagination: {
+            total: serverRows.length,
+            size: 10,
+            page: request.pagination?.page ?? 1,
+            totalPages: 3,
+          },
+        }),
+      );
+
+      render(<Table config={serverConfig(dataSource)} />);
+      await act(async () => {});
+
+      const scoreHeader = screen.getByRole("columnheader", { name: /score/i });
+      fireEvent.click(within(scoreHeader).getByRole("button", { name: "Score" }));
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+      fireEvent.click(screen.getByRole("button", { name: "2" }));
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+      expect(dataSource).toHaveBeenCalledTimes(1);
+      expect(dataSource).toHaveBeenLastCalledWith({
+        pagination: { page: 2, size: 10 },
+        sort: { key: "score_key", direction: "ascending" },
+        filters: { name: "Ada" },
+      });
+
+      await act(async () => {});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("re-fires the current request when the parent calls ref.refresh()", async () => {
+    const dataSource = vi.fn(async () => pageOne);
+    const ref = createRef<TableHandle>();
+    render(<Table config={serverConfig(dataSource)} ref={ref} />);
+    await act(async () => {});
+    dataSource.mockClear();
+
+    expect(ref.current).not.toBeNull();
+    act(() => {
+      ref.current?.refresh();
+    });
+
+    expect(dataSource).toHaveBeenCalledTimes(1);
+    expect(dataSource).toHaveBeenLastCalledWith({
+      pagination: { page: 1, size: 10 },
+      filters: {},
+    });
+
+    await act(async () => {});
+  });
+
+  it("lets the Refresh button recover from an error exactly like Retry", async () => {
+    const d1 = deferred<TableDataResponse<ServerRow>>();
+    const d2 = deferred<TableDataResponse<ServerRow>>();
+    const dataSource = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+
+    render(<Table config={serverConfig(dataSource)} />);
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(dataSource).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole("button", { name: "Retry" }),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      d2.resolve(pageOne);
+    });
+
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1–10 of 25");
   });
 });
 
