@@ -12,7 +12,7 @@ export default function LocalTableDemoPage() {
   const teamConfig: TableConfig<TeamMember> = {
     caption: "Team members — local mode",
     columns: teamColumns,
-    dataSource: () => ({ rows: teamMembers }),
+    dataSource: async () => ({ rows: teamMembers }),
     pagination: { size: 5 },
   };
 

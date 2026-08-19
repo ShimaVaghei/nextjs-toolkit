@@ -64,7 +64,7 @@ export type TableConfig<T> = {
   caption?: string;
   dataSource: (
     request: TableDataRequest,
-  ) => TableDataResponse<T> | Promise<TableDataResponse<T>>;
+  ) => Promise<TableDataResponse<T>>;
   columns: TableColumns<T>;
   serverSide?: boolean;
   pagination?: { page?: number; size?: number };
@@ -460,7 +460,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     page: Math.max(1, config.pagination?.page ?? 1),
     size: config.pagination?.size ?? 10,
   }));
-  const [loading, setLoading] = useState(serverSide);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [mirroredPagination, setMirroredPagination] =
     useState<TablePagination | null>(null);
@@ -490,12 +490,9 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
   };
 
   const beginRequest = useCallback(() => {
-    if (!serverSide) {
-      return;
-    }
     setLoading(true);
     setError(false);
-  }, [serverSide]);
+  }, []);
 
   const resetPageToFirst = useCallback(() => {
     setPagination((current) =>
@@ -515,7 +512,9 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
   };
 
   const handlePageChange = (page: number) => {
-    beginRequest();
+    if (serverSide) {
+      beginRequest();
+    }
     setPagination((current) => ({ ...current, page }));
   };
 
@@ -545,24 +544,31 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     };
   }, [filters, serverSide, beginRequest, resetPageToFirst]);
 
-  // Local mode fetches the full dataset exactly once.
+  // Local mode fetches the full dataset on mount and again on each Retry.
   useEffect(() => {
     if (serverSide) {
       return;
     }
     let active = true;
-    const response = dataSourceRef.current({});
-    if (typeof (response as Promise<TableDataResponse<T>>).then === "function") {
-      (response as Promise<TableDataResponse<T>>).then((resolved) => {
-        if (active) setRows(resolved.rows);
-      });
-    } else if (active) {
-      setRows((response as TableDataResponse<T>).rows);
-    }
+    const responsePromise = dataSourceRef.current({});
+    responsePromise.then(
+      (response) => {
+        if (active) {
+          setRows(response.rows);
+          setLoading(false);
+        }
+      },
+      () => {
+        if (active) {
+          setError(true);
+          setLoading(false);
+        }
+      },
+    );
     return () => {
       active = false;
     };
-  }, [serverSide]);
+  }, [serverSide, retryToken]);
 
   // Server mode: fire dataSource on mount and immediately on pagination/sort
   // change, drop out-of-order responses via a monotonic request id plus the
@@ -704,10 +710,6 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
     ? Object.keys(debouncedFilters).length > 0
     : Object.keys(filters).length > 0;
 
-  if (!serverSide && rows === null) {
-    return null;
-  }
-
   return (
     <div>
       <table className="w-full border-collapse text-sm">
@@ -769,9 +771,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
           </tr>
         </thead>
         <tbody
-          className={
-            serverSide && loading && !error ? LOADING_TBODY_CLASS : undefined
-          }
+          className={loading && !error ? LOADING_TBODY_CLASS : undefined}
         >
           {error ? (
             <tr>
@@ -790,7 +790,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
               </td>
             </tr>
           ) : displayPagination.total === 0 ? (
-            serverSide && rows === null ? null : (
+            rows === null ? null : (
               <tr>
                 <td
                   colSpan={visibleColumns.length}
@@ -845,7 +845,7 @@ export function Table<T>({ config }: { config: TableConfig<T> }) {
       >
         {error ? (
           "Couldn't load data"
-        ) : serverSide && loading ? (
+        ) : loading ? (
           <span className="flex items-center gap-1.5">
             {LOADING_SPINNER}
             Loading…

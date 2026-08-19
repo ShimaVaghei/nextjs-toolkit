@@ -40,7 +40,7 @@ function makeConfig(
   overrides: Partial<TableConfig<Person>> = {},
 ): TableConfig<Person> {
   return {
-    dataSource: () => ({ rows }),
+    dataSource: async () => ({ rows }),
     columns,
     ...overrides,
   };
@@ -51,13 +51,29 @@ const currentPageButtons = () =>
     .getAllByRole("button")
     .filter((button) => button.getAttribute("aria-current") === "page");
 
+async function renderLocal<T>(config: TableConfig<T>) {
+  const utils = render(<Table config={config} />);
+  await act(async () => {});
+  return utils;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 afterEach(() => {
   cleanup();
 });
 
 describe("Table local mode", () => {
-  it("renders the caption, all column headers, and the first page of rows as text cells", () => {
-    render(<Table config={makeConfig(people, { caption: "People" })} />);
+  it("renders the caption, all column headers, and the first page of rows as text cells", async () => {
+    await renderLocal(makeConfig(people, { caption: "People" }));
 
     expect(screen.getByText("People")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
@@ -71,14 +87,12 @@ describe("Table local mode", () => {
     expect(screen.getAllByRole("row")).toHaveLength(11);
   });
 
-  it("renders a muted em-dash for empty cell values", () => {
-    render(
-      <Table
-        config={makeConfig([
-          { id: 1, name: "Ada", email: null, role: "admin" },
-          { id: 2, name: "Grace", email: "grace@example.com", role: "user" },
-        ])}
-      />,
+  it("renders a muted em-dash for empty cell values", async () => {
+    await renderLocal(
+      makeConfig([
+        { id: 1, name: "Ada", email: null, role: "admin" },
+        { id: 2, name: "Grace", email: "grace@example.com", role: "user" },
+      ]),
     );
 
     const dash = screen.getByText("—");
@@ -88,8 +102,8 @@ describe("Table local mode", () => {
     expect(screen.getByText("grace@example.com")).toBeInTheDocument();
   });
 
-  it("announces the showing summary in a single polite role=status region", () => {
-    render(<Table config={makeConfig(people)} />);
+  it("announces the showing summary in a single polite role=status region", async () => {
+    await renderLocal(makeConfig(people));
 
     const statuses = screen.getAllByRole("status");
     expect(statuses).toHaveLength(1);
@@ -97,8 +111,8 @@ describe("Table local mode", () => {
     expect(statuses[0]).toHaveTextContent("Showing 1–10 of 25");
   });
 
-  it("marks exactly one page button aria-current=page and natively disables prev/next at the ends", () => {
-    render(<Table config={makeConfig(people)} />);
+  it("marks exactly one page button aria-current=page and natively disables prev/next at the ends", async () => {
+    await renderLocal(makeConfig(people));
 
     const nav = screen.getByRole("navigation", { name: "Pagination" });
     expect(within(nav).getByRole("button", { name: "Previous" })).toBeDisabled();
@@ -117,8 +131,8 @@ describe("Table local mode", () => {
     expect(current[0]).toHaveTextContent("3");
   });
 
-  it("styles the current page button with a filled/inverted neutral style in light and dark mode, leaving other buttons unchanged", () => {
-    render(<Table config={makeConfig(people)} />);
+  it("styles the current page button with a filled/inverted neutral style in light and dark mode, leaving other buttons unchanged", async () => {
+    await renderLocal(makeConfig(people));
 
     const nav = screen.getByRole("navigation", { name: "Pagination" });
     const current = currentPageButtons();
@@ -139,8 +153,8 @@ describe("Table local mode", () => {
       });
   });
 
-  it("keeps the filled style on the current page button as the user navigates", () => {
-    render(<Table config={makeConfig(people)} />);
+  it("keeps the filled style on the current page button as the user navigates", async () => {
+    await renderLocal(makeConfig(people));
 
     fireEvent.click(screen.getByRole("button", { name: "2" }));
 
@@ -155,8 +169,8 @@ describe("Table local mode", () => {
     );
   });
 
-  it("navigating pages updates the rendered rows and the summary", () => {
-    render(<Table config={makeConfig(people)} />);
+  it("navigating pages updates the rendered rows and the summary", async () => {
+    await renderLocal(makeConfig(people));
 
     fireEvent.click(screen.getByRole("button", { name: "2" }));
     expect(screen.getByText("Person 11")).toBeInTheDocument();
@@ -171,10 +185,8 @@ describe("Table local mode", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Showing 11–20 of 25");
   });
 
-  it("uses the optional pagination config for the initial page and size", () => {
-    render(
-      <Table config={makeConfig(people, { pagination: { page: 2, size: 5 } })} />,
-    );
+  it("uses the optional pagination config for the initial page and size", async () => {
+    await renderLocal(makeConfig(people, { pagination: { page: 2, size: 5 } }));
 
     expect(screen.getByText("Person 6")).toBeInTheDocument();
     expect(screen.getByText("Person 10")).toBeInTheDocument();
@@ -186,8 +198,8 @@ describe("Table local mode", () => {
     expect(current[0]).toHaveTextContent("2");
   });
 
-  it("clamps an out-of-range seeded page to the last page and navigates from there", () => {
-    render(<Table config={makeConfig(people, { pagination: { page: 99 } })} />);
+  it("clamps an out-of-range seeded page to the last page and navigates from there", async () => {
+    await renderLocal(makeConfig(people, { pagination: { page: 99 } }));
 
     expect(screen.getByText("Person 21")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Showing 21–25 of 25");
@@ -201,9 +213,9 @@ describe("Table local mode", () => {
     expect(screen.getByText("Person 11")).toBeInTheDocument();
   });
 
-  it("calls dataSource exactly once and never again on pagination", () => {
-    const dataSource = vi.fn(() => ({ rows: people }));
-    render(<Table config={{ dataSource, columns }} />);
+  it("calls dataSource exactly once and never again on pagination", async () => {
+    const dataSource = vi.fn(async () => ({ rows: people }));
+    await renderLocal({ dataSource, columns });
 
     expect(dataSource).toHaveBeenCalledTimes(1);
     expect(dataSource).toHaveBeenCalledWith({});
@@ -215,12 +227,96 @@ describe("Table local mode", () => {
     expect(dataSource).toHaveBeenCalledTimes(1);
   });
 
-  it("renders 'No data yet' across a column-spanning row when there are no rows", () => {
-    render(<Table config={makeConfig([])} />);
+  it("renders 'No data yet' across a column-spanning row when there are no rows", async () => {
+    await renderLocal(makeConfig([]));
 
     const emptyCell = screen.getByText("No data yet").closest("td") as HTMLElement;
     expect(emptyCell).toHaveAttribute("colspan", "3");
     expect(screen.getByRole("status")).toHaveTextContent("Showing 0–0 of 0");
+  });
+
+  it("shows a loading spinner on first load while the dataSource promise is pending, then renders the rows", async () => {
+    const d = deferred<TableDataResponse<Person>>();
+    const dataSource: TableConfig<Person>["dataSource"] = vi.fn(() => d.promise);
+    render(<Table config={{ dataSource, columns }} />);
+
+    expect(dataSource).toHaveBeenCalledTimes(1);
+    expect(dataSource).toHaveBeenCalledWith({});
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
+    expect(screen.queryByText("Person 1")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("rowgroup")[1]).toHaveClass("opacity-50");
+
+    await act(async () => {
+      d.resolve({ rows: people });
+    });
+
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1–10 of 25");
+  });
+
+  it("dims the body and shows a spinner while a Retry refresh is in flight", async () => {
+    const d1 = deferred<TableDataResponse<Person>>();
+    const d2 = deferred<TableDataResponse<Person>>();
+    const dataSource: TableConfig<Person>["dataSource"] = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+
+    render(<Table config={{ dataSource, columns }} />);
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(dataSource).toHaveBeenCalledTimes(2);
+    expect(dataSource).toHaveBeenLastCalledWith({});
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    expect(screen.getAllByRole("rowgroup")[1]).toHaveClass("opacity-50");
+
+    await act(async () => {
+      d2.resolve({ rows: people.slice(0, 10) });
+    });
+
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1–10 of 10");
+  });
+
+  it("shows 'Couldn't load data' with a Retry that re-fetches after a rejected fetch", async () => {
+    const d1 = deferred<TableDataResponse<Person>>();
+    const d2 = deferred<TableDataResponse<Person>>();
+    const dataSource: TableConfig<Person>["dataSource"] = vi
+      .fn()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+
+    render(<Table config={{ dataSource, columns }} />);
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+
+    expect(screen.getAllByText("Couldn't load data").length).toBeGreaterThan(0);
+    expect(screen.getByRole("status")).toHaveTextContent("Couldn't load data");
+    const retry = screen.getByRole("button", { name: "Retry" });
+    expect(retry).toBeInTheDocument();
+
+    fireEvent.click(retry);
+
+    expect(dataSource).toHaveBeenCalledTimes(2);
+    expect(dataSource).toHaveBeenLastCalledWith({});
+
+    await act(async () => {
+      d2.resolve({ rows: people.slice(0, 10) });
+    });
+
+    expect(screen.getByText("Person 1")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -270,14 +366,14 @@ describe("Table column type renderers", () => {
     overrides: Partial<TableConfig<Item>> = {},
   ): TableConfig<Item> {
     return {
-      dataSource: () => ({ rows }),
+      dataSource: async () => ({ rows }),
       columns: typeColumns,
       ...overrides,
     };
   }
 
-  it("renders date cells as Intl short dates inside a native <time dateTime>", () => {
-    render(<Table config={typeConfig([itemRows[0]])} />);
+  it("renders date cells as Intl short dates inside a native <time dateTime>", async () => {
+    await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
       .getByText("Jun 12, 2023")
@@ -285,8 +381,8 @@ describe("Table column type renderers", () => {
     expect(dateTime).toHaveAttribute("datetime", "2023-06-12");
   });
 
-  it("renders datetime cells as Intl date + time inside a native <time dateTime>", () => {
-    render(<Table config={typeConfig([itemRows[0]])} />);
+  it("renders datetime cells as Intl date + time inside a native <time dateTime>", async () => {
+    await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
       .getByText("Nov 2, 2023, 2:20 PM")
@@ -294,39 +390,39 @@ describe("Table column type renderers", () => {
     expect(dateTime).toHaveAttribute("datetime", "2023-11-02T14:20");
   });
 
-  it("accepts date strings and coerces them through the same date formatter", () => {
+  it("accepts date strings and coerces them through the same date formatter", async () => {
     const row = { ...itemRows[0], joined: "2023-06-12T12:00:00" };
-    render(<Table config={typeConfig([row])} />);
+    await renderLocal(typeConfig([row]));
 
     expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
   });
 
-  it("falls back to the raw string for an unparseable date value", () => {
+  it("falls back to the raw string for an unparseable date value", async () => {
     const row = { ...itemRows[0], joined: "garbage" };
-    render(<Table config={typeConfig([row])} />);
+    await renderLocal(typeConfig([row]));
 
     const text = screen.getByText("garbage");
     expect(text).toBeInTheDocument();
     expect(text.closest("time")).toBeNull();
   });
 
-  it("renders array cells as a comma-joined string", () => {
-    render(<Table config={typeConfig([itemRows[0]])} />);
+  it("renders array cells as a comma-joined string", async () => {
+    await renderLocal(typeConfig([itemRows[0]]));
 
     expect(screen.getByText("design, admin")).toBeInTheDocument();
   });
 
-  it("renders image cells as a small rounded img with a name-derived alt", () => {
-    render(<Table config={typeConfig([itemRows[0]])} />);
+  it("renders image cells as a small rounded img with a name-derived alt", async () => {
+    await renderLocal(typeConfig([itemRows[0]]));
 
     const img = screen.getByRole("img", { name: "Ada thumbnail" });
     expect(img).toHaveAttribute("src", "/avatars/ada.png");
     expect(img).toHaveClass("h-10", "w-10", "rounded-lg", "shadow-sm");
   });
 
-  it("renders image cells with an empty alt when the row has no name", () => {
-    const { container } = render(
-      <Table config={typeConfig([{ ...itemRows[0], name: "" }])} />,
+  it("renders image cells with an empty alt when the row has no name", async () => {
+    const { container } = await renderLocal(
+      typeConfig([{ ...itemRows[0], name: "" }]),
     );
 
     const img = container.querySelector("img") as HTMLImageElement;
@@ -334,8 +430,8 @@ describe("Table column type renderers", () => {
     expect(img).toHaveAttribute("src", "/avatars/ada.png");
   });
 
-  it("renders number cells as plain left-aligned raw strings", () => {
-    render(<Table config={typeConfig([itemRows[0]])} />);
+  it("renders number cells as plain left-aligned raw strings", async () => {
+    await renderLocal(typeConfig([itemRows[0]]));
 
     const score = screen.getByText("1234.5");
     expect(score).toBeInTheDocument();
@@ -344,42 +440,34 @@ describe("Table column type renderers", () => {
     expect(td).toHaveClass("text-left");
   });
 
-  it("runs a column transform before type rendering", () => {
+  it("runs a column transform before type rendering", async () => {
     const columns: TableConfig<Item>["columns"] = {
       joined: { type: "date", transform: () => new Date(2023, 5, 12) },
     };
-    render(
-      <Table
-        config={{
-          dataSource: () => ({ rows: [{ ...itemRows[0], joined: "garbage" }] }),
-          columns,
-        }}
-      />,
-    );
+    await renderLocal({
+      dataSource: async () => ({ rows: [{ ...itemRows[0], joined: "garbage" }] }),
+      columns,
+    });
 
     expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
     expect(screen.queryByText("garbage")).not.toBeInTheDocument();
   });
 
-  it("renders the em-dash when a transform returns null", () => {
+  it("renders the em-dash when a transform returns null", async () => {
     const columns: TableConfig<Item>["columns"] = {
       name: { type: "text", transform: () => null },
     };
-    render(
-      <Table
-        config={{
-          dataSource: () => ({ rows: [{ ...itemRows[0], name: "Ada" }] }),
-          columns,
-        }}
-      />,
-    );
+    await renderLocal({
+      dataSource: async () => ({ rows: [{ ...itemRows[0], name: "Ada" }] }),
+      columns,
+    });
 
     const dash = screen.getByText("—");
     expect(dash).toHaveClass("text-neutral-400");
     expect(screen.queryByText("Ada")).not.toBeInTheDocument();
   });
 
-  it("merges a static class and per-row dynamicClass onto the cell", () => {
+  it("merges a static class and per-row dynamicClass onto the cell", async () => {
     const columns: TableConfig<Item>["columns"] = {
       name: {
         type: "text",
@@ -390,14 +478,10 @@ describe("Table column type renderers", () => {
             : "text-red-600",
       },
     };
-    render(
-      <Table
-        config={{
-          dataSource: () => ({ rows: itemRows }),
-          columns,
-        }}
-      />,
-    );
+    await renderLocal({
+      dataSource: async () => ({ rows: itemRows }),
+      columns,
+    });
 
     const adaCell = screen.getByText("Ada").closest("td") as HTMLElement;
     expect(adaCell).toHaveClass("font-medium", "text-emerald-600");
@@ -405,7 +489,7 @@ describe("Table column type renderers", () => {
     expect(graceCell).toHaveClass("font-medium", "text-red-600");
   });
 
-  it("drops hidden columns entirely", () => {
+  it("drops hidden columns entirely", async () => {
     const columns: TableConfig<Item>["columns"] = {
       name: { type: "text" },
       secret: { type: "text", hidden: true },
@@ -413,22 +497,18 @@ describe("Table column type renderers", () => {
     const row = { ...itemRows[0], secret: "s3cret" } as Item & {
       secret: string;
     };
-    render(
-      <Table
-        config={{
-          dataSource: () => ({ rows: [row] }),
-          columns,
-        }}
-      />,
-    );
+    await renderLocal({
+      dataSource: async () => ({ rows: [row] }),
+      columns,
+    });
 
     expect(screen.getAllByRole("columnheader")).toHaveLength(1);
     expect(screen.queryByRole("columnheader", { name: "secret" })).not.toBeInTheDocument();
     expect(screen.queryByText("s3cret")).not.toBeInTheDocument();
   });
 
-  it("renders the muted em-dash for null/undefined values of every type", () => {
-    render(<Table config={typeConfig([itemRows[1]])} />);
+  it("renders the muted em-dash for null/undefined values of every type", async () => {
+    await renderLocal(typeConfig([itemRows[1]]));
 
     const dashes = screen.getAllByText("—");
     expect(dashes).toHaveLength(5);
@@ -465,7 +545,7 @@ describe("Table local sort", () => {
     overrides: Partial<TableConfig<SortableItem>> = {},
   ): TableConfig<SortableItem> {
     return {
-      dataSource: () => ({ rows }),
+      dataSource: async () => ({ rows }),
       columns: sortableColumns,
       ...overrides,
     };
@@ -485,8 +565,8 @@ describe("Table local sort", () => {
       .getByRole("button")
       .textContent?.includes("\u2193");
 
-  it("cycles a sortable header ascending → descending → none, showing aria-sort and a direction icon only while sorted", () => {
-    render(<Table config={sortableConfig()} />);
+  it("cycles a sortable header ascending → descending → none, showing aria-sort and a direction icon only while sorted", async () => {
+    await renderLocal(sortableConfig());
 
     const header = nameHeader();
     expect(header).toHaveAttribute("aria-sort", "none");
@@ -505,8 +585,8 @@ describe("Table local sort", () => {
     expect(hasDirectionIcon(header)).toBe(false);
   });
 
-  it("clicking a different sortable column starts it ascending and clears the previous header's sort", () => {
-    render(<Table config={sortableConfig()} />);
+  it("clicking a different sortable column starts it ascending and clears the previous header's sort", async () => {
+    await renderLocal(sortableConfig());
 
     const name = nameHeader();
     const score = scoreHeader();
@@ -532,47 +612,47 @@ describe("Table local sort", () => {
       .slice(1)
       .map((row) => row.querySelector("td")?.textContent);
 
-  it("sorts number columns numerically on the raw value", () => {
-    render(<Table config={sortableConfig()} />);
+  it("sorts number columns numerically on the raw value", async () => {
+    await renderLocal(sortableConfig());
 
     clickSort(scoreHeader());
 
     expect(sortedRowNames()).toEqual(["cherry", "banana", "Apple"]);
   });
 
-  it("sorts date columns chronologically on the raw value", () => {
-    render(<Table config={sortableConfig()} />);
+  it("sorts date columns chronologically on the raw value", async () => {
+    await renderLocal(sortableConfig());
 
     clickSort(screen.getByRole("columnheader", { name: /joined/i }));
 
     expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
   });
 
-  it("sorts text columns case-insensitively on the raw value", () => {
-    render(<Table config={sortableConfig()} />);
+  it("sorts text columns case-insensitively on the raw value", async () => {
+    await renderLocal(sortableConfig());
 
     clickSort(nameHeader());
 
     expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
   });
 
-  it("sorts array columns case-insensitively on the joined raw value", () => {
-    render(<Table config={sortableConfig()} />);
+  it("sorts array columns case-insensitively on the joined raw value", async () => {
+    await renderLocal(sortableConfig());
 
     clickSort(screen.getByRole("columnheader", { name: /tags/i }));
 
     expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
   });
 
-  it("sorts image columns case-insensitively on the raw value", () => {
-    render(<Table config={sortableConfig()} />);
+  it("sorts image columns case-insensitively on the raw value", async () => {
+    await renderLocal(sortableConfig());
 
     clickSort(screen.getByRole("columnheader", { name: /avatar/i }));
 
     expect(sortedRowNames()).toEqual(["Apple", "banana", "cherry"]);
   });
 
-  it("sorts by the raw value, ignoring the column transform", () => {
+  it("sorts by the raw value, ignoring the column transform", async () => {
     const columns: TableConfig<SortableItem>["columns"] = {
       id: { type: "text", label: "Id" },
       name: {
@@ -582,28 +662,24 @@ describe("Table local sort", () => {
         transform: (value) => String(value).split("").reverse().join(""),
       },
     };
-    render(
-      <Table
-        config={{
-          dataSource: () => ({ rows: sortableRows }),
-          columns,
-        }}
-      />,
-    );
+    await renderLocal({
+      dataSource: async () => ({ rows: sortableRows }),
+      columns,
+    });
 
     clickSort(screen.getByRole("columnheader", { name: /name/i }));
 
     expect(sortedRowNames()).toEqual(["2", "1", "3"]);
   });
 
-  it("sorts empty values last in both directions", () => {
+  it("sorts empty values last in both directions", async () => {
     const rows: SortableItem[] = [
       { id: 1, name: "banana", score: 30, joined: "2023-01-15", tags: ["b"], avatar: "/b.png" },
       { id: 2, name: "Apple", score: 10, joined: "2022-06-10", tags: ["a"], avatar: "/a.png" },
       { id: 3, name: "cherry", score: null, joined: null, tags: [], avatar: null },
       { id: 4, name: "date", score: 20, joined: "2021-01-01", tags: ["c"], avatar: "/d.png" },
     ];
-    render(<Table config={sortableConfig(rows)} />);
+    await renderLocal(sortableConfig(rows));
 
     clickSort(scoreHeader());
     expect(sortedRowNames()).toEqual(["Apple", "date", "banana", "cherry"]);
@@ -612,14 +688,14 @@ describe("Table local sort", () => {
     expect(sortedRowNames()).toEqual(["banana", "date", "Apple", "cherry"]);
   });
 
-  it("keeps equal sort keys in their original order (stable) across asc and desc", () => {
+  it("keeps equal sort keys in their original order (stable) across asc and desc", async () => {
     const rows: SortableItem[] = [
       { id: 1, name: "banana", score: 5, joined: "2023-01-15", tags: ["b"], avatar: "/b.png" },
       { id: 2, name: "Apple", score: 5, joined: "2022-06-10", tags: ["a"], avatar: "/a.png" },
       { id: 3, name: "cherry", score: null, joined: null, tags: [], avatar: null },
       { id: 4, name: "date", score: 5, joined: "2021-01-01", tags: ["c"], avatar: "/d.png" },
     ];
-    render(<Table config={sortableConfig(rows)} />);
+    await renderLocal(sortableConfig(rows));
 
     clickSort(scoreHeader());
     expect(sortedRowNames()).toEqual(["banana", "Apple", "date", "cherry"]);
@@ -634,19 +710,15 @@ describe("Table local sort", () => {
     expect(sortedRowNames()).toEqual(["banana", "Apple", "date", "cherry"]);
   });
 
-  it("renders no sort control for a column without sortable", () => {
+  it("renders no sort control for a column without sortable", async () => {
     const columns: TableConfig<SortableItem>["columns"] = {
       name: { type: "text", label: "Name" },
       joined: { type: "date", label: "Joined" },
     };
-    render(
-      <Table
-        config={{
-          dataSource: () => ({ rows: sortableRows }),
-          columns,
-        }}
-      />,
-    );
+    await renderLocal({
+      dataSource: async () => ({ rows: sortableRows }),
+      columns,
+    });
 
     const header = screen.getByRole("columnheader", { name: "Name" });
     expect(header).not.toHaveAttribute("aria-sort");
@@ -712,7 +784,7 @@ describe("Table local filter", () => {
     overrides: Partial<TableConfig<FilterItem>> = {},
   ): TableConfig<FilterItem> {
     return {
-      dataSource: () => ({ rows }),
+      dataSource: async () => ({ rows }),
       columns: filterColumns,
       ...overrides,
     };
@@ -721,16 +793,16 @@ describe("Table local filter", () => {
   const clickFilterTrigger = (name: string) =>
     fireEvent.click(screen.getByRole("button", { name: `Filter ${name}` }));
 
-  it("renders no filter trigger for a column without filterable", () => {
-    render(<Table config={makeConfig(people)} />);
+  it("renders no filter trigger for a column without filterable", async () => {
+    await renderLocal(makeConfig(people));
 
     expect(
       screen.queryByRole("button", { name: /^Filter / }),
     ).not.toBeInTheDocument();
   });
 
-  it("opens a labelled filter popover from the header trigger, closes on Escape, and returns focus", () => {
-    render(<Table config={filterConfig()} />);
+  it("opens a labelled filter popover from the header trigger, closes on Escape, and returns focus", async () => {
+    await renderLocal(filterConfig());
 
     const trigger = screen.getByRole("button", { name: "Filter Name" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -749,8 +821,8 @@ describe("Table local filter", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("renders a number input for number columns and a text input for every other type", () => {
-    render(<Table config={filterConfig()} />);
+  it("renders a number input for number columns and a text input for every other type", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Score");
     expect(screen.getByLabelText("Filter by Score")).toHaveAttribute(
@@ -775,8 +847,8 @@ describe("Table local filter", () => {
     );
   });
 
-  it("matches text filters case-insensitively on containment and updates the summary", () => {
-    render(<Table config={filterConfig()} />);
+  it("matches text filters case-insensitively on containment and updates the summary", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Name");
     fireEvent.change(screen.getByLabelText("Filter by Name"), {
@@ -789,8 +861,8 @@ describe("Table local filter", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Showing 1–1 of 1");
   });
 
-  it("matches array filters case-insensitively on the joined value", () => {
-    render(<Table config={filterConfig()} />);
+  it("matches array filters case-insensitively on the joined value", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Tags");
     fireEvent.change(screen.getByLabelText("Filter by Tags"), {
@@ -802,8 +874,8 @@ describe("Table local filter", () => {
     expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
   });
 
-  it("matches number filters exactly, never by prefix or containment", () => {
-    render(<Table config={filterConfig()} />);
+  it("matches number filters exactly, never by prefix or containment", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Score");
     const input = screen.getByLabelText("Filter by Score");
@@ -821,8 +893,8 @@ describe("Table local filter", () => {
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   });
 
-  it("matches date filters exactly on the date parts", () => {
-    render(<Table config={filterConfig()} />);
+  it("matches date filters exactly on the date parts", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Joined");
     const input = screen.getByLabelText("Filter by Joined");
@@ -838,8 +910,8 @@ describe("Table local filter", () => {
     ).toBeInTheDocument();
   });
 
-  it("matches datetime filters exactly on the date and time parts", () => {
-    render(<Table config={filterConfig()} />);
+  it("matches datetime filters exactly on the date and time parts", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Updated");
     const input = screen.getByLabelText("Filter by Updated");
@@ -855,7 +927,7 @@ describe("Table local filter", () => {
     ).toBeInTheDocument();
   });
 
-  it("matches a Date-instance cell value to a date-only filter string", () => {
+  it("matches a Date-instance cell value to a date-only filter string", async () => {
     const rows: FilterItem[] = [
       {
         id: 1,
@@ -867,7 +939,7 @@ describe("Table local filter", () => {
         avatar: "/a.png",
       },
     ];
-    render(<Table config={filterConfig(rows)} />);
+    await renderLocal(filterConfig(rows));
 
     clickFilterTrigger("Joined");
     fireEvent.change(screen.getByLabelText("Filter by Joined"), {
@@ -877,8 +949,8 @@ describe("Table local filter", () => {
     expect(screen.getByText("Ada")).toBeInTheDocument();
   });
 
-  it("yields zero results for any filter value on a filterable image column", () => {
-    render(<Table config={filterConfig()} />);
+  it("yields zero results for any filter value on a filterable image column", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Avatar");
     fireEvent.change(screen.getByLabelText("Filter by Avatar"), {
@@ -891,8 +963,8 @@ describe("Table local filter", () => {
     expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
   });
 
-  it("removes a column from the active filters when its input is cleared", () => {
-    render(<Table config={filterConfig()} />);
+  it("removes a column from the active filters when its input is cleared", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Name");
     const input = screen.getByLabelText("Filter by Name");
@@ -903,8 +975,8 @@ describe("Table local filter", () => {
     expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
   });
 
-  it("combines filters across columns with AND semantics", () => {
-    render(<Table config={filterConfig()} />);
+  it("combines filters across columns with AND semantics", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Name");
     fireEvent.change(screen.getByLabelText("Filter by Name"), {
@@ -920,8 +992,8 @@ describe("Table local filter", () => {
     expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
   });
 
-  it("shows 'No results match your filters' with a Clear filters action that removes every filter", () => {
-    render(<Table config={filterConfig()} />);
+  it("shows 'No results match your filters' with a Clear filters action that removes every filter", async () => {
+    await renderLocal(filterConfig());
 
     clickFilterTrigger("Name");
     fireEvent.change(screen.getByLabelText("Filter by Name"), {
@@ -940,8 +1012,8 @@ describe("Table local filter", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("closes an open filter popover when the user clicks anywhere outside it and its trigger", () => {
-    render(<Table config={filterConfig()} />);
+  it("closes an open filter popover when the user clicks anywhere outside it and its trigger", async () => {
+    await renderLocal(filterConfig());
 
     const trigger = screen.getByRole("button", { name: "Filter Name" });
     fireEvent.click(trigger);
@@ -953,8 +1025,8 @@ describe("Table local filter", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("toggles its own popover closed when the filter trigger is clicked again", () => {
-    render(<Table config={filterConfig()} />);
+  it("toggles its own popover closed when the filter trigger is clicked again", async () => {
+    await renderLocal(filterConfig());
 
     const trigger = screen.getByRole("button", { name: "Filter Name" });
     fireEvent.click(trigger);
@@ -966,8 +1038,8 @@ describe("Table local filter", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("keeps only one filter popover open at a time across columns", () => {
-    render(<Table config={filterConfig()} />);
+  it("keeps only one filter popover open at a time across columns", async () => {
+    await renderLocal(filterConfig());
 
     fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
     expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
@@ -981,8 +1053,8 @@ describe("Table local filter", () => {
     expect(scoreTrigger).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("keeps the filter popover open while the user types in its input", () => {
-    render(<Table config={filterConfig()} />);
+  it("keeps the filter popover open while the user types in its input", async () => {
+    await renderLocal(filterConfig());
 
     fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
     const input = screen.getByLabelText("Filter by Name");
@@ -1043,16 +1115,6 @@ describe("Table server mode", () => {
     rows: serverRows.slice(20, 25),
     pagination: { total: 25, size: 10, page: 3, totalPages: 3 },
   };
-
-  function deferred<T>() {
-    let resolve!: (value: T) => void;
-    let reject!: (reason?: unknown) => void;
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve, reject };
-  }
 
   it("fires dataSource on mount and immediately on page change, carrying pagination and filters", async () => {
     const dataSource = vi.fn(
@@ -1538,7 +1600,7 @@ describe("Table sortable/filterable string | boolean keys", () => {
     }
   });
 
-  it("renders no sort or filter control for sortable: false / filterable: false columns", () => {
+  it("renders no sort or filter control for sortable: false / filterable: false columns", async () => {
     const dataSource = vi.fn(
       async (): Promise<TableDataResponse<KeyedRow>> => keyedResponse(),
     );
