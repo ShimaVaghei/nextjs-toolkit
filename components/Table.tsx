@@ -36,8 +36,8 @@ export type TableColumn<T> = {
   class?: string;
   dynamicClass?: (row: T) => string;
   hidden?: boolean;
-  sortable?: string | false;
-  filterable?: string | false;
+  sortable?: string | boolean;
+  filterable?: string | boolean;
 };
 
 export type TableDataRequest = {
@@ -167,7 +167,7 @@ function cycleSort(current: TableSort | null, key: string): TableSort | null {
 
 function resolveRequestKey(
   columnKey: string,
-  requestKey: string | false | undefined,
+  requestKey: string | boolean | undefined,
 ): string {
   return typeof requestKey === "string" ? requestKey : columnKey;
 }

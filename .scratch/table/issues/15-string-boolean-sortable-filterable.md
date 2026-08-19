@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] A column with `sortable: true` sends the column's own key as the sort request key in server mode.
-- [ ] A column with `filterable: true` sends the column's own key as the filter request key in server mode.
-- [ ] A string value still acts as a custom request key, exactly as before.
-- [ ] `false`/omitted still disables the feature — no sort control, no filter control.
-- [ ] Backwards compatible — existing string-keyed configs behave identically.
-- [ ] Tests at the Table component seam assert the request keys the mocked `dataSource` receives for `true`, string, and `false` values.
+- [x] A column with `sortable: true` sends the column's own key as the sort request key in server mode.
+- [x] A column with `filterable: true` sends the column's own key as the filter request key in server mode.
+- [x] A string value still acts as a custom request key, exactly as before.
+- [x] `false`/omitted still disables the feature — no sort control, no filter control.
+- [x] Backwards compatible — existing string-keyed configs behave identically.
+- [x] Tests at the Table component seam assert the request keys the mocked `dataSource` receives for `true`, string, and `false` values.

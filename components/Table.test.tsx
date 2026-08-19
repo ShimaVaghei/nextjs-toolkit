@@ -1357,3 +1357,161 @@ describe("Table server mode", () => {
     }
   });
 });
+
+describe("Table sortable/filterable string | boolean keys", () => {
+  type KeyedRow = {
+    name: string;
+    score: number;
+    role: string;
+  };
+
+  const keyedRow: KeyedRow = { name: "Ada", score: 10, role: "admin" };
+
+  const keyedColumns: TableConfig<KeyedRow>["columns"] = {
+    name: {
+      type: "text",
+      label: "Name",
+      sortable: true,
+      filterable: true,
+    },
+    score: {
+      type: "number",
+      label: "Score",
+      sortable: "score_key",
+      filterable: "score_filter",
+    },
+    role: {
+      type: "text",
+      label: "Role",
+      sortable: false,
+      filterable: false,
+    },
+  };
+
+  function keyedConfig(
+    dataSource: TableConfig<KeyedRow>["dataSource"],
+  ): TableConfig<KeyedRow> {
+    return { dataSource, columns: keyedColumns, serverSide: true };
+  }
+
+  const keyedResponse = (): TableDataResponse<KeyedRow> => ({
+    rows: [keyedRow],
+    pagination: { total: 1, size: 10, page: 1, totalPages: 1 },
+  });
+
+  it("maps sortable: true to the column's own key in the server-mode sort request", async () => {
+    const dataSource = vi.fn(async (): Promise<TableDataResponse<KeyedRow>> => {
+      return keyedResponse();
+    });
+
+    render(<Table config={keyedConfig(dataSource)} />);
+    await act(async () => {});
+    dataSource.mockClear();
+
+    const nameHeader = screen.getByRole("columnheader", { name: "Name" });
+    fireEvent.click(within(nameHeader).getByRole("button", { name: "Name" }));
+
+    expect(dataSource).toHaveBeenCalledTimes(1);
+    expect(dataSource).toHaveBeenLastCalledWith({
+      pagination: { page: 1, size: 10 },
+      sort: { key: "name", direction: "ascending" },
+      filters: {},
+    });
+
+    await act(async () => {});
+  });
+
+  it("maps filterable: true to the column's own key in the server-mode filter request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(
+        async (): Promise<TableDataResponse<KeyedRow>> => keyedResponse(),
+      );
+
+      render(<Table config={keyedConfig(dataSource)} />);
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenCalledTimes(1);
+      expect(dataSource).toHaveBeenLastCalledWith({
+        pagination: { page: 1, size: 10 },
+        filters: { name: "Ada" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("maps string sortable/filterable to the custom request key, exactly as before", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(
+        async (): Promise<TableDataResponse<KeyedRow>> => keyedResponse(),
+      );
+
+      render(<Table config={keyedConfig(dataSource)} />);
+      await act(async () => {});
+      dataSource.mockClear();
+
+      const scoreHeader = screen.getByRole("columnheader", { name: "Score" });
+      fireEvent.click(within(scoreHeader).getByRole("button", { name: "Score" }));
+
+      expect(dataSource).toHaveBeenCalledTimes(1);
+      expect(dataSource).toHaveBeenLastCalledWith({
+        pagination: { page: 1, size: 10 },
+        sort: { key: "score_key", direction: "ascending" },
+        filters: {},
+      });
+
+      await act(async () => {});
+
+      fireEvent.click(within(scoreHeader).getByRole("button", { name: "Score" }));
+      fireEvent.click(within(scoreHeader).getByRole("button", { name: "Score" }));
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Score" }));
+      fireEvent.change(screen.getByLabelText("Filter by Score"), {
+        target: { value: "10" },
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenCalledTimes(1);
+      expect(dataSource).toHaveBeenLastCalledWith({
+        pagination: { page: 1, size: 10 },
+        filters: { score_filter: 10 },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("renders no sort or filter control for sortable: false / filterable: false columns", () => {
+    const dataSource = vi.fn(
+      async (): Promise<TableDataResponse<KeyedRow>> => keyedResponse(),
+    );
+
+    render(<Table config={keyedConfig(dataSource)} />);
+
+    const roleHeader = screen.getByRole("columnheader", { name: "Role" });
+    expect(roleHeader).not.toHaveAttribute("aria-sort");
+    expect(within(roleHeader).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Filter Role" }),
+    ).not.toBeInTheDocument();
+  });
+});
