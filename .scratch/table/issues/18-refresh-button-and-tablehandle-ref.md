@@ -4,11 +4,11 @@
 
 **Blocked by:** 17 — Always-async dataSource + local-mode loading/error
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Server mode shows a refresh button in the top-right of the header above the table; local mode does not.
-- [ ] Clicking the refresh button re-fires the current request (same page, sort, and filters) and the button is disabled while loading.
-- [ ] A parent can pass a `ref` and call `refresh()` to re-fire the current request in server mode.
-- [ ] A parent can call `refresh()` in local mode to re-fetch the full dataset, with the loading dim/spinner from ticket 17.
-- [ ] The refresh button, the Retry action, and `ref.refresh()` all share one reload path.
-- [ ] Tests at the Table component seam cover button presence/absence, disabled-while-loading, and `ref.refresh()` in both modes.
+- [x] Server mode shows a refresh button in the top-right of the header above the table; local mode does not.
+- [x] Clicking the refresh button re-fires the current request (same page, sort, and filters) and the button is disabled while loading.
+- [x] A parent can pass a `ref` and call `refresh()` to re-fire the current request in server mode.
+- [x] A parent can call `refresh()` in local mode to re-fetch the full dataset, with the loading dim/spinner from ticket 17.
+- [x] The refresh button, the Retry action, and `ref.refresh()` all share one reload path.
+- [x] Tests at the Table component seam cover button presence/absence, disabled-while-loading, and `ref.refresh()` in both modes.

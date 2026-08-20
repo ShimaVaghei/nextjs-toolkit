@@ -4,7 +4,7 @@
 
 **Blocked by:** 12
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [ ] The page renders a server-mode instance whose mock `dataSource` honors pagination, sort, and filters, and a local-mode instance over a small in-memory dataset.
 - [ ] The mock data covers a representative mix of column types (at minimum text, date/datetime, array, image, number) and enough rows to paginate.

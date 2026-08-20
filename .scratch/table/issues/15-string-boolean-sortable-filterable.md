@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] A column with `sortable: true` sends the column's own key as the sort request key in server mode.
 - [x] A column with `filterable: true` sends the column's own key as the filter request key in server mode.
