@@ -1,6 +1,6 @@
 # Next.js Toolkit — Sidebar Navigation
 
-The app's fixed left sidebar navigation and content area for hierarchical route structures.
+The app's fixed left sidebar navigation and content area for hierarchical route structures, plus a reusable client-side table component for rendering tabular data.
 
 ## Language
 
@@ -39,3 +39,53 @@ _Avoid_: drawer, modal, mobile menu
 **Back icon**:
 The mobile overlay header control that returns the user to the previous Level. It is hidden at Level 1, where only the close button is shown.
 _Avoid_: back button, back chevron, previous
+
+## Table terms
+
+**Table**:
+A reusable client-side component that renders tabular data with pagination, sorting, and filtering, driven by a `TableConfig`. It runs in one of two modes set by `serverSide`. A parent can trigger a reload through the imperative `TableHandle` exposed via the `ref` prop.
+_Avoid_: DataTable, DataGrid, table view
+
+**TableConfig**:
+The configuration object passed to `Table`. It declares the `dataSource`, the `columns`, the `serverSide` mode, an optional `caption` rendered in a header above the table, an optional `pagination` (initial `page`/`size`, defaulting to 1/10), and an optional `filterSummary` flag controlling the summary strip.
+_Avoid_: DataTableConfig, TableProps
+
+**TableColumn**:
+One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); `sortable`/`filterable` are `string | boolean` — `true` enables the feature with the column's own key as the request key, a string enables it with a different request key, and `false`/omitted disables it.
+_Avoid_: ColumnSpec, field config
+
+**TableColumnType**:
+The set of column renderers: `text`, `date`, `datetime`, `array`, `image`, `number`.
+_Avoid_: cell kind, column variant
+
+**TableDataRequest**:
+The request object passed to `dataSource`: optional `pagination`, `sort`, and `filters`. `filters` values are `string | number | (string | number)[]`; a cleared filter is omitted from the record.
+_Avoid_: DataGetRequest, query params
+
+**TableFilterScalar**:
+The scalar filter value a filter control can emit: `string | number`. The active-filters record accepts scalar values only; arrays are reserved for a later multi-value filter feature.
+_Avoid_: filterValue, scalar
+
+**Active filter**:
+A filter applied to a `TableColumn`. A column's filter is active when its key is present in the `filters` record with a defined value — including values typed but not yet applied during the server-mode debounce window. An active filter is signalled by a dot on the column's filter trigger and by a chip in the summary strip.
+_Avoid_: dirty filter, applied filter
+
+**filterSummary**:
+A `TableConfig` flag controlling the summary strip above the table. Defaults to `true`; set to `false` to hide the strip while keeping the per-column trigger dots. When shown, the strip lists each active filter as a `label: value` chip (in column order) with a remove button, plus a "Clear all" button.
+_Avoid_: summaryStrip, filterChips, activeFiltersBar
+
+**TableDataResponse**:
+The object `dataSource` must resolve: the row array plus a `pagination` summary (total, size, page, totalPages).
+_Avoid_: DataGetResponse, page result
+
+**dataSource**:
+The async function in `TableConfig` that resolves a `TableDataRequest` into a `TableDataResponse`, always returning a `Promise`. In server mode it is called for each state change; in local mode it is called once for the full dataset and again on refresh.
+_Avoid_: fetcher, loadData, endpoint
+
+**serverSide**:
+The `TableConfig` flag choosing the mode. `true` sends pagination/sort/filter options to `dataSource` and trusts its response; `false` fetches all rows once and paginates/sorts/filters in the component.
+_Avoid_: remote, async, mode
+
+**TableHandle**:
+The imperative handle a parent obtains from `Table` via the `ref` prop, exposing a single `refresh()` method. Calling it re-fires the current request in server mode or re-fetches the full dataset in local mode.
+_Avoid_: refreshProp, onRefresh
