@@ -1501,19 +1501,47 @@ describe("Table server mode", () => {
     }
   });
 
-  it("renders a Refresh button in the top-right of the caption row", async () => {
+  it("renders a Refresh button in the top-right of the header above the table", async () => {
     const dataSource = vi.fn(async () => pageOne);
     const { container } = render(
       <Table config={serverConfig(dataSource, { caption: "Server table" })} />,
     );
     await act(async () => {});
 
-    const caption = container.querySelector("caption") as HTMLElement;
-    expect(caption).toBeInTheDocument();
-    expect(caption).toHaveClass("justify-between");
-    expect(caption).toHaveTextContent("Server table");
     const refresh = screen.getByRole("button", { name: "Refresh" });
-    expect(caption).toContainElement(refresh);
+    const header = refresh.closest("div") as HTMLElement;
+    expect(header).toHaveClass("justify-between");
+    expect(header).toHaveTextContent("Server table");
+    expect(header).toContainElement(refresh);
+    const table = container.querySelector("table") as HTMLElement;
+    expect(header.compareDocumentPosition(table)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("renders the caption and Refresh button in a header above the table, not inside a native caption", async () => {
+    const dataSource = vi.fn(async () => pageOne);
+    const { container } = render(
+      <Table config={serverConfig(dataSource, { caption: "Server table" })} />,
+    );
+    await act(async () => {});
+
+    const table = container.querySelector("table") as HTMLElement;
+    expect(table).toBeInTheDocument();
+    expect(container.querySelector("caption")).not.toBeInTheDocument();
+
+    const refresh = screen.getByRole("button", { name: "Refresh" });
+    expect(table.contains(refresh)).toBe(false);
+
+    const captionText = screen.getByText("Server table");
+    expect(table.contains(captionText)).toBe(false);
+
+    const header = captionText.closest("div") as HTMLElement;
+    expect(header).not.toBeNull();
+    expect(header.contains(refresh)).toBe(true);
+    expect(header.compareDocumentPosition(table)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("disables the Refresh button while a request is in flight and enables it once resolved", async () => {

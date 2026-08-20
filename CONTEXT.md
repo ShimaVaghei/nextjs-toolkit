@@ -47,7 +47,7 @@ A reusable client-side component that renders tabular data with pagination, sort
 _Avoid_: DataTable, DataGrid, table view
 
 **TableConfig**:
-The configuration object passed to `Table`. It declares the `dataSource`, the `columns`, the `serverSide` mode, an optional `caption` rendered in the native table `<caption>`, and an optional `pagination` (initial `page`/`size`, defaulting to 1/10).
+The configuration object passed to `Table`. It declares the `dataSource`, the `columns`, the `serverSide` mode, an optional `caption` rendered in a header above the table, and an optional `pagination` (initial `page`/`size`, defaulting to 1/10).
 _Avoid_: DataTableConfig, TableProps
 
 **TableColumn**:

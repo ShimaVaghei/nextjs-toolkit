@@ -742,23 +742,23 @@ export function Table<T>({
 
   return (
     <div>
+      {config.caption || serverSide ? (
+        <div className="flex items-center justify-between pb-2 text-left text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+          {config.caption ? <span>{config.caption}</span> : null}
+          {serverSide ? (
+            <button
+              type="button"
+              aria-label="Refresh"
+              disabled={loading}
+              onClick={reload}
+              className="cursor-pointer rounded p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {REFRESH_ICON}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <table className="w-full border-collapse text-sm">
-        {config.caption || serverSide ? (
-          <caption className="flex items-center justify-between pb-2 text-left text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-            {config.caption ? <span>{config.caption}</span> : null}
-            {serverSide ? (
-              <button
-                type="button"
-                aria-label="Refresh"
-                disabled={loading}
-                onClick={reload}
-                className="cursor-pointer rounded p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {REFRESH_ICON}
-              </button>
-            ) : null}
-          </caption>
-        ) : null}
         <thead>
           <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">
             {visibleColumns.map(([key, column]) => {
