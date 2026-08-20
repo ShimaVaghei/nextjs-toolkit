@@ -511,12 +511,11 @@ describe("Table column type renderers", () => {
     expect(screen.queryByText("Ada")).not.toBeInTheDocument();
   });
 
-  it("merges a static class and per-row dynamicClass onto the cell", async () => {
+  it("applies a per-row class function to the cell", async () => {
     const columns: TableConfig<Item>["columns"] = {
       name: {
         type: "text",
-        class: "font-medium",
-        dynamicClass: (row) =>
+        class: (row) =>
           row.score != null && row.score > 100
             ? "text-emerald-600"
             : "text-red-600",
@@ -528,9 +527,9 @@ describe("Table column type renderers", () => {
     });
 
     const adaCell = screen.getByText("Ada").closest("td") as HTMLElement;
-    expect(adaCell).toHaveClass("font-medium", "text-emerald-600");
+    expect(adaCell).toHaveClass("text-emerald-600");
     const graceCell = screen.getByText("Grace").closest("td") as HTMLElement;
-    expect(graceCell).toHaveClass("font-medium", "text-red-600");
+    expect(graceCell).toHaveClass("text-red-600");
   });
 
   it("drops hidden columns entirely", async () => {

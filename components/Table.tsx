@@ -35,8 +35,7 @@ export type TableColumn<T> = {
   type: TableColumnType;
   label?: string;
   transform?: (value: unknown, row: T) => unknown;
-  class?: string;
-  dynamicClass?: (row: T) => string;
+  class?: string | ((row: T) => string);
   hidden?: boolean;
   sortable?: string | boolean;
   filterable?: string | boolean;
@@ -861,7 +860,11 @@ export function Table<T>({
                 className="border-b border-neutral-200 dark:border-neutral-800"
               >
                 {visibleColumns.map(([key, column]) => {
-                  const cellClass = [column.class, column.dynamicClass?.(row)]
+                  const classValue =
+                    typeof column.class === "function"
+                      ? column.class(row)
+                      : column.class;
+                  const cellClass = [classValue]
                     .filter((c): c is string => Boolean(c))
                     .join(" ");
                   return (
