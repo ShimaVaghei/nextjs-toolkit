@@ -743,7 +743,7 @@ export function Table<T>({
   return (
     <div>
       {config.caption || serverSide ? (
-        <div className="flex items-center justify-between pb-2 text-left text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+        <div className="flex items-center justify-between pb-2 text-left text-lg font-semibold text-neutral-900 dark:text-neutral-100">
           {config.caption ? <span>{config.caption}</span> : null}
           {serverSide ? (
             <button
