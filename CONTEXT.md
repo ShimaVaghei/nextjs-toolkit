@@ -47,7 +47,7 @@ A reusable client-side component that renders tabular data with pagination, sort
 _Avoid_: DataTable, DataGrid, table view
 
 **TableConfig**:
-The configuration object passed to `Table`. It declares the `dataSource`, the `columns`, the `serverSide` mode, an optional `caption` rendered in a header above the table, and an optional `pagination` (initial `page`/`size`, defaulting to 1/10).
+The configuration object passed to `Table`. It declares the `dataSource`, the `columns`, the `serverSide` mode, an optional `caption` rendered in a header above the table, an optional `pagination` (initial `page`/`size`, defaulting to 1/10), and an optional `filterSummary` flag controlling the summary strip.
 _Avoid_: DataTableConfig, TableProps
 
 **TableColumn**:
@@ -67,8 +67,12 @@ The scalar filter value a filter control can emit: `string | number`. The active
 _Avoid_: filterValue, scalar
 
 **Active filter**:
-A filter applied to a `TableColumn`. A column's filter is active when its key is present in the `filters` record with a defined value — including values typed but not yet applied during the server-mode debounce window. An active filter is signalled by a dot on the column's filter trigger.
+A filter applied to a `TableColumn`. A column's filter is active when its key is present in the `filters` record with a defined value — including values typed but not yet applied during the server-mode debounce window. An active filter is signalled by a dot on the column's filter trigger and by a chip in the summary strip.
 _Avoid_: dirty filter, applied filter
+
+**filterSummary**:
+A `TableConfig` flag controlling the summary strip above the table. Defaults to `true`; set to `false` to hide the strip while keeping the per-column trigger dots. When shown, the strip lists each active filter as a `label: value` chip (in column order) with a remove button, plus a "Clear all" button.
+_Avoid_: summaryStrip, filterChips, activeFiltersBar
 
 **TableDataResponse**:
 The object `dataSource` must resolve: the row array plus a `pagination` summary (total, size, page, totalPages).

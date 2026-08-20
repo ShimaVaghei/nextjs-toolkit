@@ -4,14 +4,14 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A strip appears above the table listing each active filter as `label: value` when filters are active and `filterSummary` is not `false`
-- [ ] Chips are ordered like the columns
-- [ ] A chip's remove button clears only that column's filter; server-mode debounce and page reset behave like any other filter change
-- [ ] "Clear all" clears every filter
-- [ ] The strip is absent when no filters are active
-- [ ] `filterSummary: false` hides the strip but keeps the per-column dots
-- [ ] Remove and Clear all buttons have accessible names; strip content is understandable to screen readers
-- [ ] Tests assert the above through rendered output only, reusing existing local-filter test patterns
-- [ ] Glossary updated with `filterSummary` and "active filter"
+- [x] A strip appears above the table listing each active filter as `label: value` when filters are active and `filterSummary` is not `false`
+- [x] Chips are ordered like the columns
+- [x] A chip's remove button clears only that column's filter; server-mode debounce and page reset behave like any other filter change
+- [x] "Clear all" clears every filter
+- [x] The strip is absent when no filters are active
+- [x] `filterSummary: false` hides the strip but keeps the per-column dots
+- [x] Remove and Clear all buttons have accessible names; strip content is understandable to screen readers
+- [x] Tests assert the above through rendered output only, reusing existing local-filter test patterns
+- [x] Glossary updated with `filterSummary` and "active filter"

@@ -69,6 +69,7 @@ export type TableConfig<T> = {
   columns: TableColumns<T>;
   serverSide?: boolean;
   pagination?: { page?: number; size?: number };
+  filterSummary?: boolean;
 };
 
 export type TableHandle = {
@@ -682,6 +683,19 @@ export function Table<T>({
     [config.columns],
   );
 
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<[string, TableColumn<T>, TableFilterScalar]> = [];
+    for (const [key, column] of visibleColumns) {
+      const value = filters[key];
+      if (value !== undefined) {
+        chips.push([key, column, value]);
+      }
+    }
+    return chips;
+  }, [visibleColumns, filters]);
+
+  const showFilterSummary = config.filterSummary !== false;
+
   const filteredRows = useMemo(() => {
     if (!rows) {
       return [];
@@ -762,6 +776,38 @@ export function Table<T>({
               {REFRESH_ICON}
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {showFilterSummary && activeFilterChips.length > 0 ? (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {activeFilterChips.map(([key, column, value]) => {
+            const label = column.label ?? key;
+            return (
+              <span
+                key={key}
+                className="flex items-center gap-1 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+              >
+                <span>
+                  {label}: {String(value)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove filter ${label}`}
+                  onClick={() => updateFilter(key, undefined)}
+                  className="cursor-pointer rounded p-0.5 leading-none text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="cursor-pointer rounded-md border border-neutral-300 px-2 py-0.5 text-xs text-neutral-600 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+          >
+            Clear all
+          </button>
         </div>
       ) : null}
       <table className="w-full border-collapse text-sm">

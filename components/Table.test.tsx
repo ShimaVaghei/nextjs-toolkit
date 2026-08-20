@@ -1196,6 +1196,167 @@ describe("Table local filter", () => {
     expect(dot).toBeInTheDocument();
     expect(dot).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("renders a summary strip above the table with a 'label: value' chip per active filter and a Clear all button", async () => {
+    const { container } = await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+    clickFilterTrigger("Score");
+    fireEvent.change(screen.getByLabelText("Filter by Score"), {
+      target: { value: "10" },
+    });
+
+    const nameChip = screen.getByText("Name: LOVE");
+    const scoreChip = screen.getByText("Score: 10");
+    expect(nameChip).toBeInTheDocument();
+    expect(scoreChip).toBeInTheDocument();
+
+    const clearAll = screen.getByRole("button", { name: "Clear all" });
+    expect(clearAll).toBeInTheDocument();
+
+    const strip = nameChip.closest("div") as HTMLElement;
+    expect(strip).toContainElement(scoreChip);
+    expect(strip).toContainElement(clearAll);
+    const table = container.querySelector("table") as HTMLElement;
+    expect(strip.compareDocumentPosition(table)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("orders summary chips by column order, not the order filters were applied", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Score");
+    fireEvent.change(screen.getByLabelText("Filter by Score"), {
+      target: { value: "10" },
+    });
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    const strip = screen
+      .getByRole("button", { name: "Clear all" })
+      .closest("div") as HTMLElement;
+    const chipTexts = within(strip)
+      .getAllByText(/\S+: /)
+      .map((node) => node.textContent);
+    expect(chipTexts).toEqual(["Name: LOVE", "Score: 10"]);
+  });
+
+  it("removes only the matching filter when a chip's remove button is clicked", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+    clickFilterTrigger("Score");
+    fireEvent.change(screen.getByLabelText("Filter by Score"), {
+      target: { value: "10" },
+    });
+
+    expect(screen.getByText("Name: LOVE")).toBeInTheDocument();
+    expect(screen.getByText("Score: 10")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter Name" }));
+
+    expect(screen.queryByText("Name: LOVE")).not.toBeInTheDocument();
+    expect(screen.getByText("Score: 10")).toBeInTheDocument();
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+    expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+    expect(hasActiveDot(filterTrigger("Score"))).toBe(true);
+  });
+
+  it("removes the strip entirely when the last active filter is removed from a chip", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+    expect(screen.getByRole("button", { name: "Clear all" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter Name" }));
+
+    expect(
+      screen.queryByRole("button", { name: "Clear all" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Name: LOVE")).not.toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+  });
+
+  it("clears every filter when the Clear all button is clicked", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+    clickFilterTrigger("Score");
+    fireEvent.change(screen.getByLabelText("Filter by Score"), {
+      target: { value: "10" },
+    });
+
+    expect(screen.getByText("Name: LOVE")).toBeInTheDocument();
+    expect(screen.getByText("Score: 10")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+
+    expect(screen.queryByText("Name: LOVE")).not.toBeInTheDocument();
+    expect(screen.queryByText("Score: 10")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear all" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
+    expect(screen.getByText("Alan Turing")).toBeInTheDocument();
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+    expect(hasActiveDot(filterTrigger("Score"))).toBe(false);
+  });
+
+  it("hides the summary strip when filterSummary is false but keeps the trigger dots", async () => {
+    await renderLocal(filterConfig(undefined, { filterSummary: false }));
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    expect(screen.queryByText("Name: LOVE")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear all" }),
+    ).not.toBeInTheDocument();
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+  });
+
+  it("gives the chip remove and Clear all buttons accessible names and readable chip text", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    expect(screen.getByRole("button", { name: "Remove filter Name" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear all" })).toBeInTheDocument();
+    expect(screen.getByText("Name: LOVE")).toBeInTheDocument();
+  });
+
+  it("renders no summary strip when the table first renders with no filters", async () => {
+    await renderLocal(filterConfig());
+
+    expect(
+      screen.queryByRole("button", { name: "Clear all" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^[^:]+: /)).not.toBeInTheDocument();
+  });
 });
 
 describe("Table server mode", () => {
@@ -1638,6 +1799,115 @@ describe("Table server mode", () => {
       fireEvent.change(input, { target: { value: "" } });
 
       expect(hasActiveDot(nameTrigger)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the summary chip immediately while typing, before the debounce applies", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(
+        async (): Promise<TableDataResponse<ServerRow>> => ({
+          rows: [],
+          pagination: { total: 0, size: 10, page: 1, totalPages: 1 },
+        }),
+      );
+
+      render(<Table config={serverConfig(dataSource)} />);
+      await act(async () => {});
+      dataSource.mockClear();
+
+      expect(
+        screen.queryByRole("button", { name: "Clear all" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+
+      expect(screen.getByText("Name: Ada")).toBeInTheDocument();
+      expect(dataSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("removing a chip filter in server mode debounces the request, resets to page 1, and keeps other filters", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(
+        async (
+          request: TableDataRequest,
+        ): Promise<TableDataResponse<ServerRow>> => {
+          const size = request.pagination?.size ?? 10;
+          const page = request.pagination?.page ?? 1;
+          return {
+            rows: serverRows.slice((page - 1) * size, page * size),
+            pagination: {
+              total: serverRows.length,
+              size,
+              page,
+              totalPages: Math.ceil(serverRows.length / size),
+            },
+          };
+        },
+      );
+
+      render(
+        <Table config={serverConfig(dataSource, { pagination: { page: 3 } })} />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Score" }));
+      fireEvent.change(screen.getByLabelText("Filter by Score"), {
+        target: { value: "10" },
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: "2" }));
+      await act(async () => {});
+      dataSource.mockClear();
+
+      expect(
+        screen.getByRole("button", { name: "Remove filter Score" }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Score" }),
+      );
+
+      expect(dataSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenCalledTimes(1);
+      expect(dataSource).toHaveBeenLastCalledWith({
+        pagination: { page: 1, size: 10 },
+        filters: { name: "Ada" },
+      });
     } finally {
       vi.useRealTimers();
     }
