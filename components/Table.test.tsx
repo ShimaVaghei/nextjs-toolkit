@@ -53,6 +53,12 @@ const currentPageButtons = () =>
     .getAllByRole("button")
     .filter((button) => button.getAttribute("aria-current") === "page");
 
+const filterTrigger = (name: string) =>
+  screen.getByRole("button", { name: `Filter ${name}` });
+
+const hasActiveDot = (trigger: HTMLElement) =>
+  trigger.querySelector(".active-filter-dot") !== null;
+
 async function renderLocal<T>(config: TableConfig<T>) {
   const utils = render(<Table config={config} />);
   await act(async () => {});
@@ -1109,6 +1115,87 @@ describe("Table local filter", () => {
     expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   });
+
+  it("shows a dot on the filter trigger of a column with an active filter", async () => {
+    await renderLocal(filterConfig());
+
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+  });
+
+  it("shows no dot on columns without an active filter", async () => {
+    await renderLocal(filterConfig());
+
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+    expect(hasActiveDot(filterTrigger("Score"))).toBe(false);
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+    expect(hasActiveDot(filterTrigger("Score"))).toBe(false);
+  });
+
+  it("renders no dot on non-filterable columns while a filterable sibling is active", async () => {
+    const mixedColumns: TableConfig<FilterItem>["columns"] = {
+      name: { type: "text", label: "Name", filterable: "name" },
+      role: { type: "text", label: "Role" },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: filterRows }),
+      columns: mixedColumns,
+    });
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+    expect(
+      screen.queryByRole("button", { name: "Filter Role" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("removes the dot from the trigger when its filter input is cleared", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    const input = screen.getByLabelText("Filter by Name");
+    fireEvent.change(input, { target: { value: "LOVE" } });
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+
+    fireEvent.change(input, { target: { value: "" } });
+
+    expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+  });
+
+  it("renders the dot as decorative and preserves the trigger's active tint", async () => {
+    await renderLocal(filterConfig());
+
+    clickFilterTrigger("Name");
+    fireEvent.change(screen.getByLabelText("Filter by Name"), {
+      target: { value: "LOVE" },
+    });
+
+    const trigger = filterTrigger("Name");
+    expect(trigger).toHaveClass(
+      "text-neutral-900",
+      "dark:text-neutral-100",
+    );
+
+    const dot = trigger.querySelector(".active-filter-dot") as HTMLElement;
+    expect(dot).toBeInTheDocument();
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+  });
 });
 
 describe("Table server mode", () => {
@@ -1495,6 +1582,62 @@ describe("Table server mode", () => {
       await act(async () => {});
 
       expect(screen.getByText("No data yet")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the trigger dot while a value is typed but not yet applied in the debounce window", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({
+        rows: [],
+        pagination: { total: 0, size: 10, page: 1, totalPages: 1 },
+      }));
+      render(<Table config={serverConfig(dataSource)} />);
+      await act(async () => {});
+      dataSource.mockClear();
+
+      const nameTrigger = filterTrigger("Name");
+      expect(hasActiveDot(nameTrigger)).toBe(false);
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+
+      expect(hasActiveDot(nameTrigger)).toBe(true);
+      expect(dataSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("removes the trigger dot in server mode once the filter is cleared", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({
+        rows: [],
+        pagination: { total: 0, size: 10, page: 1, totalPages: 1 },
+      }));
+      render(<Table config={serverConfig(dataSource)} />);
+      await act(async () => {});
+      dataSource.mockClear();
+
+      const nameTrigger = filterTrigger("Name");
+      fireEvent.click(screen.getByRole("button", { name: "Filter Name" }));
+      const input = screen.getByLabelText("Filter by Name");
+      fireEvent.change(input, { target: { value: "Ada" } });
+      expect(hasActiveDot(nameTrigger)).toBe(true);
+
+      fireEvent.change(input, { target: { value: "" } });
+
+      expect(hasActiveDot(nameTrigger)).toBe(false);
     } finally {
       vi.useRealTimers();
     }

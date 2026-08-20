@@ -66,6 +66,10 @@ _Avoid_: DataGetRequest, query params
 The scalar filter value a filter control can emit: `string | number`. The active-filters record accepts scalar values only; arrays are reserved for a later multi-value filter feature.
 _Avoid_: filterValue, scalar
 
+**Active filter**:
+A filter applied to a `TableColumn`. A column's filter is active when its key is present in the `filters` record with a defined value — including values typed but not yet applied during the server-mode debounce window. An active filter is signalled by a dot on the column's filter trigger.
+_Avoid_: dirty filter, applied filter
+
 **TableDataResponse**:
 The object `dataSource` must resolve: the row array plus a `pagination` summary (total, size, page, totalPages).
 _Avoid_: DataGetResponse, page result

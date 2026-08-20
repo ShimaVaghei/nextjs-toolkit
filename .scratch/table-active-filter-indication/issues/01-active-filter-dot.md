@@ -4,11 +4,11 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A dot appears on the filter trigger of a column whose filter is active
-- [ ] No dot appears on columns without an active filter, or on non-filterable columns
-- [ ] The dot appears while a value is typed but not yet applied (server-mode debounce window)
-- [ ] Clearing a column's filter removes its dot
-- [ ] The dot is decorative (aria-hidden) and existing trigger styling/tinting is preserved
-- [ ] Tests assert the above through rendered output only (no component-state access), reusing the existing local-filter test patterns
+- [x] A dot appears on the filter trigger of a column whose filter is active
+- [x] No dot appears on columns without an active filter, or on non-filterable columns
+- [x] The dot appears while a value is typed but not yet applied (server-mode debounce window)
+- [x] Clearing a column's filter removes its dot
+- [x] The dot is decorative (aria-hidden) and existing trigger styling/tinting is preserved
+- [x] Tests assert the above through rendered output only (no component-state access), reusing the existing local-filter test patterns

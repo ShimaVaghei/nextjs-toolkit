@@ -364,6 +364,7 @@ function FilterControl<T>({
   const label = column.label ?? columnKey;
   const isNumber = column.type === "number";
   const inputValue = value === undefined ? "" : String(value);
+  const isActive = value !== undefined;
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -417,8 +418,8 @@ function FilterControl<T>({
         aria-expanded={open}
         aria-controls={popoverId}
         onClick={() => onOpenChange(!open)}
-        className={`flex cursor-pointer items-center rounded p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200${
-          value !== undefined ? " text-neutral-900 dark:text-neutral-100" : ""
+        className={`relative flex cursor-pointer items-center rounded p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200${
+          isActive ? " text-neutral-900 dark:text-neutral-100" : ""
         }`}
       >
         <svg
@@ -433,6 +434,12 @@ function FilterControl<T>({
         >
           <path d="M1.5 2h13l-5 6v4.5l-3 1.5V8l-5-6z" />
         </svg>
+        {isActive ? (
+          <span
+            aria-hidden="true"
+            className="active-filter-dot absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-current"
+          />
+        ) : null}
       </button>
       {open ? (
         <div
