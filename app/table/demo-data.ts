@@ -84,45 +84,43 @@ export const projectColumns: TableColumns<Project> = {
   name: {
     type: "text",
     label: "Project",
-    sortable: "name",
-    filterable: "name",
+    sortable: true,
+    filterable: true,
   },
   owner: {
     type: "text",
     label: "Owner",
-    sortable: "owner",
-    filterable: "owner",
+    sortable: true,
+    filterable: true,
   },
   status: {
     type: "text",
     label: "Status",
-    sortable: "status",
-    filterable: "status",
+    sortable: true,
+    filterable: true,
   },
   startDate: {
     type: "date",
     label: "Start date",
-    sortable: "startDate",
-    filterable: "startDate",
+    sortable: true,
   },
   lastActive: {
     type: "datetime",
     label: "Last active",
-    sortable: "lastActive",
-    filterable: "lastActive",
+    sortable: true,
   },
   tags: {
     type: "array",
     label: "Tags",
-    sortable: "tags",
-    filterable: "tags",
+    sortable: true,
+    filterable: true,
   },
   avatar: { type: "image", label: "Avatar" },
   score: {
     type: "number",
     label: "Score",
-    sortable: "score",
-    filterable: "score",
+    sortable: true,
+    filterable: true,
   },
 };
 
@@ -154,22 +152,20 @@ export const projects: Project[] = Array.from({ length: 57 }, (_, i) => {
 });
 
 export const teamColumns: TableColumns<TeamMember> = {
-  name: { type: "text", label: "Name", sortable: "name", filterable: "name" },
-  role: { type: "text", label: "Role", sortable: "role", filterable: "role" },
-  joined: { type: "date", label: "Joined", sortable: "joined", filterable: "joined" },
+  name: { type: "text", label: "Name", sortable: true, filterable: true },
+  role: { type: "text", label: "Role", sortable: true, filterable: true },
+  joined: { type: "date", label: "Joined", sortable: true },
   lastSeen: {
     type: "datetime",
     label: "Last seen",
-    sortable: "lastSeen",
-    filterable: "lastSeen",
+    sortable: true,
   },
-  skills: { type: "array", label: "Skills", sortable: "skills", filterable: "skills" },
+  skills: { type: "array", label: "Skills", sortable: true, filterable: true },
   avatar: { type: "image", label: "Avatar" },
   projects: {
     type: "number",
     label: "Projects",
-    sortable: "projects",
-    filterable: "projects",
+    sortable: true, filterable: true
   },
 };
 
