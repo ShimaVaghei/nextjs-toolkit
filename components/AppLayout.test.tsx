@@ -53,6 +53,44 @@ const routes: RoutesSection[] = [
   },
 ];
 
+const routesWithLevel3: RoutesSection[] = [
+  {
+    routes: [
+      { path: "dashboard", label: "Dashboard" },
+      {
+        path: "settings",
+        label: "Settings",
+        children: [
+          { path: "general", label: "General" },
+          {
+            path: "advanced",
+            label: "Advanced",
+            children: [{ path: "debug", label: "Debug" }],
+          },
+        ],
+      },
+      { path: "users", label: "Users" },
+    ],
+  },
+];
+
+const routesWithTwoCollapsibles: RoutesSection[] = [
+  {
+    routes: [
+      {
+        path: "settings",
+        label: "Settings",
+        children: [{ path: "general", label: "General" }],
+      },
+      {
+        path: "projects",
+        label: "Projects",
+        children: [{ path: "active", label: "Active" }],
+      },
+    ],
+  },
+];
+
 const pageContent = <div>Page content</div>;
 
 const openOverlay = () => {
@@ -61,17 +99,25 @@ const openOverlay = () => {
 
 const getOverlay = () => screen.getByRole("dialog", { name: "Navigation" });
 
+const getItem = (name: string) => screen.getByRole("treeitem", { name });
+
+const getItemLi = (name: string) => getItem(name).closest("li") as HTMLElement;
+
+const getDrawerGrid = (name: string) =>
+  getItemLi(name).querySelector(".grid") as HTMLElement;
+
 describe("AppLayout", () => {
   it("renders children when routes is empty", () => {
     render(<AppLayout routes={[]}>{pageContent}</AppLayout>);
     expect(screen.getByText("Page content")).toBeInTheDocument();
   });
 
-  it("renders the seeded app routes and drills into a nested panel", () => {
+  it("renders the seeded app routes and expands Table's Drawer inline", () => {
     render(<AppLayout routes={appRoutes}>{pageContent}</AppLayout>);
     expect(screen.getByRole("treeitem", { name: "Home" })).toBeInTheDocument();
-    expect(screen.getByRole("treeitem", { name: "Table" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("treeitem", { name: "Table" }));
+    const tableTreeItem = screen.getByRole("treeitem", { name: "Table" });
+    fireEvent.click(tableTreeItem);
+    expect(tableTreeItem).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("treeitem", { name: "Local" })).toBeInTheDocument();
     expect(screen.getByRole("treeitem", { name: "Server" })).toBeInTheDocument();
   });
@@ -91,46 +137,124 @@ describe("AppLayout", () => {
     expect(container.firstChild).toContainElement(content);
   });
 
-  it("parent nodes have aria-expanded attribute", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("clicking a parent opens a second panel", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("General")).toBeInTheDocument();
-    expect(screen.getByText("Advanced")).toBeInTheDocument();
-  });
-
-  it("clicking the same parent again closes the panel", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(settingsTreeItem);
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "false");
-  });
-
   it("items are tab-focusable", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    expect(dashboardTreeItem).toHaveAttribute("tabindex", "0");
-  });
-
-  it("nav column has max width for 3 panels", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const navColumn = screen.getByRole("navigation").parentElement as HTMLElement;
-    expect(navColumn).toHaveClass("md:max-w-3xl");
+    expect(getItem("Dashboard")).toHaveAttribute("tabindex", "0");
   });
 });
 
-describe("AppLayout desktop sticky layout", () => {
+describe("AppLayout inline Drawers", () => {
+  it("collapsible parent starts with aria-expanded=false and no Drawer content", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+  });
+
+  it("clicking a Collapsible route reveals its children directly beneath it", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const settingsTreeItem = getItem("Settings");
+    fireEvent.click(settingsTreeItem);
+    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
+    const settingsGroup = within(getItemLi("Settings")).getByRole("group");
+    expect(within(settingsGroup).getByText("General")).toBeInTheDocument();
+    expect(within(settingsGroup).getByText("Advanced")).toBeInTheDocument();
+  });
+
+  it("clicking an open Collapsible route closes only its own Drawer", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    const settingsTreeItem = getItem("Settings");
+    fireEvent.click(settingsTreeItem);
+    const projectsTreeItem = getItem("Projects");
+    fireEvent.click(projectsTreeItem);
+    expect(within(getItemLi("Projects")).getByText("Active")).toBeInTheDocument();
+
+    fireEvent.click(settingsTreeItem);
+    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(projectsTreeItem).toHaveAttribute("aria-expanded", "true");
+    expect(within(getItemLi("Projects")).getByText("Active")).toBeInTheDocument();
+  });
+
+  it("any number of Drawers can be open at once; opening one never closes another", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("Projects"));
+    expect(within(getItemLi("Settings")).getByText("General")).toBeInTheDocument();
+    expect(within(getItemLi("Projects")).getByText("Active")).toBeInTheDocument();
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+    expect(getItem("Projects")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("nested Level 3 Drawers open recursively under their own parents", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    const settingsGroup = within(getItemLi("Settings")).getByRole("group");
+    const advancedTreeItem = within(settingsGroup).getByRole("treeitem", {
+      name: "Advanced",
+    });
+    fireEvent.click(advancedTreeItem);
+
+    const advancedGroup = within(
+      advancedTreeItem.closest("li") as HTMLElement,
+    ).getByRole("group");
+    expect(within(advancedGroup).getByText("Debug")).toBeInTheDocument();
+    expect(within(settingsGroup).getByText("General")).toBeInTheDocument();
+    expect(within(settingsGroup).getByText("Advanced")).toBeInTheDocument();
+  });
+
+  it("a Collapsible route's chevron rotates while its Drawer is open", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const svgBefore = getItem("Settings").querySelector("svg");
+    expect(svgBefore).not.toHaveClass("rotate-90");
+    fireEvent.click(getItem("Settings"));
+    expect(getItem("Settings").querySelector("svg")).toHaveClass("rotate-90");
+    fireEvent.click(getItem("Settings"));
+    expect(getItem("Settings").querySelector("svg")).not.toHaveClass("rotate-90");
+  });
+
+  it("a Drawer animates as a vertical-only grid rows reveal", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const drawer = getDrawerGrid("Settings");
+    expect(drawer).toHaveClass("grid-rows-[0fr]");
+
+    fireEvent.click(getItem("Settings"));
+    expect(drawer).toHaveClass("grid-rows-[1fr]");
+    expect(drawer).toHaveClass("transition-[grid-template-rows]");
+    expect(drawer).toHaveClass("duration-300", "ease-in-out");
+    expect(drawer).toHaveClass("overflow-hidden");
+    expect(drawer).not.toHaveClass(
+      "transition-[grid-template-rows,grid-template-columns]",
+    );
+    expect(drawer).not.toHaveClass("md:grid-cols-[1fr]");
+
+    fireEvent.click(getItem("Settings"));
+    expect(drawer).toHaveClass("grid-rows-[0fr]");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppLayout fixed-width sidebar", () => {
   const getNavColumn = () =>
     screen.getByRole("navigation").parentElement as HTMLElement;
+
+  it("sidebar keeps a constant fixed width with zero Drawers open", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    const navColumn = getNavColumn();
+    expect(navColumn).toHaveClass("w-64");
+    expect(navColumn).not.toHaveClass("md:max-w-3xl");
+  });
+
+  it("sidebar width never changes however many Drawers are open", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("Projects"));
+    const navColumn = getNavColumn();
+    expect(navColumn).toHaveClass("w-64");
+    expect(navColumn).not.toHaveClass("md:max-w-3xl");
+    expect(navColumn).toHaveClass("shrink-0");
+    expect(navColumn).not.toHaveClass("fixed");
+    expect(navColumn).not.toHaveClass("absolute");
+  });
 
   it("navigation column is sticky on md+ so it stays visible while the page scrolls", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
@@ -145,519 +269,126 @@ describe("AppLayout desktop sticky layout", () => {
     expect(getNavColumn()).toHaveClass("md:self-start");
   });
 
-  it("expanding a Collapsible section pushes the content column right as panels appear", () => {
-    const { container } = render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const shell = container.firstChild as HTMLElement;
-    const navColumn = getNavColumn();
-    const contentColumn = screen.getByText("Page content").parentElement as HTMLElement;
-
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-
-    expect(screen.getByText("General")).toBeInTheDocument();
-    expect(screen.getByText("Advanced")).toBeInTheDocument();
-    expect(navColumn).toContainElement(screen.getByText("General"));
-    expect(navColumn).toContainElement(screen.getByText("Advanced"));
-    expect(shell).toContainElement(navColumn);
-    expect(shell).toContainElement(contentColumn);
+  it("content column stays flex-1 so page content never shifts", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    const contentColumn = screen.getByText("Page content")
+      .parentElement as HTMLElement;
     expect(contentColumn).toHaveClass("flex-1");
-    expect(navColumn).toHaveClass("shrink-0");
-    expect(navColumn).not.toHaveClass("fixed");
-    expect(navColumn).not.toHaveClass("absolute");
-  });
-});
-
-describe("AppLayout Level 3 expansion", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
-  it("clicking a Level 2 parent with children opens a third panel", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    fireEvent.click(advancedTreeItem);
-    expect(screen.getByText("Debug")).toBeInTheDocument();
-  });
-
-  it("clicking a different Level 1 parent closes all deeper panels", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    fireEvent.click(advancedTreeItem);
-    expect(screen.getByText("Debug")).toBeInTheDocument();
-    const usersTreeItem = screen.getByRole("treeitem", { name: "Users" });
-    fireEvent.click(usersTreeItem);
-    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
-  });
-
-  it("clicking a different Level 2 parent closes the Level 3 panel", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    fireEvent.click(advancedTreeItem);
-    expect(screen.getByText("Debug")).toBeInTheDocument();
-    const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
-    fireEvent.click(generalTreeItem);
-    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
-  });
-
-  it("clicking a different Level 2 parent with children closes Level 3 and opens new one", () => {
-    const routesWithMultipleParents: RoutesSection[] = [
-      {
-        routes: [
-          { path: "dashboard", label: "Dashboard" },
-          {
-            path: "settings",
-            label: "Settings",
-            children: [
-              {
-                path: "advanced",
-                label: "Advanced",
-                children: [{ path: "debug", label: "Debug" }],
-              },
-              {
-                path: "other",
-                label: "Other",
-                children: [{ path: "other-child", label: "Other Child" }],
-              },
-            ],
-          },
-          { path: "users", label: "Users" },
-        ],
-      },
-    ];
-    render(<AppLayout routes={routesWithMultipleParents}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    fireEvent.click(advancedTreeItem);
-    expect(screen.getByText("Debug")).toBeInTheDocument();
-    const otherTreeItem = screen.getByRole("treeitem", { name: "Other" });
-    fireEvent.click(otherTreeItem);
-    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
-    expect(screen.getByText("Other Child")).toBeInTheDocument();
-  });
-
-  it("Level 2 parent chevron rotates when expanded", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    const svgBefore = advancedTreeItem.querySelector("svg");
-    expect(svgBefore).not.toHaveClass("rotate-90");
-    fireEvent.click(advancedTreeItem);
-    const svgAfter = advancedTreeItem.querySelector("svg");
-    expect(svgAfter).toHaveClass("rotate-90");
   });
 });
 
 describe("AppLayout active state", () => {
-  const routesWithActive: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
   it("active leaf node has bold styling", () => {
     mockPathname = "/settings/general";
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
-    expect(generalTreeItem).toHaveClass("font-bold");
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    expect(getItem("General")).toHaveClass("font-bold");
   });
 
   it("ancestor nodes of active leaf have muted opacity", () => {
     mockPathname = "/settings/general";
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    expect(settingsTreeItem).toHaveClass("opacity-60");
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    expect(getItem("Settings")).toHaveClass("opacity-60");
   });
 
   it("non-active nodes do not have bold or muted styling", () => {
     mockPathname = "/dashboard";
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const usersTreeItem = screen.getByRole("treeitem", { name: "Users" });
-    expect(usersTreeItem).not.toHaveClass("font-bold");
-    expect(usersTreeItem).not.toHaveClass("opacity-60");
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    expect(getItem("Users")).not.toHaveClass("font-bold");
+    expect(getItem("Users")).not.toHaveClass("opacity-60");
   });
 
   it("clicking a leaf node navigates to full path via router", () => {
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    fireEvent.click(dashboardTreeItem);
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Dashboard"));
     expect(mockPush).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("clicking a Level 2 leaf navigates to concatenated full path", () => {
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
-    fireEvent.click(generalTreeItem);
+  it("clicking a nested leaf navigates to concatenated full path", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("General"));
     expect(mockPush).toHaveBeenCalledWith("/settings/general");
   });
 
-  it("after leaf click, drawer collapses to Level 1", () => {
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    expect(screen.getByText("General")).toBeInTheDocument();
-    const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
-    fireEvent.click(generalTreeItem);
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
-  });
-
-  it("parent nodes have pointer cursor", () => {
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    expect(settingsTreeItem).toHaveClass("cursor-pointer");
-  });
-
-  it("leaf nodes have pointer cursor", () => {
-    render(<AppLayout routes={routesWithActive}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    expect(dashboardTreeItem).toHaveClass("cursor-pointer");
-  });
-});
-
-describe("AppLayout mobile responsive", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
-  it("Level 1 nav is hidden on mobile when Level 2 is expanded", () => {
+  it("parents and leaves have pointer cursor", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    const nav = within(overlay).getByRole("navigation");
-    expect(nav).toHaveClass("hidden", "md:block");
-  });
-
-  it("Level 2 panel takes full width on mobile", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    expect(within(overlay).getByText("Advanced")).toBeInTheDocument();
-    const level2Grid = within(overlay).getByText("General").closest(".grid");
-    expect(level2Grid).toHaveClass("w-full", "md:w-auto");
-  });
-
-  it("Level 1 nav reappears when Level 2 collapses on mobile", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    const settingsTreeItem = within(overlay).getByRole("treeitem", {
-      name: "Settings",
-    });
-    fireEvent.click(settingsTreeItem);
-    const nav = within(overlay).getByRole("navigation");
-    expect(nav).toHaveClass("hidden", "md:block");
-    fireEvent.click(settingsTreeItem);
-    expect(nav).toHaveClass("block", "md:block");
-  });
-
-  it("Level 2 is hidden on mobile when Level 3 is expanded", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
-    const level2Grid = within(overlay).getByText("General").closest(".grid");
-    expect(level2Grid).toHaveClass("hidden", "md:grid");
-  });
-
-  it("Level 3 panel takes full width on mobile", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    const level3Grid = within(overlay).getByText("Debug").closest(".grid");
-    expect(level3Grid).toHaveClass("w-full", "md:w-auto");
-  });
-
-  it("Level 1 is hidden on mobile when Level 3 is expanded", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    const nav = within(overlay).getByRole("navigation");
-    expect(nav).toHaveClass("hidden", "md:block");
-  });
-
-  it("back navigation from Level 3 to Level 2 on mobile", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    const advancedTreeItem = within(overlay).getByRole("treeitem", {
-      name: "Advanced",
-    });
-    fireEvent.click(advancedTreeItem);
-    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
-    fireEvent.click(advancedTreeItem);
-    expect(within(overlay).queryByText("Debug")).not.toBeInTheDocument();
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    expect(within(overlay).getByText("Advanced")).toBeInTheDocument();
-    const nav = within(overlay).getByRole("navigation");
-    expect(nav).toHaveClass("hidden", "md:block");
-  });
-
-  it("back navigation from Level 2 to Level 1 on mobile", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    const settingsTreeItem = within(overlay).getByRole("treeitem", {
-      name: "Settings",
-    });
-    fireEvent.click(settingsTreeItem);
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    fireEvent.click(settingsTreeItem);
-    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
-    const nav = within(overlay).getByRole("navigation");
-    expect(nav).toHaveClass("block", "md:block");
-  });
-
-  it("clicking a different Level 2 parent while Level 3 is open on mobile swaps Level 3", () => {
-    const routesWithMultipleParents: RoutesSection[] = [
-      {
-        routes: [
-          { path: "dashboard", label: "Dashboard" },
-          {
-            path: "settings",
-            label: "Settings",
-            children: [
-              {
-                path: "advanced",
-                label: "Advanced",
-                children: [{ path: "debug", label: "Debug" }],
-              },
-              {
-                path: "other",
-                label: "Other",
-                children: [{ path: "other-child", label: "Other Child" }],
-              },
-            ],
-          },
-          { path: "users", label: "Users" },
-        ],
-      },
-    ];
-    render(<AppLayout routes={routesWithMultipleParents}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Other" }));
-    expect(within(overlay).queryByText("Debug")).not.toBeInTheDocument();
-    expect(within(overlay).getByText("Other Child")).toBeInTheDocument();
+    expect(getItem("Settings")).toHaveClass("cursor-pointer");
+    expect(getItem("Dashboard")).toHaveClass("cursor-pointer");
   });
 });
 
 describe("AppLayout accessibility", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
   it("container has role=tree", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const tree = screen.getByRole("tree");
-    expect(tree).toBeInTheDocument();
+    expect(screen.getByRole("tree")).toBeInTheDocument();
   });
 
-  it("Level 1 items have role=treeitem", () => {
+  it("items have role=treeitem", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     const treeItems = screen.getAllByRole("treeitem");
     expect(treeItems.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("parent nodes have aria-expanded", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded");
-  });
-
-  it("parent nodes have aria-level", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    expect(settingsTreeItem).toHaveAttribute("aria-level", "1");
-  });
-
-  it("Level 2 items have aria-level=2", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const generalTreeItem = screen.getByRole("treeitem", { name: "General" });
-    expect(generalTreeItem).toHaveAttribute("aria-level", "2");
-  });
-
-  it("Level 3 items have aria-level=3", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    fireEvent.click(advancedTreeItem);
-    const debugTreeItem = screen.getByRole("treeitem", { name: "Debug" });
-    expect(debugTreeItem).toHaveAttribute("aria-level", "3");
-  });
-
-  it("items have aria-setsize", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    expect(dashboardTreeItem).toHaveAttribute("aria-setsize", "3");
-  });
-
-  it("items have aria-posinset", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    expect(dashboardTreeItem).toHaveAttribute("aria-posinset", "1");
+    expect(getItem("Dashboard")).toHaveAttribute("role", "treeitem");
+    expect(getItem("Settings")).toHaveAttribute("role", "treeitem");
   });
 
   it("leaf nodes have aria-expanded=false", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    expect(dashboardTreeItem).toHaveAttribute("aria-expanded", "false");
+    expect(getItem("Dashboard")).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("parent nodes have role=treeitem with group", () => {
+  it("Level 1 items have aria-level=1", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    expect(settingsTreeItem).toHaveAttribute("role", "treeitem");
+    expect(getItem("Settings")).toHaveAttribute("aria-level", "1");
   });
 
-  it("leaf nodes have role=treeitem", () => {
+  it("Level 2 items have aria-level=2 once their Drawer is open", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const dashboardTreeItem = screen.getByRole("treeitem", { name: "Dashboard" });
-    expect(dashboardTreeItem).toHaveAttribute("role", "treeitem");
+    fireEvent.click(getItem("Settings"));
+    expect(getItem("General")).toHaveAttribute("aria-level", "2");
   });
 
-  it("Enter key on parent toggles panel", () => {
+  it("Level 3 items have aria-level=3 once their Drawer is open", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("Advanced"));
+    expect(getItem("Debug")).toHaveAttribute("aria-level", "3");
   });
 
-  it("Space key on parent toggles panel", () => {
+  it("Level 1 items expose sibling counts across the whole top list", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
+    expect(getItem("Dashboard")).toHaveAttribute("aria-setsize", "3");
+    expect(getItem("Dashboard")).toHaveAttribute("aria-posinset", "1");
+    expect(getItem("Users")).toHaveAttribute("aria-setsize", "3");
+    expect(getItem("Users")).toHaveAttribute("aria-posinset", "3");
   });
 
-  it("container has role=tree on Level 1", () => {
+  it("sibling counts are computed within each visible Drawer", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const trees = screen.getAllByRole("tree");
-    expect(trees.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(getItem("Settings"));
+    expect(getItem("General")).toHaveAttribute("aria-setsize", "2");
+    expect(getItem("General")).toHaveAttribute("aria-posinset", "1");
+    expect(getItem("Advanced")).toHaveAttribute("aria-setsize", "2");
+    expect(getItem("Advanced")).toHaveAttribute("aria-posinset", "2");
+
+    fireEvent.click(getItem("Advanced"));
+    expect(getItem("Debug")).toHaveAttribute("aria-setsize", "1");
+    expect(getItem("Debug")).toHaveAttribute("aria-posinset", "1");
   });
 
-  it("Level 2 container has role=group", () => {
+  it("each open Drawer renders a group role nested under its parent item", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const groups = screen.getAllByRole("group");
-    expect(groups.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(getItem("Settings"));
+    const settingsGroup = within(getItemLi("Settings")).getByRole("group");
+    expect(settingsGroup).toBeInTheDocument();
+    fireEvent.click(getItem("Advanced"));
+    const advancedGroup = within(getItemLi("Advanced")).getByRole("group");
+    expect(advancedGroup).toBeInTheDocument();
   });
 });
 
 describe("AppLayout mobile overlay", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
   it("renders a mobile-only top bar with a hamburger button", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     const hamburger = screen.getByRole("button", { name: "Open navigation" });
@@ -665,15 +396,55 @@ describe("AppLayout mobile overlay", () => {
     expect(topBar).toHaveClass("md:hidden");
   });
 
-  it("hamburger opens a fullscreen overlay with the drill-down navigation", () => {
+  it("hamburger opens a fullscreen overlay rendering the same accordion", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     openOverlay();
     const overlay = getOverlay();
     expect(overlay).toHaveClass("fixed", "inset-0");
-    expect(within(overlay).getByRole("treeitem", { name: "Dashboard" })).toBeInTheDocument();
-    expect(within(overlay).getByRole("treeitem", { name: "Settings" })).toBeInTheDocument();
-    expect(within(overlay).getByRole("treeitem", { name: "Users" })).toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Dashboard" }),
+    ).toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Users" }),
+    ).toBeInTheDocument();
+  });
+
+  it("clicking a Collapsible route inside the overlay reveals its children inline, identically to desktop", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    const settingsTreeItem = within(overlay).getByRole("treeitem", {
+      name: "Settings",
+    });
+    fireEvent.click(settingsTreeItem);
+    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "true");
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    expect(within(overlay).getByText("Advanced")).toBeInTheDocument();
+    const drawer = (within(overlay).getByRole("treeitem", { name: "Settings" })
+      .closest("li") as HTMLElement).querySelector(".grid") as HTMLElement;
+    expect(drawer).toHaveClass("grid-rows-[1fr]");
+  });
+
+  it("overlay header shows title and close button only — never a Back icon", () => {
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
+    fireEvent.click(
+      within(overlay).getByRole("treeitem", { name: "Settings" }),
+    );
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
+    expect(
+      within(overlay).queryByRole("button", { name: "Back" }),
+    ).not.toBeInTheDocument();
+    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("button", { name: "Close navigation" }),
+    ).toBeInTheDocument();
   });
 
   it("overlay closes via close button", () => {
@@ -692,61 +463,6 @@ describe("AppLayout mobile overlay", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("closing the overlay via the close button collapses to Level 1; reopening shows only Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
-    openOverlay();
-    const reopened = getOverlay();
-    expect(within(reopened).queryByText("General")).not.toBeInTheDocument();
-    expect(
-      within(reopened).getByRole("treeitem", { name: "Settings" }),
-    ).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("closing the overlay via the Escape key collapses to Level 1; reopening shows only Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: "Escape" });
-    openOverlay();
-    const reopened = getOverlay();
-    expect(within(reopened).queryByText("General")).not.toBeInTheDocument();
-  });
-
-  it("reopening the overlay after closing while drilled to Level 3 always starts at Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    let overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: "Escape" });
-    openOverlay();
-    overlay = getOverlay();
-    expect(within(overlay).queryByText("Debug")).not.toBeInTheDocument();
-    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
-    expect(within(overlay).getByRole("treeitem", { name: "Dashboard" })).toBeInTheDocument();
-  });
-
-  it("overlay closes when navigating to a Leaf node and panels collapse to Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByRole("treeitem", { name: "General" })).toBeInTheDocument();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "General" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(mockPush).toHaveBeenCalledWith("/settings/general");
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
-    expect(document.body.style.overflow).toBe("");
-  });
-
   it("background scroll is locked while overlay is open and restored when it closes", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     expect(document.body.style.overflow).toBe("");
@@ -761,301 +477,92 @@ describe("AppLayout mobile overlay", () => {
     openOverlay();
     expect(getOverlay()).toHaveClass("overflow-y-auto");
   });
-});
 
-describe("AppLayout mobile overlay Back icon", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
-  it("hides the Back icon at Level 1; the close button still closes the overlay", () => {
+  it("tapping a Leaf node in the overlay navigates and dismisses it", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     openOverlay();
     const overlay = getOverlay();
-    expect(
-      within(overlay).queryByRole("button", { name: "Back" }),
-    ).not.toBeInTheDocument();
-    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
     fireEvent.click(
-      within(overlay).getByRole("button", { name: "Close navigation" }),
-    );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("shows the Back icon instead of the Navigation title below Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByRole("button", { name: "Back" })).toBeInTheDocument();
-    expect(within(overlay).queryByText("Navigation")).not.toBeInTheDocument();
-  });
-
-  it("clicking Back while at Level 3 returns to Level 2", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    expect(within(overlay).getByText("Debug")).toBeInTheDocument();
-    fireEvent.click(within(overlay).getByRole("button", { name: "Back" }));
-    expect(within(overlay).queryByText("Debug")).not.toBeInTheDocument();
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    expect(within(overlay).getByText("Advanced")).toBeInTheDocument();
-  });
-
-  it("clicking Back while at Level 2 returns to Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
-    fireEvent.click(within(overlay).getByRole("button", { name: "Back" }));
-    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
-    expect(
       within(overlay).getByRole("treeitem", { name: "Settings" }),
-    ).toHaveAttribute("aria-expanded", "false");
-    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
-  });
-
-  it("keeps the accessible name Navigation when drilled below Level 1", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
-    expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
+    );
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "General" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockPush).toHaveBeenCalledWith("/settings/general");
+    expect(document.body.style.overflow).toBe("");
   });
 });
 
-describe("AppLayout smooth desktop expansion", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
+describe("AppLayout legacy collapse triggers", () => {
+  it("navigating to a Leaf node collapses every Drawer", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("Projects"));
+    fireEvent.click(getItem("General"));
 
-  const getLevel2Grid = () =>
-    screen.getByText("General").closest(".grid") as HTMLElement;
-
-  const getLevel3Grid = () =>
-    screen.getByText("Debug").closest(".grid") as HTMLElement;
-
-  it("expanding a Level 1 section animates the sidebar column width on md+", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    const level2Grid = getLevel2Grid();
-    expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
-    expect(level2Grid).toHaveClass(
-      "transition-[grid-template-rows,grid-template-columns]",
-    );
-    expect(level2Grid).toHaveClass("duration-300", "ease-in-out");
+    expect(mockPush).toHaveBeenCalledWith("/settings/general");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active")).not.toBeInTheDocument();
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(getItem("Projects")).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("collapsing the same section shrinks the column back on md+", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
-    const level2Grid = getLevel2Grid();
-    expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
-    fireEvent.click(settingsTreeItem);
-    expect(level2Grid).toHaveClass("md:grid-cols-[0fr]");
+  it("clicking the page content collapses every Drawer on desktop", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("Projects"));
+    fireEvent.click(screen.getByText("Page content"));
+
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active")).not.toBeInTheDocument();
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("collapsing via a Leaf click shrinks the column back on md+", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    const level2Grid = getLevel2Grid();
-    fireEvent.click(screen.getByRole("treeitem", { name: "General" }));
-    expect(level2Grid).toHaveClass("md:grid-cols-[0fr]");
-  });
-
-  it("panel body keeps a fixed natural width on md+ so labels do not reflow", () => {
-    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    const panelBody = screen.getByText("General").closest(".border-l") as HTMLElement;
-    expect(panelBody).toHaveClass("md:w-max");
-    expect(panelBody).toHaveClass("overflow-hidden");
-  });
-
-  it("expanding a Level 2 section animates the Level 3 column width on md+", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
-    const level3Grid = getLevel3Grid();
-    expect(level3Grid).toHaveClass("md:grid-cols-[1fr]");
-    expect(level3Grid).toHaveClass(
-      "transition-[grid-template-rows,grid-template-columns]",
-    );
-  });
-
-  it("collapsing a Level 2 section shrinks the Level 3 column back on md+", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    const advancedTreeItem = screen.getByRole("treeitem", { name: "Advanced" });
-    fireEvent.click(advancedTreeItem);
-    const level3Grid = getLevel3Grid();
-    expect(level3Grid).toHaveClass("md:grid-cols-[1fr]");
-    fireEvent.click(advancedTreeItem);
-    expect(level3Grid).toHaveClass("md:grid-cols-[0fr]");
-  });
-
-  it("collapsing Level 1 while Level 3 is open keeps the Level 2 panel a grid so it animates", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
-    const level2Grid = getLevel2Grid();
-    expect(level2Grid).toHaveClass("md:grid");
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    expect(level2Grid).toHaveClass("md:grid-cols-[0fr]");
-    expect(level2Grid).toHaveClass("grid-rows-[0fr]");
-  });
-
-  it("mobile panels stay full-width stacked when a Level 1 section is expanded", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    openOverlay();
-    const overlay = getOverlay();
-    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    const level2Grid = within(overlay)
-      .getByText("General")
-      .closest(".grid") as HTMLElement;
-    expect(level2Grid).toHaveClass("w-full", "md:w-auto");
-    expect(level2Grid).toHaveClass("md:grid-cols-[1fr]");
-    expect(level2Grid).toHaveClass("grid-rows-[1fr]");
-  });
-});
-
-describe("AppLayout desktop click-outside collapse", () => {
-  const routesWithLevel3: RoutesSection[] = [
-    {
-      routes: [
-        { path: "dashboard", label: "Dashboard" },
-        {
-          path: "settings",
-          label: "Settings",
-          children: [
-            { path: "general", label: "General" },
-            {
-              path: "advanced",
-              label: "Advanced",
-              children: [{ path: "debug", label: "Debug" }],
-            },
-          ],
-        },
-        { path: "users", label: "Users" },
-      ],
-    },
-  ];
-
-  const getContent = () => screen.getByText("Page content");
-  const getNavColumn = () =>
-    screen.getByRole("navigation").parentElement as HTMLElement;
-
-  it("clicking the content area while a panel is expanded collapses the sidebar to Level 1 on md+", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
-    fireEvent.click(settingsTreeItem);
+  it("clicking the page content on a mobile viewport does not collapse Drawers", () => {
+    mockMatchMedia(false);
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(screen.getByText("Page content"));
     expect(screen.getByText("General")).toBeInTheDocument();
-    fireEvent.click(getContent());
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
-    expect(settingsTreeItem).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("clicking the content area while fully drilled in collapses every panel to Level 1 on md+", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
-    expect(screen.getByText("Debug")).toBeInTheDocument();
-    fireEvent.click(getContent());
-    expect(screen.queryByText("Debug")).not.toBeInTheDocument();
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
-    expect(screen.getByRole("treeitem", { name: "Settings" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-  });
-
-  it("clicking inside the sidebar never collapses it", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(getNavColumn());
-    expect(screen.getByText("General")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("treeitem", { name: "Advanced" }));
-    expect(screen.getByText("Debug")).toBeInTheDocument();
-  });
-
-  it("clicking the content area when the sidebar is already collapsed is a no-op", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(getContent());
-    expect(screen.getByRole("treeitem", { name: "Settings" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
+  it("clicking the page content when every Drawer is closed is a no-op", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    fireEvent.click(screen.getByText("Page content"));
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("clicking the content area twice keeps the sidebar collapsed", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    fireEvent.click(getContent());
-    fireEvent.click(getContent());
-    expect(screen.getByRole("treeitem", { name: "Settings" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
+  it("closing the Mobile overlay collapses every Drawer; reopening shows none open", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
+    openOverlay();
+    let overlay = getOverlay();
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Projects" }));
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    openOverlay();
+    overlay = getOverlay();
+    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
+    expect(within(overlay).queryByText("Active")).not.toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Settings" }),
+    ).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("clicking the content area on a mobile viewport does not collapse the sidebar", () => {
-    mockMatchMedia(false);
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    expect(screen.getByText("General")).toBeInTheDocument();
-    fireEvent.click(getContent());
-    expect(screen.getByText("General")).toBeInTheDocument();
-  });
-
-  it("clicking the content area does not affect the mobile overlay", () => {
-    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+  it("closing the Mobile overlay via Escape collapses every Drawer", () => {
+    render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     openOverlay();
     const overlay = getOverlay();
     fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
     expect(within(overlay).getByText("General")).toBeInTheDocument();
-    fireEvent.click(getContent());
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    openOverlay();
+    const reopened = getOverlay();
+    expect(within(reopened).queryByText("General")).not.toBeInTheDocument();
+    expect(
+      within(reopened).getByRole("treeitem", { name: "Settings" }),
+    ).toHaveAttribute("aria-expanded", "false");
   });
 });
