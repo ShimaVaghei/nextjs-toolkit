@@ -19,6 +19,10 @@ export type ActiveRouteResult = {
   ancestors: Set<string>;
 };
 
+function buildNodePath(basePath: string, segment: string): string {
+  return `${basePath}/${segment}`;
+}
+
 function drawerGridClasses(open: boolean): string {
   return [
     "grid",
@@ -79,9 +83,9 @@ function RouteTree({
       role={level === 1 ? "tree" : "group"}
     >
       {routes.map((route, index) => {
-        const nodePath = `${basePath}/${route.path}`;
-        const isLeaf = activeRoute.leaf === route.path;
-        const isAncestor = activeRoute.ancestors.has(route.path);
+        const nodePath = buildNodePath(basePath, route.path);
+        const isLeaf = activeRoute.leaf === nodePath;
+        const isAncestor = activeRoute.ancestors.has(nodePath);
         const isActive = isLeaf || isAncestor;
 
         if (!route.children || route.children.length === 0) {
@@ -164,11 +168,11 @@ function RouteTree({
 }
 
 /**
- * Computes the active leaf node and its ancestor paths based on the current pathname.
+ * Computes the active leaf node path and its ancestor node paths based on the current pathname.
  *
  * @param pathname - The current URL pathname (e.g., "/dashboard/settings")
  * @param routes - The sectioned route tree to match against; sections are transparent
- * @returns An object with the matched leaf path and a Set of ancestor paths
+ * @returns An object with the matched leaf node path and a Set of ancestor node paths
  */
 export function computeActiveRoute(
   pathname: string,
@@ -178,18 +182,19 @@ export function computeActiveRoute(
   const ancestors = new Set<string>();
   let leaf: string | null = null;
 
-  function walk(routes: Route[], depth: number): boolean {
+  function walk(routes: Route[], level: number, basePath: string): boolean {
     for (const route of routes) {
-      if (route.path === segments[depth]) {
+      if (route.path === segments[level]) {
+        const nodePath = buildNodePath(basePath, route.path);
         if (route.children && route.children.length > 0) {
-          if (walk(route.children, depth + 1)) {
-            ancestors.add(route.path);
+          if (walk(route.children, level + 1, nodePath)) {
+            ancestors.add(nodePath);
             return true;
           }
         }
 
-        if (depth === segments.length - 1) {
-          leaf = route.path;
+        if (level === segments.length - 1) {
+          leaf = nodePath;
           return true;
         }
       }
@@ -198,15 +203,9 @@ export function computeActiveRoute(
   }
 
   for (const section of routes) {
-    if (walk(section.routes, 0)) break;
+    if (walk(section.routes, 0, "")) break;
   }
   return { leaf, ancestors };
-}
-
-const MD_MEDIA_QUERY = "(min-width: 768px)";
-
-function isDesktopViewport(): boolean {
-  return window.matchMedia(MD_MEDIA_QUERY).matches;
 }
 
 function SidebarNav({
@@ -239,13 +238,14 @@ export function AppLayout({
   children: ReactNode;
 }) {
   const allRoutes = routes.flatMap((section) => section.routes);
-  const [expandedDrawers, setExpandedDrawers] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const activeRoute = computeActiveRoute(pathname, routes);
+
+  const [expandedDrawers, setExpandedDrawers] = useState<ReadonlySet<string>>(
+    () => new Set(activeRoute.ancestors),
+  );
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
 
   const handleToggleDrawer = useCallback((nodePath: string) => {
     setExpandedDrawers((prev) => {
@@ -260,7 +260,6 @@ export function AppLayout({
   }, []);
 
   const handleCloseOverlay = useCallback(() => {
-    setExpandedDrawers(new Set());
     setIsOverlayOpen(false);
   }, []);
 
@@ -291,13 +290,6 @@ export function AppLayout({
     },
     [router, handleCloseOverlay],
   );
-
-  const handleContentClick = () => {
-    if (isOverlayOpen) return;
-    if (!isDesktopViewport()) return;
-    if (expandedDrawers.size === 0) return;
-    setExpandedDrawers(new Set());
-  };
 
   if (allRoutes.length === 0) {
     return <div>{children}</div>;
@@ -340,9 +332,7 @@ export function AppLayout({
         />
       </div>
 
-      <div className="flex-1 p-4" onClick={handleContentClick}>
-        {children}
-      </div>
+      <div className="flex-1 p-4">{children}</div>
 
       {isOverlayOpen && (
         <div

@@ -282,7 +282,6 @@ describe("AppLayout active state", () => {
   it("active leaf node has bold styling", () => {
     mockPathname = "/settings/general";
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
-    fireEvent.click(getItem("Settings"));
     expect(getItem("General")).toHaveClass("font-bold");
   });
 
@@ -492,77 +491,125 @@ describe("AppLayout mobile overlay", () => {
   });
 });
 
-describe("AppLayout legacy collapse triggers", () => {
-  it("navigating to a Leaf node collapses every Drawer", () => {
+describe("AppLayout user-managed Drawer lifecycle", () => {
+  it("navigating to a Leaf node leaves every Drawer exactly as it was", () => {
     render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     fireEvent.click(getItem("Settings"));
     fireEvent.click(getItem("Projects"));
     fireEvent.click(getItem("General"));
 
     expect(mockPush).toHaveBeenCalledWith("/settings/general");
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
-    expect(screen.queryByText("Active")).not.toBeInTheDocument();
-    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
-    expect(getItem("Projects")).toHaveAttribute("aria-expanded", "false");
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+    expect(getItem("Projects")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("General")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
-  it("clicking the page content collapses every Drawer on desktop", () => {
+  it("clicking the page content never changes which Drawers are open on desktop", () => {
     render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     fireEvent.click(getItem("Settings"));
     fireEvent.click(getItem("Projects"));
     fireEvent.click(screen.getByText("Page content"));
 
-    expect(screen.queryByText("General")).not.toBeInTheDocument();
-    expect(screen.queryByText("Active")).not.toBeInTheDocument();
-    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+    expect(getItem("Projects")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("General")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
-  it("clicking the page content on a mobile viewport does not collapse Drawers", () => {
+  it("clicking the page content never changes which Drawers are open on mobile", () => {
     mockMatchMedia(false);
     render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("Projects"));
     fireEvent.click(screen.getByText("Page content"));
+
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+    expect(getItem("Projects")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("General")).toBeInTheDocument();
   });
 
-  it("clicking the page content when every Drawer is closed is a no-op", () => {
+  it("clicking the page content with every Drawer closed is a no-op", () => {
     render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     fireEvent.click(screen.getByText("Page content"));
     expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("closing the Mobile overlay collapses every Drawer; reopening shows none open", () => {
+  it("closing the Mobile overlay preserves the open Drawers; reopening shows them open", () => {
     render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     openOverlay();
     let overlay = getOverlay();
     fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
     fireEvent.click(within(overlay).getByRole("treeitem", { name: "Projects" }));
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
     openOverlay();
     overlay = getOverlay();
-    expect(within(overlay).queryByText("General")).not.toBeInTheDocument();
-    expect(within(overlay).queryByText("Active")).not.toBeInTheDocument();
     expect(
       within(overlay).getByRole("treeitem", { name: "Settings" }),
-    ).toHaveAttribute("aria-expanded", "false");
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Projects" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(within(overlay).getByText("General")).toBeInTheDocument();
+    expect(within(overlay).getByText("Active")).toBeInTheDocument();
   });
 
-  it("closing the Mobile overlay via Escape collapses every Drawer", () => {
+  it("closing the Mobile overlay via Escape preserves the open Drawers", () => {
     render(<AppLayout routes={routesWithTwoCollapsibles}>{pageContent}</AppLayout>);
     openOverlay();
     const overlay = getOverlay();
     fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
-    expect(within(overlay).getByText("General")).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.body.style.overflow).toBe("");
     openOverlay();
     const reopened = getOverlay();
-    expect(within(reopened).queryByText("General")).not.toBeInTheDocument();
     expect(
       within(reopened).getByRole("treeitem", { name: "Settings" }),
-    ).toHaveAttribute("aria-expanded", "false");
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(within(reopened).getByText("General")).toBeInTheDocument();
+  });
+
+  it("landing directly on a deep Full path opens the Drawers along its ancestry once on mount, with the active Leaf highlighted", () => {
+    mockPathname = "/settings/advanced/debug";
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+    expect(getItem("Advanced")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+    expect(getItem("Debug")).toHaveClass("font-bold");
+  });
+
+  it("landing directly on a top-level Leaf opens no Drawers", () => {
+    mockPathname = "/dashboard";
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+  });
+
+  it("after mount, collapsing the Collapsible route containing the current page stays collapsed through client-side navigation until reload", () => {
+    mockPathname = "/settings/general";
+    const { unmount } = render(
+      <AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>,
+    );
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(getItem("Settings"));
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+
+    fireEvent.click(getItem("Dashboard"));
+    expect(mockPush).toHaveBeenCalledWith("/dashboard");
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("General")).not.toBeInTheDocument();
+
+    unmount();
+    render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("General")).toBeInTheDocument();
   });
 });
