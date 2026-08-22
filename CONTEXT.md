@@ -20,25 +20,25 @@ _Avoid_: resolvedPath, fullPath
 Depth in the tree. Level 1 is top-level (always visible). Level 2 expands under a Level 1 click. Level 3 expands under a Level 2 click.
 _Avoid_: depth, tier
 
-**Collapsible section**:
-A non-leaf Route whose children are hidden until clicked. Toggles open/closed with animation.
-_Avoid_: expandable, toggleable
+**Route section**:
+A labeled top-level grouping of Routes in `appRoutes` (type `RoutesSection`). Purely visual: the optional label renders as static text above its group — it cannot be clicked and never navigates. A section without a label renders no heading; an empty section renders nothing.
+_Avoid_: nav group, category, menu section
+
+**Collapsible route**:
+A non-leaf Route whose children are hidden until it is clicked. Clicking it opens or closes only its own Drawer. (Renamed from "collapsible section" when Route section took the word.)
+_Avoid_: folder, branch, collapsible section
+
+**Drawer**:
+The region that animates open directly beneath an expanded Collapsible route, showing its children indented under their parent. Any number of Drawers can be open at once; each toggles independently, and nothing else ever closes one.
+_Avoid_: panel, flyout, submenu, dropdown
 
 **AppLayout**:
-A component that composes the navigation sidebar (rendered from Routes, seeded in `lib/routes.ts`) with the page content passed as `children`. The sidebar is pinned to the left and pushes the content to the right as it expands. Mounted in the root layout, so every page in the app lives inside it.
+A component that composes the fixed-width navigation sidebar (rendered from Route sections seeded in `lib/routes.ts`) with the page content passed as `children`. Page content never shifts — the sidebar keeps a constant width whether Drawers are open or not. On mount it opens the Drawers along the active route's ancestry; after that, Drawers are purely user-managed. Mounted in the root layout, so every page in the app lives inside it.
 _Avoid_: SidebarLayout, AppShell, wrapper, frame
 
-**Collapse**:
-The state of the sidebar where only Level 1 is visible — no expanded panels. Clicking a leaf, clicking outside the sidebar on desktop, or closing the mobile overlay all return the sidebar to this state.
-_Avoid_: reset, minimize, close
-
 **Mobile overlay**:
-The fullscreen navigation shown on mobile when the hamburger is opened. It shows one Level at a time (drill-down) with a Back icon in its header.
-_Avoid_: drawer, modal, mobile menu
-
-**Back icon**:
-The mobile overlay header control that returns the user to the previous Level. It is hidden at Level 1, where only the close button is shown.
-_Avoid_: back button, back chevron, previous
+The fullscreen navigation shown on mobile when the hamburger is opened. It renders the same accordion as the desktop sidebar. Closed by its close button or Escape; opening or closing it never changes which Drawers are open.
+_Avoid_: drawer, drill-down, mobile menu
 
 ## Table terms
 
