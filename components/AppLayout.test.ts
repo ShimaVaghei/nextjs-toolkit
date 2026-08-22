@@ -1,34 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { computeActiveRoute, type Route } from "./AppLayout";
+import { computeActiveRoute, type RoutesSection } from "./AppLayout";
 
-const routes: Route[] = [
+const routes: RoutesSection[] = [
   {
-    path: "dashboard",
-    label: "Dashboard",
-  },
-  {
-    path: "settings",
-    label: "Settings",
-    children: [
+    routes: [
       {
-        path: "general",
-        label: "General",
+        path: "dashboard",
+        label: "Dashboard",
       },
       {
-        path: "advanced",
-        label: "Advanced",
+        path: "settings",
+        label: "Settings",
         children: [
           {
-            path: "debug",
-            label: "Debug",
+            path: "general",
+            label: "General",
+          },
+          {
+            path: "advanced",
+            label: "Advanced",
+            children: [
+              {
+                path: "debug",
+                label: "Debug",
+              },
+            ],
           },
         ],
       },
+      {
+        path: "users",
+        label: "Users",
+      },
     ],
-  },
-  {
-    path: "users",
-    label: "Users",
   },
 ];
 
@@ -67,5 +71,54 @@ describe("computeActiveRoute", () => {
     const result = computeActiveRoute("/users", routes);
     expect(result.leaf).toBe("users");
     expect(result.ancestors).toEqual(new Set());
+  });
+
+  it("sections are transparent: same routes in multiple sections resolve identically", () => {
+    const sectioned: RoutesSection[] = [
+      {
+        label: "Main",
+        routes: [
+          { path: "dashboard", label: "Dashboard" },
+          {
+            path: "settings",
+            label: "Settings",
+            children: [
+              { path: "general", label: "General" },
+              {
+                path: "advanced",
+                label: "Advanced",
+                children: [{ path: "debug", label: "Debug" }],
+              },
+            ],
+          },
+        ],
+      },
+      { routes: [{ path: "users", label: "Users" }] },
+    ];
+
+    expect(computeActiveRoute("/dashboard", sectioned)).toEqual(
+      computeActiveRoute("/dashboard", routes),
+    );
+    expect(computeActiveRoute("/settings/general", sectioned)).toEqual(
+      computeActiveRoute("/settings/general", routes),
+    );
+    expect(computeActiveRoute("/settings/advanced/debug", sectioned)).toEqual(
+      computeActiveRoute("/settings/advanced/debug", routes),
+    );
+    expect(computeActiveRoute("/users", sectioned)).toEqual(
+      computeActiveRoute("/users", routes),
+    );
+    expect(computeActiveRoute("/nonexistent", sectioned).leaf).toBeNull();
+  });
+
+  it("empty sections are skipped", () => {
+    const withEmpty: RoutesSection[] = [
+      { label: "Placeholder", routes: [] },
+      ...routes,
+      { routes: [] },
+    ];
+    const result = computeActiveRoute("/settings/general", withEmpty);
+    expect(result.leaf).toBe("general");
+    expect(result.ancestors).toEqual(new Set(["settings"]));
   });
 });

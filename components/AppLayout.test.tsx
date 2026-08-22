@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup, within } from "@testing-library/rea
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
 import { appRoutes } from "../lib/routes";
-import type { Route } from "./AppLayout";
+import type { RoutesSection } from "./AppLayout";
 
 let mockPathname = "/";
 const mockPush = vi.fn();
@@ -36,17 +36,21 @@ afterEach(() => {
   mockPathname = "/";
 });
 
-const routes: Route[] = [
-  { path: "dashboard", label: "Dashboard" },
+const routes: RoutesSection[] = [
   {
-    path: "settings",
-    label: "Settings",
-    children: [
-      { path: "general", label: "General" },
-      { path: "advanced", label: "Advanced" },
+    routes: [
+      { path: "dashboard", label: "Dashboard" },
+      {
+        path: "settings",
+        label: "Settings",
+        children: [
+          { path: "general", label: "General" },
+          { path: "advanced", label: "Advanced" },
+        ],
+      },
+      { path: "users", label: "Users" },
     ],
   },
-  { path: "users", label: "Users" },
 ];
 
 const pageContent = <div>Page content</div>;
@@ -65,12 +69,11 @@ describe("AppLayout", () => {
 
   it("renders the seeded app routes and drills into a nested panel", () => {
     render(<AppLayout routes={appRoutes}>{pageContent}</AppLayout>);
-    expect(screen.getByRole("treeitem", { name: "Dashboard" })).toBeInTheDocument();
-    expect(screen.getByRole("treeitem", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("treeitem", { name: "Users" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("treeitem", { name: "Settings" }));
-    expect(screen.getByRole("treeitem", { name: "General" })).toBeInTheDocument();
-    expect(screen.getByRole("treeitem", { name: "Advanced" })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Home" })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Table" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("treeitem", { name: "Table" }));
+    expect(screen.getByRole("treeitem", { name: "Local" })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: "Server" })).toBeInTheDocument();
   });
 
   it("renders Level 1 routes as a vertical list", () => {
@@ -164,21 +167,25 @@ describe("AppLayout desktop sticky layout", () => {
 });
 
 describe("AppLayout Level 3 expansion", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   it("clicking a Level 2 parent with children opens a third panel", () => {
@@ -215,25 +222,29 @@ describe("AppLayout Level 3 expansion", () => {
   });
 
   it("clicking a different Level 2 parent with children closes Level 3 and opens new one", () => {
-    const routesWithMultipleParents: Route[] = [
-      { path: "dashboard", label: "Dashboard" },
+    const routesWithMultipleParents: RoutesSection[] = [
       {
-        path: "settings",
-        label: "Settings",
-        children: [
+        routes: [
+          { path: "dashboard", label: "Dashboard" },
           {
-            path: "advanced",
-            label: "Advanced",
-            children: [{ path: "debug", label: "Debug" }],
+            path: "settings",
+            label: "Settings",
+            children: [
+              {
+                path: "advanced",
+                label: "Advanced",
+                children: [{ path: "debug", label: "Debug" }],
+              },
+              {
+                path: "other",
+                label: "Other",
+                children: [{ path: "other-child", label: "Other Child" }],
+              },
+            ],
           },
-          {
-            path: "other",
-            label: "Other",
-            children: [{ path: "other-child", label: "Other Child" }],
-          },
+          { path: "users", label: "Users" },
         ],
       },
-      { path: "users", label: "Users" },
     ];
     render(<AppLayout routes={routesWithMultipleParents}>{pageContent}</AppLayout>);
     const settingsTreeItem = screen.getByRole("treeitem", { name: "Settings" });
@@ -261,21 +272,25 @@ describe("AppLayout Level 3 expansion", () => {
 });
 
 describe("AppLayout active state", () => {
-  const routesWithActive: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithActive: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   it("active leaf node has bold styling", () => {
@@ -342,21 +357,25 @@ describe("AppLayout active state", () => {
 });
 
 describe("AppLayout mobile responsive", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   it("Level 1 nav is hidden on mobile when Level 2 is expanded", () => {
@@ -458,25 +477,29 @@ describe("AppLayout mobile responsive", () => {
   });
 
   it("clicking a different Level 2 parent while Level 3 is open on mobile swaps Level 3", () => {
-    const routesWithMultipleParents: Route[] = [
-      { path: "dashboard", label: "Dashboard" },
+    const routesWithMultipleParents: RoutesSection[] = [
       {
-        path: "settings",
-        label: "Settings",
-        children: [
+        routes: [
+          { path: "dashboard", label: "Dashboard" },
           {
-            path: "advanced",
-            label: "Advanced",
-            children: [{ path: "debug", label: "Debug" }],
+            path: "settings",
+            label: "Settings",
+            children: [
+              {
+                path: "advanced",
+                label: "Advanced",
+                children: [{ path: "debug", label: "Debug" }],
+              },
+              {
+                path: "other",
+                label: "Other",
+                children: [{ path: "other-child", label: "Other Child" }],
+              },
+            ],
           },
-          {
-            path: "other",
-            label: "Other",
-            children: [{ path: "other-child", label: "Other Child" }],
-          },
+          { path: "users", label: "Users" },
         ],
       },
-      { path: "users", label: "Users" },
     ];
     render(<AppLayout routes={routesWithMultipleParents}>{pageContent}</AppLayout>);
     openOverlay();
@@ -491,21 +514,25 @@ describe("AppLayout mobile responsive", () => {
 });
 
 describe("AppLayout accessibility", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   it("container has role=tree", () => {
@@ -610,21 +637,25 @@ describe("AppLayout accessibility", () => {
 });
 
 describe("AppLayout mobile overlay", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   it("renders a mobile-only top bar with a hamburger button", () => {
@@ -733,21 +764,25 @@ describe("AppLayout mobile overlay", () => {
 });
 
 describe("AppLayout mobile overlay Back icon", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   it("hides the Back icon at Level 1; the close button still closes the overlay", () => {
@@ -811,21 +846,25 @@ describe("AppLayout mobile overlay Back icon", () => {
 });
 
 describe("AppLayout smooth desktop expansion", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   const getLevel2Grid = () =>
@@ -919,21 +958,25 @@ describe("AppLayout smooth desktop expansion", () => {
 });
 
 describe("AppLayout desktop click-outside collapse", () => {
-  const routesWithLevel3: Route[] = [
-    { path: "dashboard", label: "Dashboard" },
+  const routesWithLevel3: RoutesSection[] = [
     {
-      path: "settings",
-      label: "Settings",
-      children: [
-        { path: "general", label: "General" },
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
         {
-          path: "advanced",
-          label: "Advanced",
-          children: [{ path: "debug", label: "Debug" }],
+          path: "settings",
+          label: "Settings",
+          children: [
+            { path: "general", label: "General" },
+            {
+              path: "advanced",
+              label: "Advanced",
+              children: [{ path: "debug", label: "Debug" }],
+            },
+          ],
         },
+        { path: "users", label: "Users" },
       ],
     },
-    { path: "users", label: "Users" },
   ];
 
   const getContent = () => screen.getByText("Page content");

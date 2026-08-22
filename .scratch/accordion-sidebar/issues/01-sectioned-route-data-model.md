@@ -6,7 +6,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] Navigation seed data is a list of Route sections, wrapping today's routes in one section without a label
-- [ ] The layout component accepts the sectioned shape and renders exactly the same sidebar as before this change
-- [ ] Active-route resolution walks all sections transparently; Full paths and highlight behavior are unchanged
-- [ ] Both existing test files use sectioned fixtures and the full suite passes green
+- [x] Navigation seed data is a list of Route sections, wrapping today's routes in one section without a label
+- [x] The layout component accepts the sectioned shape and renders exactly the same sidebar as before this change
+- [x] Active-route resolution walks all sections transparently; Full paths and highlight behavior are unchanged
+- [x] Both existing test files use sectioned fixtures and the full suite passes green
+
+## Comments
+
+Implemented on branch `sidebar`. `RoutesSection` (optional `label`, required `routes`) is exported alongside `Route` from the AppLayout module; `computeActiveRoute` walks each section in order, and AppLayout flattens sections for rendering so the DOM is byte-for-byte identical to the pre-section sidebar. Seed wraps Home + Table in one label-less section. Also fixed a pre-existing stale seed test that expected Dashboard/Settings/Users fixtures. Full suite: 181 passed.

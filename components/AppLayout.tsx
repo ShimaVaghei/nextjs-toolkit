@@ -9,6 +9,11 @@ export type Route = {
   children?: Route[];
 };
 
+export type RoutesSection = {
+  label?: string;
+  routes: Route[];
+};
+
 export type ActiveRouteResult = {
   leaf: string | null;
   ancestors: Set<string>;
@@ -297,12 +302,12 @@ function NavigationPanels({
  * Computes the active leaf node and its ancestor paths based on the current pathname.
  *
  * @param pathname - The current URL pathname (e.g., "/dashboard/settings")
- * @param routes - The route tree to match against
+ * @param routes - The sectioned route tree to match against; sections are transparent
  * @returns An object with the matched leaf path and a Set of ancestor paths
  */
 export function computeActiveRoute(
   pathname: string,
-  routes: Route[],
+  routes: RoutesSection[],
 ): ActiveRouteResult {
   const segments = pathname.split("/").filter(Boolean);
   const ancestors = new Set<string>();
@@ -327,7 +332,9 @@ export function computeActiveRoute(
     return false;
   }
 
-  walk(routes, 0);
+  for (const section of routes) {
+    if (walk(section.routes, 0)) break;
+  }
   return { leaf, ancestors };
 }
 
@@ -341,9 +348,10 @@ export function AppLayout({
   routes,
   children,
 }: {
-  routes: Route[];
+  routes: RoutesSection[];
   children: ReactNode;
 }) {
+  const allRoutes = routes.flatMap((section) => section.routes);
   const [expandedPanels, setExpandedPanels] = useState<ExpandedPanels>(
     COLLAPSED_PANELS,
   );
@@ -419,7 +427,7 @@ export function AppLayout({
     setExpandedPanels(COLLAPSED_PANELS);
   };
 
-  if (routes.length === 0) {
+  if (allRoutes.length === 0) {
     return <div>{children}</div>;
   }
 
@@ -452,7 +460,7 @@ export function AppLayout({
 
       <div className="hidden md:flex shrink-0 max-w-full md:max-w-3xl overflow-y-auto overflow-x-hidden md:sticky md:top-0 md:max-h-screen md:self-start bg-sidebar min-h-screen">
         <NavigationPanels
-          routes={routes}
+          routes={allRoutes}
           activeRoute={activeRoute}
           expandedPanels={expandedPanels}
           onToggle={handleToggle}
@@ -523,7 +531,7 @@ export function AppLayout({
           </div>
           <div className="flex flex-1 overflow-x-hidden bg-sidebar">
             <NavigationPanels
-              routes={routes}
+              routes={allRoutes}
               activeRoute={activeRoute}
               expandedPanels={expandedPanels}
               onToggle={handleToggle}
