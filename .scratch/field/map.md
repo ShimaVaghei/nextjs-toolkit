@@ -16,6 +16,7 @@ The route to the reusable `Field` component fully charted: every decision needed
 
 <!-- one line per closed ticket: name-linked, one-line gist -->
 
+- [Closed face structure](issues/09-closed-face-chip-buttons.md) — composite face ships: labelled group of real removable chips plus a separate open button (`aria-expanded`/`aria-controls`); removal focus hops to the neighbouring × (▾ when empty), Escape returns to ▾, removals announce via the polite region; slim styled scrollbar over hidden-with-fades. Prototype on branch `research/closed-face-chip-buttons`.
 - [Hint and status visuals](issues/07-hint-and-status-visuals.md) — Variant B "feedback rail" wins: hint / Pending / Rejected+Retry / Error all stack compactly below the control, label→control gap widened (`mt-1.5`); muted Pending and red-but-not-error-slot Rejected read correctly beside a real validation Error, dark modes included. Prototype on branch `research/field-status-visuals`.
 - [Multi-select popup accessibility contract](issues/06-multi-select-popup-a11y.md) — disclosure-style popup over combobox/listbox roles (both are single-select-only per APG/ARIA 1.2); trigger named via `aria-labelledby`→visible label; focus to search input on open, Escape returns it, no trap; `fieldset`/`legend` rows of native checkboxes, never `role=option`; in-panel toggles silent, chip-× removals announced via the shared polite live region. Full checklist in [research findings](research/multi-select-popup-a11y.md); nested-button conflict on the closed face escalated to [Closed face structure](issues/09-closed-face-chip-buttons.md).
 - [Demo page and test scope](issues/04-demo-page-and-test-scope.md) — one demo page at `app/field/` (async-options section with simulate-failure toggle, not split routes); Error stays internal — no `onErrorChange` in v1; number input coerces (`""`/number/NaN-as-Empty); first blur evaluates and reveals; ten-item minimum vitest contract pinned (coercion matrix, touched lifecycle, async Pending/Rejected/Retry, force-run `validate()`, multi-select toggles, dev-warns, stale fallback, ghost option, `keepDisabledSelection`, a11y floor).
@@ -26,7 +27,7 @@ The route to the reusable `Field` component fully charted: every decision needed
 
 ## Not yet specified
 
-- Whether to record an ADR for the hand-rolled-no-form-library trade-off — offered twice in grilling, never confirmed; decide before the map closes. The multi-select popup decision has strengthened the case: hand-rolled popup machinery (trigger, focus, Escape/outside-click) now rides on that same trade-off.
+- (nothing — the remaining pre-map-close question has graduated to [Record the no-form-library ADR?](issues/10-record-no-form-library-adr.md))
 
 ## Out of scope
 
