@@ -613,3 +613,122 @@ describe("AppLayout user-managed Drawer lifecycle", () => {
     expect(screen.getByText("General")).toBeInTheDocument();
   });
 });
+
+describe("AppLayout route sections", () => {
+  const sectionedRoutes: RoutesSection[] = [
+    {
+      label: "Workspace",
+      routes: [
+        { path: "dashboard", label: "Dashboard" },
+        { path: "reports", label: "Reports" },
+      ],
+    },
+    {
+      label: "Admin",
+      routes: [
+        {
+          path: "settings",
+          label: "Settings",
+          children: [{ path: "general", label: "General" }],
+        },
+      ],
+    },
+    { routes: [{ path: "users", label: "Users" }] },
+    { label: "Ghost", routes: [] },
+  ];
+
+  const getSectionLabel = (label: string) => screen.getByText(label);
+
+  const followsInDom = (first: HTMLElement, second: HTMLElement) =>
+    (first.compareDocumentPosition(second) &
+      Node.DOCUMENT_POSITION_FOLLOWING) !==
+    0;
+
+  it("a labeled Route section renders its label as static text above its group", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    const heading = getSectionLabel("Workspace");
+    const settingsTree = getItemLi("Settings").closest(
+      "ul",
+    ) as HTMLElement;
+    expect(heading).toBeInTheDocument();
+    expect(followsInDom(heading, getItem("Dashboard"))).toBe(true);
+    expect(settingsTree.previousElementSibling).toHaveTextContent("Admin");
+  });
+
+  it("a Route section label is not an interactive element and is not tab-focusable", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    const heading = getSectionLabel("Workspace");
+    expect(heading.closest("button, a")).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: "Workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Workspace" })).not.toBeInTheDocument();
+    expect(heading).not.toHaveAttribute("tabindex");
+  });
+
+  it("clicking a Route section label does nothing", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    fireEvent.click(getSectionLabel("Workspace"));
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(getItem("Settings")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("a Route section without a label renders no heading, only its routes", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    const usersTree = getItemLi("Users").closest("ul") as HTMLElement;
+    expect(within(usersTree).getByRole("treeitem", { name: "Users" })).toBeInTheDocument();
+    expect(usersTree.previousElementSibling).toBeNull();
+  });
+
+  it("an empty Route section renders nothing at all", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    expect(screen.queryByText("Ghost")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tree")).toHaveLength(3);
+  });
+
+  it("multiple Route sections stack vertically", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    const workspaceHeading = getSectionLabel("Workspace");
+    const adminHeading = getSectionLabel("Admin");
+    expect(followsInDom(workspaceHeading, adminHeading)).toBe(true);
+    expect(followsInDom(adminHeading, getItem("Users"))).toBe(true);
+  });
+
+  it("Route sections never change Full paths or navigation", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    fireEvent.click(getItem("Dashboard"));
+    expect(mockPush).toHaveBeenCalledWith("/dashboard");
+    fireEvent.click(getItem("Settings"));
+    fireEvent.click(getItem("General"));
+    expect(mockPush).toHaveBeenCalledWith("/settings/general");
+  });
+
+  it("the active Leaf highlights across Route sections", () => {
+    mockPathname = "/settings/general";
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    expect(getItem("General")).toHaveClass("font-bold");
+    expect(getItem("Settings")).toHaveClass("opacity-60");
+    expect(getItem("Dashboard")).not.toHaveClass("font-bold");
+    expect(getItem("Dashboard")).not.toHaveClass("opacity-60");
+  });
+
+  it("Level 1 sibling counts are computed within each Route section", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    expect(getItem("Dashboard")).toHaveAttribute("aria-setsize", "2");
+    expect(getItem("Dashboard")).toHaveAttribute("aria-posinset", "1");
+    expect(getItem("Reports")).toHaveAttribute("aria-setsize", "2");
+    expect(getItem("Reports")).toHaveAttribute("aria-posinset", "2");
+    expect(getItem("Users")).toHaveAttribute("aria-setsize", "1");
+    expect(getItem("Users")).toHaveAttribute("aria-posinset", "1");
+  });
+
+  it("the Mobile overlay renders Route section headings identically", () => {
+    render(<AppLayout routes={sectionedRoutes}>{pageContent}</AppLayout>);
+    openOverlay();
+    const overlay = getOverlay();
+    expect(within(overlay).getByText("Workspace")).toBeInTheDocument();
+    expect(within(overlay).queryByText("Ghost")).not.toBeInTheDocument();
+    expect(
+      within(overlay).getByRole("treeitem", { name: "Users" }),
+    ).toBeInTheDocument();
+  });
+});

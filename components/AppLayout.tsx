@@ -208,24 +208,40 @@ export function computeActiveRoute(
   return { leaf, ancestors };
 }
 
+function isEmptySection(section: RoutesSection): boolean {
+  return section.routes.length === 0;
+}
+
 function SidebarNav({
   routes,
   activeRoute,
   expandedDrawers,
   onToggleDrawer,
   onLeafNavigate,
-}: RouteTreeSharedProps & { routes: Route[] }) {
+}: RouteTreeSharedProps & { routes: RoutesSection[] }) {
   return (
     <nav className="w-full">
-      <RouteTree
-        routes={routes}
-        basePath=""
-        activeRoute={activeRoute}
-        expandedDrawers={expandedDrawers}
-        onToggleDrawer={onToggleDrawer}
-        onLeafNavigate={onLeafNavigate}
-        level={1}
-      />
+      {routes.map((section, index) => {
+        if (isEmptySection(section)) return null;
+        return (
+          <div key={index}>
+            {section.label && (
+              <span className="block pb-1 pl-7 pr-4 pt-4 text-xs font-semibold text-neutral-400 select-none dark:text-neutral-500">
+                {section.label}
+              </span>
+            )}
+            <RouteTree
+              routes={section.routes}
+              basePath=""
+              activeRoute={activeRoute}
+              expandedDrawers={expandedDrawers}
+              onToggleDrawer={onToggleDrawer}
+              onLeafNavigate={onLeafNavigate}
+              level={1}
+            />
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -237,7 +253,6 @@ export function AppLayout({
   routes: RoutesSection[];
   children: ReactNode;
 }) {
-  const allRoutes = routes.flatMap((section) => section.routes);
   const pathname = usePathname();
   const router = useRouter();
   const activeRoute = computeActiveRoute(pathname, routes);
@@ -291,7 +306,7 @@ export function AppLayout({
     [router, handleCloseOverlay],
   );
 
-  if (allRoutes.length === 0) {
+  if (routes.every(isEmptySection)) {
     return <div>{children}</div>;
   }
 
@@ -324,7 +339,7 @@ export function AppLayout({
 
       <div className="hidden md:flex w-64 shrink-0 overflow-y-auto bg-sidebar md:sticky md:top-0 md:max-h-screen md:self-start min-h-screen">
         <SidebarNav
-          routes={allRoutes}
+          routes={routes}
           activeRoute={activeRoute}
           expandedDrawers={expandedDrawers}
           onToggleDrawer={handleToggleDrawer}
@@ -369,7 +384,7 @@ export function AppLayout({
           </div>
           <div className="flex-1 bg-sidebar">
             <SidebarNav
-              routes={allRoutes}
+              routes={routes}
               activeRoute={activeRoute}
               expandedDrawers={expandedDrawers}
               onToggleDrawer={handleToggleDrawer}
