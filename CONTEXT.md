@@ -125,8 +125,12 @@ The configuration object passed to `Field`. Declares the Field kind (and Input t
 _Avoid_: FieldProps
 
 **Validator**:
-The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/`max`, textual `minLength`/`maxLength`/`regex`. Each rule is either a bare constraint (built-in default message) or a `{ value, message }` pair (custom text). Rules apply by kind: `required` covers empty values including empty arrays.
+The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/`max`, textual `minLength`/`maxLength`/`regex`. Each rule is either a bare constraint (built-in default message) or a `{ value, message }` pair (custom text). Rules apply by kind: `required` covers Empty values on every kind; `min`/`max` apply only to number inputs; `minLength`/`maxLength`/`regex` apply only to input and textarea Fields. A rule configured on a kind it does not fit is ignored, with a dev-only console warning naming the Field.
 _Avoid_: rules, schema, validation config
+
+**Empty**:
+The value state `required` rejects, per Field kind: `""`, `null`, or `undefined` everywhere; plus `[]` for multi-select and `false` for checkbox (required = must-tick). Textual kinds test trimmed emptiness, so whitespace-only counts as Empty; the stored value itself is never altered.
+_Avoid_: blank, missing, pristine
 
 **Touched**:
 Whether the user has left the control at least once (first blur). Errors stay hidden until a Field is Touched; afterwards every change re-evaluates the Validator.
