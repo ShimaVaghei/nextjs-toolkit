@@ -18,11 +18,11 @@ The reusable `Field` component shipped — `components/Field.tsx` with tests and
 <!-- one line per closed ticket: name-linked, one-line gist -->
 
 - [Accessibility and DOM contract](issues/03-accessibility-dom-contract.md) — always-mounted `aria-live="polite"` error `<p>` + describedby (hint→error order) + `aria-invalid` on failure only; `fieldset`/`legend` for multi-select; per-kind attribute checklist done. Two conflicts flagged for the human: required-marker wording, and the deferred-`autoComplete` WCAG 1.3.5 gap.
+- [Select presentation policies](issues/01-select-presentation-policies.md) — select keeps a hidden-after-selection ghost option and owns `placeholder`; multi-select rebuilt as a custom popup (search + native checkboxes + removable Chips in a fixed-height horizontally-scrolling control — prototype variant B on branch `research/multi-select-chip-placement`, superseding ticket 03's multi-select section); stale values render raw-value fallback + dev warn; held disabled Options stay legal via new `keepDisabledSelection` flag (default true); async `options` loader with Pending/Rejected + Retry rendered as hint-slot status lines. Coined Chip / Pending / Rejected.
 
 ## Not yet specified
 
-- Whether the hint/error/loading visual states need a cheap `/prototype` pass once the select presentation policies land — judge after that ticket resolves.
-- Whether to record an ADR for the hand-rolled-no-form-library trade-off — offered twice in grilling, never confirmed; decide before the map closes.
+- Whether to record an ADR for the hand-rolled-no-form-library trade-off — offered twice in grilling, never confirmed; decide before the map closes. The multi-select popup decision has strengthened the case: hand-rolled popup machinery (trigger, focus, Escape/outside-click) now rides on that same trade-off.
 
 ## Out of scope
 

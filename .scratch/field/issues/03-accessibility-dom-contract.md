@@ -26,6 +26,8 @@ Source: https://design-system.service.gov.uk/components/error-message/
 
 ### Per-kind checklist
 
+> **Superseded (2026-08-23):** the multi-select section below was invalidated by [Select presentation policies](01-select-presentation-policies.md) — multi-select is now a custom popup, not flat checkbox rows. Its replacement ARIA contract is owned by [Multi-select popup accessibility contract](06-multi-select-popup-a11y.md). All other sections stand.
+
 - **input / textarea**: `<label htmlFor={id}>`; `type={inputType}` (input only); `disabled` omitted entirely when enabled; `aria-required={required || undefined}`; `aria-invalid={error ? true : undefined}` — **only** when an error is actually shown, never proactively on empty-but-required fields (MDN: don't flag until submit attempt; aligns with our Touched heuristic); `aria-describedby={hintId errorId}`; textarea adds `rows` (visual only). Error/hint `<p>`s sit outside the control.
 - **select**: same core set as input. Placeholder renders as a disabled first `<option value="">` ("Please select…") — placeholder is never a label substitute; never pre-select a real option. No `aria-busy` while options load (not warranted for native controls) — disable + hint line instead.
 - **multi-select**: wrap all options in `<fieldset>` + `<legend>{label}</legend>`; hint/error `aria-describedby` goes on the **fieldset**; **no `aria-required`/`aria-invalid` on the group** (unsupported roles there — convey requiredness via legend text); each option is checkbox+explicit label pair; `disabled` on the fieldset natively disables descendants.

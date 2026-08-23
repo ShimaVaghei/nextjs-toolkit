@@ -108,8 +108,20 @@ _Avoid_: field type, html type
 One choice offered by a select or multi-select Field: a display `label`, the `value` handed to the parent when chosen, and an optional `disabled` flag making it unselectable.
 _Avoid_: choice, item, entry
 
+**Chip**:
+The removable pill a multi-select Field shows for each selected Option, rendered inside the control and scrolling horizontally when they overflow — the control never grows. Each Chip removes its Option from the selection.
+_Avoid_: tag, token, pill badge
+
+**Pending**:
+The state of a select or multi-select Field whose async Option load is in flight. Choosing is blocked (control disabled); any current selection stays visible.
+_Avoid_: loading state, fetching, busy
+
+**Rejected**:
+The state of a select or multi-select Field whose async Option load failed. Choosing stays blocked and the Field offers Retry, which re-fires the load.
+_Avoid_: error state, failure, crashed
+
 **FieldConfig**:
-The configuration object passed to `Field`. Declares the Field kind (and Input type for inputs), the controlled `value` and its change callback, optional Options for choice kinds, an optional Validator, and presentation props (label, placeholder, hint, disabled, className).
+The configuration object passed to `Field`. Declares the Field kind (and Input type for inputs), the controlled `value` and its change callback, optional Options for choice kinds (a static array or an async load), an optional Validator, a `keepDisabledSelection` flag, and presentation props (label, placeholder — select-only — hint, disabled, className).
 _Avoid_: FieldProps
 
 **Validator**:
