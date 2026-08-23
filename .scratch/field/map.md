@@ -4,14 +4,13 @@ Label: wayfinder:map
 
 ## Destination
 
-The reusable `Field` component shipped — `components/Field.tsx` with tests and a demo page — implementing exactly the Form terms locked in `CONTEXT.md` (Field, Field kind, Input type, Option, FieldConfig, Validator, Touched, Error, FieldHandle).
+The route to the reusable `Field` component fully charted: every decision needed to build `components/Field.tsx` — with tests and a demo page — locked in this map's resolved tickets, implementing exactly the Form terms locked in `CONTEXT.md` (Field, Field kind, Input type, Option, FieldConfig, Validator, Touched, Error, FieldHandle). Implementation itself happens after the map closes.
 
 ## Notes
 
 - Every component-level design decision was locked in a grilling + domain-modeling session (2026-08-23); the canonical vocabulary and decisions live in `CONTEXT.md`, section "Form terms". Zoom there before any ticket.
 - Consult `/domain-modeling` in any session that coins or sharpens terms; update `CONTEXT.md` inline as terms resolve.
 - Standing preferences: config-object API mirroring `TableConfig`; no external libraries; Tailwind with dark-mode variants; vitest + testing-library specs beside the component; demo pages under `app/<component>/`.
-- **Plan-don't-do override**: the implementation itself rides in this map as the final ticket, by explicit owner decision — every other ticket still resolves a decision, not a deliverable.
 
 ## Decisions so far
 
@@ -30,4 +29,5 @@ The reusable `Field` component shipped — `components/Field.tsx` with tests and
 ## Out of scope
 
 - Forms composition layer: multi-field forms, submit orchestration, form-level validation, dirty-state tracking — the destination ends at the single component.
+- Component implementation: building `components/Field.tsx`, its vitest suite, and the demo page — initially ridden in-map as [Implement Field](issues/05-implement-field.md) by explicit owner override of plan-don't-do; reversed and closed 2026-08-23. The map ends at decisions; implementation consumes them once it closes.
 - `name`/`autoComplete` passthrough props — deferred beyond v1 during grilling; re-arbitrated in [Arbitrate flagged accessibility conflicts](issues/08-arbitrate-flagged-a11y-conflicts.md): kept out as an *accepted* WCAG 1.3.5 Identify Input Purpose gap (v1 Fields never submit — no form layer in scope), revisited with a future forms-composition effort.
