@@ -1,11 +1,15 @@
-import type { Route } from "@/components/AppLayout";
+import type { RoutesSection } from "@/components/AppLayout";
 
-export const appRoutes: Route[] = [
-  { path: "", label: "Home" },
+export const appRoutes: RoutesSection[] = [
   {
-    path: "table", label: "Table", children: [
-      { path: "local", label: "Local" },
-      { path: "server", label: "Server" },
-    ]
+    routes: [
+      { path: "", label: "Home" },
+      {
+        path: "table", label: "Table", children: [
+          { path: "local", label: "Local" },
+          { path: "server", label: "Server" },
+        ]
+      },
+    ],
   },
 ];

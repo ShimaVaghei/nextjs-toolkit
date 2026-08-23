@@ -1,54 +1,60 @@
 import { describe, it, expect } from "vitest";
-import { computeActiveRoute, type Route } from "./AppLayout";
+import { computeActiveRoute, type RoutesSection } from "./AppLayout";
 
-const routes: Route[] = [
+const routes: RoutesSection[] = [
   {
-    path: "dashboard",
-    label: "Dashboard",
-  },
-  {
-    path: "settings",
-    label: "Settings",
-    children: [
+    routes: [
       {
-        path: "general",
-        label: "General",
+        path: "dashboard",
+        label: "Dashboard",
       },
       {
-        path: "advanced",
-        label: "Advanced",
+        path: "settings",
+        label: "Settings",
         children: [
           {
-            path: "debug",
-            label: "Debug",
+            path: "general",
+            label: "General",
+          },
+          {
+            path: "advanced",
+            label: "Advanced",
+            children: [
+              {
+                path: "debug",
+                label: "Debug",
+              },
+            ],
           },
         ],
       },
+      {
+        path: "users",
+        label: "Users",
+      },
     ],
-  },
-  {
-    path: "users",
-    label: "Users",
   },
 ];
 
 describe("computeActiveRoute", () => {
   it("leaf match at Level 1", () => {
     const result = computeActiveRoute("/dashboard", routes);
-    expect(result.leaf).toBe("dashboard");
+    expect(result.leaf).toBe("/dashboard");
     expect(result.ancestors).toEqual(new Set());
   });
 
-  it("leaf match at Level 2 with ancestor highlight", () => {
+  it("leaf match at Level 2 with ancestor node paths", () => {
     const result = computeActiveRoute("/settings/general", routes);
-    expect(result.leaf).toBe("general");
-    expect(result.ancestors).toEqual(new Set(["settings"]));
+    expect(result.leaf).toBe("/settings/general");
+    expect(result.ancestors).toEqual(new Set(["/settings"]));
   });
 
-  it("leaf match at Level 3 with ancestor highlight", () => {
+  it("leaf match at Level 3 with ancestor node paths", () => {
     const result = computeActiveRoute("/settings/advanced/debug", routes);
-    expect(result.leaf).toBe("debug");
-    expect(result.ancestors).toEqual(new Set(["settings", "advanced"]));
+    expect(result.leaf).toBe("/settings/advanced/debug");
+    expect(result.ancestors).toEqual(
+      new Set(["/settings", "/settings/advanced"]),
+    );
   });
 
   it("no match returns null leaf and empty ancestors", () => {
@@ -59,13 +65,62 @@ describe("computeActiveRoute", () => {
 
   it("partial path match returns leaf at deepest matched level", () => {
     const result = computeActiveRoute("/settings/advanced", routes);
-    expect(result.leaf).toBe("advanced");
-    expect(result.ancestors).toEqual(new Set(["settings"]));
+    expect(result.leaf).toBe("/settings/advanced");
+    expect(result.ancestors).toEqual(new Set(["/settings"]));
   });
 
   it("multiple Level 1 routes, only matching branch highlighted", () => {
     const result = computeActiveRoute("/users", routes);
-    expect(result.leaf).toBe("users");
+    expect(result.leaf).toBe("/users");
     expect(result.ancestors).toEqual(new Set());
+  });
+
+  it("sections are transparent: same routes in multiple sections resolve identically", () => {
+    const sectioned: RoutesSection[] = [
+      {
+        label: "Main",
+        routes: [
+          { path: "dashboard", label: "Dashboard" },
+          {
+            path: "settings",
+            label: "Settings",
+            children: [
+              { path: "general", label: "General" },
+              {
+                path: "advanced",
+                label: "Advanced",
+                children: [{ path: "debug", label: "Debug" }],
+              },
+            ],
+          },
+        ],
+      },
+      { routes: [{ path: "users", label: "Users" }] },
+    ];
+
+    expect(computeActiveRoute("/dashboard", sectioned)).toEqual(
+      computeActiveRoute("/dashboard", routes),
+    );
+    expect(computeActiveRoute("/settings/general", sectioned)).toEqual(
+      computeActiveRoute("/settings/general", routes),
+    );
+    expect(computeActiveRoute("/settings/advanced/debug", sectioned)).toEqual(
+      computeActiveRoute("/settings/advanced/debug", routes),
+    );
+    expect(computeActiveRoute("/users", sectioned)).toEqual(
+      computeActiveRoute("/users", routes),
+    );
+    expect(computeActiveRoute("/nonexistent", sectioned).leaf).toBeNull();
+  });
+
+  it("empty sections are skipped", () => {
+    const withEmpty: RoutesSection[] = [
+      { label: "Placeholder", routes: [] },
+      ...routes,
+      { routes: [] },
+    ];
+    const result = computeActiveRoute("/settings/general", withEmpty);
+    expect(result.leaf).toBe("/settings/general");
+    expect(result.ancestors).toEqual(new Set(["/settings"]));
   });
 });
