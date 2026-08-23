@@ -130,7 +130,7 @@ function RouteTree({
                     : "text-neutral-600 dark:text-neutral-400"
               }`}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center justify-between gap-1.5 w-full">
                 {route.label}
                 <svg
                   className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform dark:text-neutral-400 ${
