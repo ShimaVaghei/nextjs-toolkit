@@ -1,7 +1,0 @@
----
-status: superseded by ADR-0002
----
-
-# Multi-panel drawer sidebar navigation
-
-The sidebar component uses a multi-panel drawer pattern: Level 1 routes are always visible; clicking a Level 1 route opens a second panel to its right showing Level 2 routes; clicking Level 2 opens a third panel for Level 3. Panels are content-width (auto) on desktop and full-width stacked on mobile. Panels expand and collapse via CSS grid transitions (`grid-template-rows: 0fr → 1fr` for height, plus `grid-template-columns: 0fr → 1fr` on md+ for column width), ~300ms ease-in-out. On mobile, the column stays full-width and only the height animates. Clicking a new parent at any level closes all deeper panels. After a leaf node is clicked and navigation occurs, the drawer collapses back to Level 1. Active state is derived from `usePathname()` — leaf nodes highlight boldly, ancestor nodes highlight with reduced opacity. The sidebar does NOT auto-expand to show panels for the active route on direct URL navigation; the drawer starts collapsed at Level 1. On desktop (md+), clicking the content area outside the sidebar column collapses the drawer back to Level 1; clicks inside the sidebar never collapse it, and the mobile overlay is unaffected. The component is inline (not fixed-position) so it can be placed inside any layout. On mobile (below `md`), only the deepest open panel is visible at full width, creating a drill-down navigation pattern. Basic accessibility only (tab-focus, roles, `aria-expanded`).
