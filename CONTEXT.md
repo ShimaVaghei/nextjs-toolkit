@@ -37,7 +37,7 @@ A component that composes the fixed-width navigation sidebar (rendered from Rout
 _Avoid_: SidebarLayout, AppShell, wrapper, frame
 
 **Mobile overlay**:
-The fullscreen navigation shown on mobile when the hamburger is opened. It renders the same accordion as the desktop sidebar. Closed by its close button or Escape; opening or closing it never changes which Drawers are open.
+The fullscreen navigation shown on mobile when the hamburger is opened. It renders the same accordion as the desktop sidebar. Its header shows the toggle button (in place of a static title), so closing happens from the same spot that opened it; Escape also closes it. Opening or closing it never changes which Drawers are open.
 _Avoid_: drawer, drill-down, mobile menu
 
 ## Table terms

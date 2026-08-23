@@ -34,6 +34,8 @@ function drawerGridClasses(open: boolean): string {
   ].join(" ");
 }
 
+const MOBILE_NAVIGATION_ID = "mobile-navigation";
+
 type RouteTreeSharedProps = {
   activeRoute: ActiveRouteResult;
   expandedDrawers: ReadonlySet<string>;
@@ -120,7 +122,7 @@ function RouteTree({
               type="button"
               onClick={() => onToggleDrawer(nodePath)}
               {...treeItemAria(level, routes.length, index + 1, isOpen)}
-              className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+              className={`flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
                 isAncestor
                   ? "opacity-60 text-neutral-900 dark:text-neutral-100"
                   : isActive
@@ -128,22 +130,24 @@ function RouteTree({
                     : "text-neutral-600 dark:text-neutral-400"
               }`}
             >
-              <span>{route.label}</span>
-              <svg
-                className={`h-4 w-4 text-neutral-400 transition-transform ${
-                  isOpen ? "rotate-90" : ""
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
+              <span className="flex items-center gap-1.5">
+                {route.label}
+                <svg
+                  className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform dark:text-neutral-400 ${
+                    isOpen ? "rotate-90" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </span>
             </button>
             <div className={drawerGridClasses(isOpen)}>
               <div className="overflow-hidden">
@@ -317,7 +321,7 @@ export function AppLayout({
           type="button"
           aria-label="Open navigation"
           aria-expanded={isOverlayOpen}
-          aria-controls="mobile-navigation"
+          aria-controls={MOBILE_NAVIGATION_ID}
           onClick={() => setIsOverlayOpen(true)}
           className="rounded-md p-2 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
         >
@@ -351,24 +355,23 @@ export function AppLayout({
 
       {isOverlayOpen && (
         <div
-          id="mobile-navigation"
+          id={MOBILE_NAVIGATION_ID}
           role="dialog"
           aria-modal="true"
           aria-label="Navigation"
           className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950"
         >
-          <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-700 dark:bg-sidebar">
-            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              Navigation
-            </span>
+          <div className="flex items-center border-b border-neutral-200 px-4 py-3 dark:border-neutral-700 dark:bg-sidebar">
             <button
               type="button"
               aria-label="Close navigation"
+              aria-controls={MOBILE_NAVIGATION_ID}
+              aria-expanded="true"
               onClick={handleCloseOverlay}
               className="rounded-md p-2 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
             >
               <svg
-                className="h-5 w-5"
+                className="h-6 w-6"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"

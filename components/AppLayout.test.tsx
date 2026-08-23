@@ -212,6 +212,24 @@ describe("AppLayout inline Drawers", () => {
     expect(getItem("Settings").querySelector("svg")).not.toHaveClass("rotate-90");
   });
 
+  it("a Collapsible route's chevron sits directly beside its label, so expandability reads at any width", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const labelSpan = getItem("Settings").firstElementChild as HTMLElement;
+    expect(labelSpan).toHaveTextContent("Settings");
+    expect(labelSpan.querySelector("svg")).not.toBeNull();
+  });
+
+  it("a Collapsible route's chevron is high-contrast enough to read as an affordance on the sidebar background", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    const svg = getItem("Settings").querySelector("svg") as SVGElement;
+    expect(svg).toHaveClass("text-neutral-300");
+  });
+
+  it("leaf nodes show no chevron, so expandable nodes stand apart", () => {
+    render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
+    expect(getItem("Dashboard").querySelector("svg")).toBeNull();
+  });
+
   it("a Drawer animates as a vertical-only grid rows reveal", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     const drawer = getDrawerGrid("Settings");
@@ -428,19 +446,26 @@ describe("AppLayout mobile overlay", () => {
     expect(drawer).toHaveClass("grid-rows-[1fr]");
   });
 
-  it("overlay header shows title and close button only — never a Back icon", () => {
+  it("overlay header shows the toggle button in place of a static title, so the overlay can be closed from where it was opened", () => {
     render(<AppLayout routes={routesWithLevel3}>{pageContent}</AppLayout>);
     openOverlay();
     const overlay = getOverlay();
-    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
-    fireEvent.click(
-      within(overlay).getByRole("treeitem", { name: "Settings" }),
+    const closeButton = within(overlay).getByRole("button", {
+      name: "Close navigation",
+    });
+    expect(closeButton).toHaveAttribute("aria-expanded", "true");
+    expect(closeButton).toHaveAttribute(
+      "aria-controls",
+      "mobile-navigation",
     );
+    const headerRow = closeButton.parentElement as HTMLElement;
+    expect(headerRow.firstElementChild).toBe(closeButton);
+    fireEvent.click(within(overlay).getByRole("treeitem", { name: "Settings" }));
     fireEvent.click(within(overlay).getByRole("treeitem", { name: "Advanced" }));
     expect(
       within(overlay).queryByRole("button", { name: "Back" }),
     ).not.toBeInTheDocument();
-    expect(within(overlay).getByText("Navigation")).toBeInTheDocument();
+    expect(within(overlay).queryByText("Navigation")).not.toBeInTheDocument();
     expect(
       within(overlay).getByRole("button", { name: "Close navigation" }),
     ).toBeInTheDocument();
