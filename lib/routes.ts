@@ -10,6 +10,7 @@ export const appRoutes: RoutesSection[] = [
           { path: "server", label: "Server" },
         ]
       },
+      { path: "field", label: "Field" },
     ],
   },
 ];
