@@ -3,10 +3,10 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 
-export type FieldKind = "input" | "textarea";
+export type FieldKind = "input" | "textarea" | "checkbox";
 export type InputType = "text" | "email" | "password" | "number";
 
-export type FieldValue = string | number;
+export type FieldValue = string | number | boolean;
 
 export type RequiredRule = boolean | { value: boolean; message: string };
 export type MinRule = number | { value: number; message: string };
@@ -66,6 +66,18 @@ const HINT_CLASS = "mt-1 text-sm text-neutral-500 dark:text-neutral-400";
 const ERROR_CLASS =
   "mt-1 text-sm font-semibold text-red-600 dark:text-red-400";
 
+const CHECKBOX_ROW_CLASS = "mt-1.5 flex items-center";
+
+const CHECKBOX_CLASS =
+  "size-4 shrink-0 rounded border border-neutral-300 bg-white accent-neutral-900 " +
+  "focus:outline-none focus:ring-2 focus:ring-neutral-500/30 disabled:cursor-not-allowed " +
+  "disabled:bg-neutral-100 disabled:accent-neutral-400 " +
+  "dark:border-neutral-700 dark:bg-neutral-900 dark:accent-neutral-100 " +
+  "dark:focus:ring-neutral-400/30 dark:disabled:bg-neutral-800";
+
+const CHECKBOX_LABEL_CLASS =
+  "ml-2 text-sm font-medium text-neutral-900 dark:text-neutral-100";
+
 type Constraint<T> = T | { value: T; message: string };
 
 function isConstraintPair<T>(
@@ -111,12 +123,12 @@ function coerceNumberInput(raw: string): FieldValue {
   return raw.trim() === "" ? "" : Number(raw);
 }
 
-/** Textual rules fit textarea and non-number inputs. */
+/** Textual rules fit textarea and non-number inputs — never a checkbox. */
 function fitsTextualRules(
   kind: FieldKind,
   inputType: InputType | undefined,
 ): boolean {
-  return kind === "textarea" || !isNumberInput(kind, inputType);
+  return kind === "textarea" || (kind === "input" && !isNumberInput(kind, inputType));
 }
 
 type RuleName = keyof Validator;
@@ -150,7 +162,8 @@ function ruleFits(
 
 /**
  * Empty semantics: null/undefined/"" everywhere, whitespace-only for textual
- * kinds (trimmed for testing only), NaN on number inputs at runtime.
+ * kinds (trimmed for testing only), NaN on number inputs at runtime, and
+ * `false` for checkbox — required means must-tick (the consent pattern).
  */
 function isEmpty(value: FieldValue): boolean {
   if (value === null || value === undefined) {
@@ -158,6 +171,9 @@ function isEmpty(value: FieldValue): boolean {
   }
   if (typeof value === "number") {
     return Number.isNaN(value);
+  }
+  if (typeof value === "boolean") {
+    return value === false;
   }
   return value.trim() === "";
 }
@@ -314,12 +330,26 @@ export function Field({
   const rule = validator?.required;
   const isRequired = rule !== undefined && requiredConstraint(rule).isRequired;
 
+  const requiredMarker = isRequired && (
+    <>
+      {" "}
+      <span aria-hidden="true" className="text-red-600 dark:text-red-400">
+        *
+      </span>{" "}
+      <span className="sr-only">(required)</span>
+    </>
+  );
+
   const handleChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    const next = isNumberInput(kind, inputType)
-      ? coerceNumberInput(event.target.value)
-      : event.target.value;
+    const next =
+      kind === "checkbox"
+        ? // Only a checkbox input renders this branch, so the target carries checked.
+          (event.target as HTMLInputElement).checked
+        : isNumberInput(kind, inputType)
+          ? coerceNumberInput(event.target.value)
+          : event.target.value;
     onValueChange(next);
     if (touched) {
       setError(evaluate(config, next));
@@ -341,44 +371,60 @@ export function Field({
   };
 
   // NaN displays as Empty; React would otherwise stringify it into the control.
-  const displayValue =
-    isNumberInput(kind, inputType) && typeof value === "number" && Number.isNaN(value)
+  // Checkboxes render `checked` instead, so booleans never reach this value.
+  const displayValue: string | number =
+    typeof value === "boolean"
       ? ""
-      : value;
+      : isNumberInput(kind, inputType) &&
+          typeof value === "number" &&
+          Number.isNaN(value)
+        ? ""
+        : value;
 
   return (
     <div className={className}>
-      <label htmlFor={controlId} className={LABEL_CLASS}>
-        {label}
-        {isRequired && (
-          <>
-            {" "}
-            <span aria-hidden="true" className="text-red-600 dark:text-red-400">
-              *
-            </span>{" "}
-            <span className="sr-only">(required)</span>
-          </>
-        )}
-      </label>
-
-      {kind === "input" ? (
-        <input
-          {...controlProps}
-          type={inputType}
-          value={displayValue}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          className={CONTROL_CLASS}
-        />
+      {kind === "checkbox" ? (
+        <div className={CHECKBOX_ROW_CLASS}>
+          <input
+            {...controlProps}
+            type="checkbox"
+            checked={value === true}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            className={CHECKBOX_CLASS}
+          />
+          <label htmlFor={controlId} className={CHECKBOX_LABEL_CLASS}>
+            {label}
+            {requiredMarker}
+          </label>
+        </div>
       ) : (
-        <textarea
-          {...controlProps}
-          value={displayValue}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          rows={4}
-          className={`${CONTROL_CLASS} resize-y`}
-        />
+        <>
+          <label htmlFor={controlId} className={LABEL_CLASS}>
+            {label}
+            {requiredMarker}
+          </label>
+
+          {kind === "input" ? (
+            <input
+              {...controlProps}
+              type={inputType}
+              value={displayValue}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              className={CONTROL_CLASS}
+            />
+          ) : (
+            <textarea
+              {...controlProps}
+              value={displayValue}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              rows={4}
+              className={`${CONTROL_CLASS} resize-y`}
+            />
+          )}
+        </>
       )}
 
       <p id={hintId} className={HINT_CLASS}>

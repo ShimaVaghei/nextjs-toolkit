@@ -9,6 +9,7 @@ export default function FieldDemoPage() {
   const [password, setPassword] = useState("");
   const [bio, setBio] = useState("");
   const [age, setAge] = useState<number | "">("");
+  const [consent, setConsent] = useState(false);
 
   const nameConfig: FieldConfig = {
     kind: "input",
@@ -62,6 +63,17 @@ export default function FieldDemoPage() {
     validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
   };
 
+  const consentConfig: FieldConfig = {
+    kind: "checkbox",
+    label: "I agree to the terms of service.",
+    hint: "Required to continue — an unticked box counts as not filled in.",
+    value: consent,
+    onValueChange: (value) => setConsent(value === true),
+    validator: {
+      required: { value: true, message: "You must accept the terms." },
+    },
+  };
+
   return (
     <div className="space-y-10">
       <header>
@@ -87,6 +99,20 @@ export default function FieldDemoPage() {
         <Field config={passwordConfig} />
         <Field config={bioConfig} />
         <Field config={ageConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Checkbox
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            The consent pattern: the label sits right of the box, and
+            &ldquo;required&rdquo; means must-tick — leave it unticked, tab
+            away to see the error, then tick it to clear instantly.
+          </p>
+        </div>
+        <Field config={consentConfig} />
       </section>
     </div>
   );

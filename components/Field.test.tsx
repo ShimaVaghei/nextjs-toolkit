@@ -36,9 +36,9 @@ function ControlledHarness({
   onChangeSpy,
   handleRef,
 }: {
-  initialValue?: string | number;
+  initialValue?: string | number | boolean;
   overrides?: FieldOverrides;
-  onChangeSpy?: (value: string | number) => void;
+  onChangeSpy?: (value: string | number | boolean) => void;
   handleRef?: React.Ref<FieldHandle>;
 }) {
   const [value, setValue] = useState(initialValue);
@@ -96,7 +96,7 @@ afterEach(() => {
 
 describe("Field rendering", () => {
   it("renders an explicitly associated labeled input and reports every edit through the change callback", () => {
-    const changes: Array<string | number> = [];
+    const changes: Array<string | number | boolean> = [];
     render(
       <ControlledHarness
         onChangeSpy={(value) => changes.push(value)}
@@ -482,7 +482,7 @@ function fireRawChange(control: HTMLElement, raw: string) {
 
 describe("Field number coercion", () => {
   it("coerces number-input edits per the matrix before handing them to the parent", () => {
-    const received: Array<string | number> = [];
+    const received: Array<string | number | boolean> = [];
     render(
       <ControlledHarness
         overrides={{
@@ -541,7 +541,7 @@ describe("Field number coercion", () => {
   });
 
   it("leaves textual kinds uncoerced", () => {
-    const received: Array<string | number> = [];
+    const received: Array<string | number | boolean> = [];
     render(
       <ControlledHarness
         onChangeSpy={(value) => received.push(value)}
@@ -553,6 +553,185 @@ describe("Field number coercion", () => {
     fireEvent.change(control, { target: { value: "007" } });
 
     expect(received).toEqual(["007"]);
+  });
+});
+
+describe("Field checkbox kind", () => {
+  it("renders an explicitly associated checkbox with its label right of the box", () => {
+    const onValueChange = vi.fn();
+    render(
+      <Field
+        config={makeConfig({
+          kind: "checkbox",
+          label: "Subscribe",
+          value: false,
+          onValueChange,
+          validator: undefined,
+        })}
+      />,
+    );
+
+    // The accessible name comes from the label association alone.
+    const control = screen.getByRole("checkbox", { name: "Subscribe" });
+    expect(control).toHaveAttribute("type", "checkbox");
+
+    const label = labelFor(control) as HTMLLabelElement;
+    expect(label).not.toBeNull();
+    expect(within(label).getByText("Subscribe")).toBeInTheDocument();
+
+    // Explicit association only — the box is not a child of its label.
+    expect(label.contains(control)).toBe(false);
+    // Box first, label after: the label sits visually right of the box.
+    expect(control.nextElementSibling).toBe(label);
+  });
+
+  it("reports toggles through the change callback as real booleans", () => {
+    const received: Array<string | number | boolean> = [];
+    render(
+      <ControlledHarness
+        initialValue={false}
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{ kind: "checkbox", label: "Terms" }}
+      />,
+    );
+
+    const control = screen.getByRole("checkbox", { name: "Terms (required)" });
+    fireEvent.click(control);
+    fireEvent.click(control);
+
+    expect(received).toEqual([true, false]);
+    expect(control).not.toBeChecked();
+  });
+
+  it("counts unticked as Empty so required follows the Touched lifecycle", () => {
+    render(
+      <ControlledHarness
+        initialValue={false}
+        overrides={{ kind: "checkbox", label: "Terms" }}
+      />,
+    );
+
+    const control = screen.getByRole("checkbox", { name: "Terms (required)" });
+
+    // Pristine invalid stays silent.
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+
+    // First blur evaluates and reveals.
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+    expect(control).toHaveAttribute("aria-invalid", "true");
+
+    // Ticking re-evaluates and clears immediately.
+    fireEvent.click(control);
+    expect(errorParagraph(control)).toHaveTextContent("");
+
+    // Unticking re-reveals.
+    fireEvent.click(control);
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+  });
+
+  it("accepts a ticked required checkbox as valid", () => {
+    render(
+      <ControlledHarness
+        initialValue={true}
+        overrides={{ kind: "checkbox", label: "Terms" }}
+      />,
+    );
+
+    const control = screen.getByRole("checkbox", { name: "Terms (required)" });
+    fireEvent.blur(control);
+
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("carries aria-required, aria-invalid, and describedby directly on the input", () => {
+    render(
+      <ControlledHarness
+        initialValue={false}
+        overrides={{
+          kind: "checkbox",
+          label: "Terms",
+          hint: "Required to continue.",
+        }}
+      />,
+    );
+
+    const control = screen.getByRole("checkbox", { name: "Terms (required)" });
+    expect(control).toHaveAttribute("aria-required", "true");
+    expect(describedIds(control)).toHaveLength(2);
+
+    const label = labelFor(control) as HTMLLabelElement;
+    expect(within(label).getByText("*")).toHaveAttribute("aria-hidden", "true");
+    expect(within(label).getByText("(required)")).toHaveClass("sr-only");
+
+    // The feedback paragraphs sit outside the control row entirely.
+    const hint = hintParagraph(control) as HTMLElement;
+    expect(hint).toHaveTextContent("Required to continue.");
+    expect(label.contains(hint)).toBe(false);
+
+    fireEvent.blur(control);
+    expect(control).toHaveAttribute("aria-invalid", "true");
+    expect(errorParagraph(control)).toHaveAttribute("aria-live", "polite");
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+  });
+
+  it("ignores a textual rule configured on a checkbox with a dev-only warn naming field and rule", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <ControlledHarness
+          overrides={{
+            kind: "checkbox",
+            label: "Terms",
+            validator: { required: true, minLength: 3 },
+          }}
+        />,
+      );
+
+      const control = screen.getByRole("checkbox", { name: "Terms (required)" });
+      fireEvent.click(control);
+      fireEvent.blur(control);
+
+      expect(errorParagraph(control)).toHaveTextContent("");
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Terms"');
+      expect(message).toContain('"minLength"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("exposes validate() through the handle, revealing the consent Error while pristine", () => {
+    const handle = createRef<FieldHandle>();
+    render(
+      <ControlledHarness
+        initialValue={false}
+        handleRef={handle}
+        overrides={{ kind: "checkbox", label: "Terms" }}
+      />,
+    );
+
+    let valid: boolean | undefined;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+
+    expect(valid).toBe(false);
+    const control = screen.getByRole("checkbox", { name: "Terms (required)" });
+    expect(control).toHaveAttribute("aria-invalid", "true");
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
   });
 });
 
