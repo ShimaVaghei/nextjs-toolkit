@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { useState } from "react";
+import { useState, createRef, act } from "react";
 import {
   render,
   screen,
@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Field, type FieldConfig } from "./Field";
+import { Field, type FieldConfig, type FieldHandle } from "./Field";
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
 
@@ -34,14 +34,17 @@ function ControlledHarness({
   initialValue = "",
   overrides,
   onChangeSpy,
+  handleRef,
 }: {
-  initialValue?: string;
+  initialValue?: string | number;
   overrides?: FieldOverrides;
-  onChangeSpy?: (value: string) => void;
+  onChangeSpy?: (value: string | number) => void;
+  handleRef?: React.Ref<FieldHandle>;
 }) {
   const [value, setValue] = useState(initialValue);
   return (
     <Field
+      ref={handleRef}
       config={{
         kind: "input",
         label: "Name",
@@ -93,7 +96,7 @@ afterEach(() => {
 
 describe("Field rendering", () => {
   it("renders an explicitly associated labeled input and reports every edit through the change callback", () => {
-    const changes: string[] = [];
+    const changes: Array<string | number> = [];
     render(
       <ControlledHarness
         onChangeSpy={(value) => changes.push(value)}
@@ -254,6 +257,358 @@ describe("Field Touched lifecycle", () => {
     expect(errorParagraph(control)).toHaveTextContent(
       DEFAULT_REQUIRED_MESSAGE,
     );
+  });
+});
+
+describe("Field Validator rule set", () => {
+  it("enforces minLength on an input with the built-in default message and clears once satisfied", () => {
+    render(<ControlledHarness overrides={{ validator: { minLength: 3 } }} />);
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(control, { target: { value: "ab" } });
+    fireEvent.blur(control);
+
+    expect(errorParagraph(control)).toHaveTextContent(
+      "Must be at least 3 characters.",
+    );
+    expect(control).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.change(control, { target: { value: "Ada" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("enforces maxLength on a textarea with a custom { value, message } pair", () => {
+    render(
+      <ControlledHarness
+        overrides={{
+          kind: "textarea",
+          validator: {
+            maxLength: { value: 5, message: "Keep it under five." },
+          },
+        }}
+      />,
+    );
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(control, { target: { value: "toolong" } });
+    fireEvent.blur(control);
+
+    expect(errorParagraph(control)).toHaveTextContent("Keep it under five.");
+  });
+
+  it("enforces regex with the built-in default message and accepts a matching value", () => {
+    render(<ControlledHarness overrides={{ validator: { regex: /^\d+$/ } }} />);
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(control, { target: { value: "abc" } });
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent("Invalid format.");
+
+    fireEvent.change(control, { target: { value: "123" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+  });
+
+  it("enforces textual rules on textareas too, minLength taking precedence over regex", () => {
+    render(
+      <ControlledHarness
+        overrides={{ kind: "textarea", validator: { minLength: 3, regex: /^[a-z]+$/ } }}
+      />,
+    );
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(control, { target: { value: "a!" } });
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(
+      "Must be at least 3 characters.",
+    );
+
+    fireEvent.change(control, { target: { value: "abc!" } });
+    expect(errorParagraph(control)).toHaveTextContent("Invalid format.");
+
+    fireEvent.change(control, { target: { value: "abc" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+  });
+
+  it("enforces maxLength on an input with the built-in default message", () => {
+    render(<ControlledHarness overrides={{ validator: { maxLength: 2 } }} />);
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(control, { target: { value: "Ada" } });
+    fireEvent.blur(control);
+
+    expect(errorParagraph(control)).toHaveTextContent(
+      "Must be at most 2 characters.",
+    );
+  });
+
+  it("honors custom { value, message } pairs for numeric and regex constraints", () => {
+    const numeric = render(
+      <ControlledHarness
+        overrides={{
+          inputType: "number",
+          validator: { min: { value: 1, message: "Too small." } },
+        }}
+      />,
+    );
+    const numericControl = numeric.getByRole("spinbutton", { name: "Name" });
+    fireEvent.change(numericControl, { target: { value: "-3.5" } });
+    fireEvent.blur(numericControl);
+    expect(errorParagraph(numericControl)).toHaveTextContent("Too small.");
+    numeric.unmount();
+
+    const pattern = render(
+      <ControlledHarness
+        overrides={{
+          validator: {
+            regex: { value: /^[a-z]+$/, message: "Lowercase letters only." },
+          },
+        }}
+      />,
+    );
+    const patternControl = pattern.getByRole("textbox", { name: "Name" });
+    fireEvent.change(patternControl, { target: { value: "ABC" } });
+    fireEvent.blur(patternControl);
+    expect(errorParagraph(patternControl)).toHaveTextContent(
+      "Lowercase letters only.",
+    );
+  });
+
+  it("enforces numeric min and max only on number inputs, with boundaries passing", () => {
+    render(
+      <ControlledHarness
+        initialValue={5}
+        overrides={{ inputType: "number", validator: { min: 1, max: 10 } }}
+      />,
+    );
+
+    const control = screen.getByRole("spinbutton", { name: "Name" });
+
+    fireEvent.change(control, { target: { value: "-3.5" } });
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent("Must be 1 or greater.");
+
+    fireEvent.change(control, { target: { value: "42" } });
+    expect(errorParagraph(control)).toHaveTextContent("Must be 10 or less.");
+
+    fireEvent.change(control, { target: { value: "10" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("ignores a rule that does not fit the kind with a dev-only warn naming the field and the rule", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <ControlledHarness
+          overrides={{
+            inputType: "number",
+            label: "Age",
+            validator: { minLength: 3 },
+          }}
+        />,
+      );
+      const warnCalls = () =>
+        warnSpy.mock.calls.filter((call) => typeof call[0] === "string");
+
+      const control = screen.getByRole("spinbutton", { name: "Age" });
+      fireEvent.change(control, { target: { value: "42" } });
+      fireEvent.blur(control);
+
+      expect(errorParagraph(control)).toHaveTextContent("");
+      expect(warnCalls()).toHaveLength(1);
+      const [message] = warnCalls()[0];
+      expect(message).toContain('"Age"');
+      expect(message).toContain('"minLength"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("ignores numeric rules on non-number inputs the same way", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <ControlledHarness
+          overrides={{ kind: "textarea", validator: { min: 1 } }}
+        />,
+      );
+
+      const control = screen.getByRole("textbox", { name: "Name" });
+      fireEvent.change(control, { target: { value: "anything" } });
+      fireEvent.blur(control);
+
+      expect(errorParagraph(control)).toHaveTextContent("");
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Name"');
+      expect(message).toContain('"min"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("shows at most one Error — required wins while Empty, then textual rules take over", () => {
+    render(
+      <ControlledHarness
+        overrides={{ validator: { required: true, minLength: 3 } }}
+      />,
+    );
+
+    const control = requiredControl("Name");
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_REQUIRED_MESSAGE);
+
+    fireEvent.change(control, { target: { value: "ab" } });
+    expect(errorParagraph(control)).toHaveTextContent(
+      "Must be at least 3 characters.",
+    );
+  });
+});
+
+/**
+ * jsdom sanitizes number-input values like real browsers do (badInput → ""),
+ * so deliver the raw string by temporarily flipping to a text input — this
+ * pins what the Field does with whatever string the platform hands it.
+ */
+function fireRawChange(control: HTMLElement, raw: string) {
+  const input = control as HTMLInputElement;
+  const originalType = input.type;
+  input.type = "text";
+  fireEvent.change(input, { target: { value: raw } });
+  input.type = originalType;
+}
+
+describe("Field number coercion", () => {
+  it("coerces number-input edits per the matrix before handing them to the parent", () => {
+    const received: Array<string | number> = [];
+    render(
+      <ControlledHarness
+        overrides={{
+          inputType: "number",
+          label: "Age",
+          validator: undefined,
+        }}
+        onChangeSpy={(value) => received.push(value)}
+      />,
+    );
+
+    const control = screen.getByRole("spinbutton", { name: "Age" });
+    fireRawChange(control, "   ");
+    fireRawChange(control, "42");
+    fireRawChange(control, "-3.5");
+    fireRawChange(control, "007");
+    fireRawChange(control, "1e3");
+    fireRawChange(control, "abc");
+
+    expect(received).toEqual(["", 42, -3.5, 7, 1000, NaN]);
+  });
+
+  it("counts coerced NaN as Empty so required catches it", () => {
+    render(
+      <ControlledHarness
+        overrides={{ inputType: "number", label: "Age" }}
+      />,
+    );
+
+    const control = screen.getByRole("spinbutton", {
+      name: "Age (required)",
+    });
+    fireRawChange(control, "abc");
+    fireEvent.blur(control);
+
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+  });
+
+  it("skips min and max evaluation while the value is Empty or NaN", () => {
+    render(
+      <ControlledHarness
+        overrides={{ inputType: "number", label: "Age", validator: { min: 0 } }}
+      />,
+    );
+
+    const control = screen.getByRole("spinbutton", { name: "Age" });
+    fireRawChange(control, "abc");
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent("");
+
+    fireRawChange(control, "   ");
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("leaves textual kinds uncoerced", () => {
+    const received: Array<string | number> = [];
+    render(
+      <ControlledHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{ kind: "textarea" }}
+      />,
+    );
+
+    const control = requiredControl("Name");
+    fireEvent.change(control, { target: { value: "007" } });
+
+    expect(received).toEqual(["007"]);
+  });
+});
+
+describe("FieldHandle.validate()", () => {
+  it("force-runs every rule regardless of Touched, reveals any Error, and reports invalid", () => {
+    const handle = createRef<FieldHandle>();
+    render(<ControlledHarness handleRef={handle} />);
+
+    const control = requiredControl("Name");
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+
+    let valid: boolean | undefined;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+
+    expect(valid).toBe(false);
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+    expect(control).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("returns true for a valid field that was never Touched, without revealing an Error", () => {
+    const handle = createRef<FieldHandle>();
+    render(<ControlledHarness handleRef={handle} initialValue="Ada" />);
+
+    const control = requiredControl("Name");
+    let valid: boolean | undefined;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+
+    expect(valid).toBe(true);
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("re-validates against the current parent value after fixes clear the Error", () => {
+    const handle = createRef<FieldHandle>();
+    render(<ControlledHarness handleRef={handle} />);
+
+    act(() => {
+      handle.current!.validate();
+    });
+
+    const control = requiredControl("Name");
+    fireEvent.change(control, { target: { value: "Ada" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+
+    let valid: boolean | undefined;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid).toBe(true);
   });
 });
 

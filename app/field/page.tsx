@@ -8,6 +8,7 @@ export default function FieldDemoPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [bio, setBio] = useState("");
+  const [age, setAge] = useState<number | "">("");
 
   const nameConfig: FieldConfig = {
     kind: "input",
@@ -15,7 +16,7 @@ export default function FieldDemoPage() {
     label: "Name",
     hint: "Shown publicly on your profile.",
     value: name,
-    onValueChange: setName,
+    onValueChange: (value) => setName(String(value)),
     validator: { required: true },
   };
 
@@ -24,8 +25,8 @@ export default function FieldDemoPage() {
     inputType: "email",
     label: "Email",
     value: email,
-    onValueChange: setEmail,
-    validator: { required: true },
+    onValueChange: (value) => setEmail(String(value)),
+    validator: { required: true, regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
   };
 
   const passwordConfig: FieldConfig = {
@@ -34,7 +35,8 @@ export default function FieldDemoPage() {
     label: "Password",
     hint: "Never shared.",
     value: password,
-    onValueChange: setPassword,
+    onValueChange: (value) => setPassword(String(value)),
+    validator: { minLength: 8 },
   };
 
   const bioConfig: FieldConfig = {
@@ -43,8 +45,21 @@ export default function FieldDemoPage() {
     hint: "A short introduction.",
     className: "max-w-md",
     value: bio,
-    onValueChange: setBio,
-    validator: { required: { value: true, message: "Tell us a bit about yourself." } },
+    onValueChange: (value) => setBio(String(value)),
+    validator: {
+      required: { value: true, message: "Tell us a bit about yourself." },
+      maxLength: 200,
+    },
+  };
+
+  const ageConfig: FieldConfig = {
+    kind: "input",
+    inputType: "number",
+    label: "Age",
+    hint: "Whole years; empty or unparseable counts as not filled in.",
+    value: age,
+    onValueChange: (value) => setAge(typeof value === "number" ? value : ""),
+    validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
   };
 
   return (
@@ -64,13 +79,14 @@ export default function FieldDemoPage() {
             One labeled control per Field, driven entirely by its config.
             Required fields stay quiet until first blur; leave one empty, tab
             away, and the error appears — then clears the moment you fix the
-            value.
+            value. Length and pattern rules behave the same way.
           </p>
         </div>
         <Field config={nameConfig} />
         <Field config={emailConfig} />
         <Field config={passwordConfig} />
         <Field config={bioConfig} />
+        <Field config={ageConfig} />
       </section>
     </div>
   );
