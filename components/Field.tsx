@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 
 export type FieldKind = "input" | "textarea" | "checkbox" | "select";
@@ -38,8 +38,8 @@ export type FieldConfig = {
   value: FieldValue;
   onValueChange: (value: FieldValue) => void;
   validator?: Validator;
-  /** Choice kinds only; select renders a static array here. */
-  options?: Option[];
+  /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
+  options?: Option[] | (() => Promise<Option[]>);
   /** Select-only: labels the closed control while empty via the ghost option. */
   placeholder?: string;
   /**
@@ -81,6 +81,39 @@ const HINT_CLASS = "mt-1 text-sm text-neutral-500 dark:text-neutral-400";
 
 const ERROR_CLASS =
   "mt-1 text-sm font-semibold text-red-600 dark:text-red-400";
+
+const REJECTED_MESSAGE_CLASS = "text-red-600 dark:text-red-400";
+
+const RETRY_BUTTON_CLASS =
+  "ml-2 rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium " +
+  "text-red-600 cursor-pointer hover:bg-red-50 focus:outline-none " +
+  "focus:ring-2 focus:ring-red-500/30 dark:border-red-900 dark:bg-transparent " +
+  "dark:text-red-400 dark:hover:bg-red-950 dark:focus:ring-red-400/30";
+
+/** Muted pure-Tailwind spinner for the Pending status line (same shape as Table's). */
+const OPTION_LOAD_SPINNER = (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 16 16"
+    fill="none"
+    className="inline-block h-3.5 w-3.5 animate-spin"
+  >
+    <circle
+      cx="8"
+      cy="8"
+      r="6"
+      stroke="currentColor"
+      strokeOpacity="0.25"
+      strokeWidth="2"
+    />
+    <path
+      d="M14 8a6 6 0 0 0-6-6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
 
 const CHECKBOX_ROW_CLASS = "mt-1.5 flex items-center";
 
@@ -158,22 +191,38 @@ type SelectEntry =
  * Resolves the rendered dropdown entries for a select: real Options as-is,
  * a held disabled Option swapped for the raw-value fallback when demoted by
  * keepDisabledSelection, and one appended fallback for a stale/unknown value.
+ * While Options are not yet authoritative (a load is Pending or Rejected) a
+ * held selection is expected-absent rather than stale: it still renders as a
+ * fallback entry so it stays visible, but no staleness is reported.
  */
 function resolveSelectEntries(
   options: Option[],
   raw: string,
   keepDisabledSelection: boolean,
+  optionsAuthoritative: boolean,
 ): { entries: SelectEntry[]; isStale: boolean } {
-  const isStale = raw !== "" && !options.some((option) => option.value === raw);
+  const isStale =
+    optionsAuthoritative &&
+    raw !== "" &&
+    !options.some((option) => option.value === raw);
   const entries: SelectEntry[] = options.map((option) =>
     option.value === raw && option.disabled && !keepDisabledSelection
       ? { kind: "fallback", raw }
       : { kind: "option", option },
   );
-  if (isStale) {
+  if (isStale || (!optionsAuthoritative && raw !== "")) {
     entries.push({ kind: "fallback", raw });
   }
   return { entries, isStale };
+}
+
+/** Lifecycle of an async Option load; only meaningful when `options` is a loader. */
+type OptionLoadStatus = "pending" | "resolved" | "rejected";
+
+function isOptionsLoader(
+  options: FieldConfig["options"],
+): options is () => Promise<Option[]> {
+  return typeof options === "function";
 }
 
 /** Textual rules fit textarea and non-number inputs — never a checkbox. */
@@ -345,6 +394,12 @@ export function Field({
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Async Option load lifecycle (loader-form configs only): Pending until the
+  // mount-fired loader settles, then Resolved with the Options or Rejected.
+  const optionsIsLoader = isOptionsLoader(options);
+  const [loadedOptions, setLoadedOptions] = useState<Option[]>([]);
+  const [loadStatus, setLoadStatus] = useState<OptionLoadStatus>("pending");
+
   // validate() runs against the latest committed config and value.
   const configRef = useRef(config);
   const valueRef = useRef(value);
@@ -352,6 +407,47 @@ export function Field({
     configRef.current = config;
     valueRef.current = value;
   });
+
+  // Retry always re-fires the newest loader the parent passed.
+  const loaderRef = useRef(options);
+  useEffect(() => {
+    loaderRef.current = options;
+  });
+
+  // A newer load supersedes an older in-flight one (Retry while still loading).
+  const loadTicketRef = useRef(0);
+
+  const runOptionLoad = useCallback(() => {
+    if (!isOptionsLoader(loaderRef.current)) {
+      return;
+    }
+    const ticket = ++loadTicketRef.current;
+    setLoadStatus("pending");
+    loaderRef.current().then(
+      (resolved) => {
+        if (ticket === loadTicketRef.current) {
+          setLoadedOptions(resolved);
+          setLoadStatus("resolved");
+        }
+      },
+      () => {
+        if (ticket === loadTicketRef.current) {
+          setLoadStatus("rejected");
+        }
+      },
+    );
+  }, []);
+
+  // The loader fires exactly once on mount; only Retry re-fires it afterwards.
+  // The started guard keeps StrictMode's dev double-invoke honest too.
+  const mountLoadStartedRef = useRef(false);
+  useEffect(() => {
+    if (!isOptionsLoader(loaderRef.current) || mountLoadStartedRef.current) {
+      return;
+    }
+    mountLoadStartedRef.current = true;
+    runOptionLoad();
+  }, [runOptionLoad]);
 
   useImperativeHandle(
     ref,
@@ -385,11 +481,14 @@ export function Field({
 
   // Select display resolution: raw value matched against Options, with the
   // stale flag driving the dev-only warn and the synthetic fallback entry.
+  // Under a loader, Options only become authoritative once a load has resolved.
   const rawValue = kind === "select" ? selectRawValue(value) : "";
+  const selectOptions = optionsIsLoader ? loadedOptions : (options as Option[]);
   const { entries: selectEntries, isStale } = resolveSelectEntries(
-    options,
+    selectOptions,
     rawValue,
     keepDisabledSelection,
+    !optionsIsLoader || loadStatus === "resolved",
   );
 
   useEffect(() => {
@@ -439,9 +538,14 @@ export function Field({
     setError(evaluate(config, value));
   };
 
+  // Pending/Rejected block choosing on choice kinds; the parent's own
+  // disabled flag still applies independently.
+  const optionsLoadBlocked =
+    optionsIsLoader && loadStatus !== "resolved";
+
   const controlProps: ControlAttributes = {
     id: controlId,
-    disabled,
+    disabled: disabled || (kind === "select" && optionsLoadBlocked) || undefined,
     "aria-required": isRequired || undefined,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": `${hintId} ${errorId}`,
@@ -532,8 +636,31 @@ export function Field({
         </>
       )}
 
+      {/* Persistent hint slot: Pending/Rejected status lines swap in without unmounting the node. */}
       <p id={hintId} className={HINT_CLASS}>
-        {hint}
+        {kind === "select" && optionsLoadBlocked ? (
+          loadStatus === "pending" ? (
+            <span className="flex items-center gap-1.5">
+              {OPTION_LOAD_SPINNER}
+              Loading options…
+            </span>
+          ) : (
+            <>
+              <span className={REJECTED_MESSAGE_CLASS}>
+                {"Couldn't load options."}
+              </span>
+              <button
+                type="button"
+                onClick={runOptionLoad}
+                className={RETRY_BUTTON_CLASS}
+              >
+                Retry
+              </button>
+            </>
+          )
+        ) : (
+          hint
+        )}
       </p>
       <p id={errorId} aria-live="polite" className={ERROR_CLASS}>
         {error && (

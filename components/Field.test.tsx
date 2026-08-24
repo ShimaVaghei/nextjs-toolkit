@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Field, type FieldConfig, type FieldHandle } from "./Field";
+import { Field, type FieldConfig, type FieldHandle, type Option } from "./Field";
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
 
@@ -1119,5 +1119,188 @@ describe("Field accessibility floor", () => {
     expect(within(label).queryByText("*")).not.toBeInTheDocument();
     expect(screen.queryByText("(required)")).not.toBeInTheDocument();
     expect(control).not.toHaveAttribute("aria-required");
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const REGION_OPTIONS: Option[] = [
+  { label: "Africa", value: "af" },
+  { label: "Europe", value: "eu" },
+];
+
+describe("Field async options", () => {
+  function asyncOverrides(loader: FieldConfig["options"]): FieldOverrides {
+    return {
+      kind: "select",
+      label: "Region",
+      validator: undefined,
+      placeholder: "Choose a region",
+      options: loader,
+    };
+  }
+
+  it("fires the loader exactly once on mount, then renders resolved Options and enables the control", async () => {
+    const d = deferred<Option[]>();
+    const loader = vi.fn(() => d.promise);
+    render(<ControlledHarness overrides={asyncOverrides(loader)} />);
+
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    const control = screen.getByRole("combobox", { name: "Region" });
+    expect(control).toBeDisabled();
+
+    await act(async () => {
+      d.resolve(REGION_OPTIONS);
+    });
+
+    expect(
+      within(control).getByRole("option", { name: "Africa" }),
+    ).toHaveValue("af");
+    expect(
+      within(control).getByRole("option", { name: "Europe" }),
+    ).toHaveValue("eu");
+    expect(control).not.toHaveAttribute("disabled");
+
+    fireEvent.change(control, { target: { value: "eu" } });
+    expect(control).toHaveValue("eu");
+    // Interacting afterwards must not re-fire the loader.
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks choosing while Pending with 'Loading options…' in the hint slot and keeps any selection visible", async () => {
+    const d = deferred<Option[]>();
+    render(
+      <ControlledHarness
+        initialValue="eu"
+        overrides={asyncOverrides(() => d.promise)}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Region" });
+    const hint = hintParagraph(control) as HTMLElement;
+
+    expect(control).toBeDisabled();
+    expect(hint).toHaveTextContent("Loading options…");
+    expect(within(hint).getByText("Loading options…")).toBeInTheDocument();
+    expect(hint.querySelector(".animate-spin")).not.toBeNull();
+    // The held selection stays visible even though its Option has not arrived.
+    expect(control).toHaveValue("eu");
+
+    await act(async () => {
+      d.resolve(REGION_OPTIONS);
+    });
+
+    expect(control).not.toBeDisabled();
+    expect(control).toHaveValue("eu");
+    expect(hint).toHaveTextContent("");
+  });
+
+  it("shows 'Couldn't load options.' with a Retry that re-fires the loader successfully", async () => {
+    const d1 = deferred<Option[]>();
+    const d2 = deferred<Option[]>();
+    const loader = vi
+      .fn<() => Promise<Option[]>>()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+    render(<ControlledHarness overrides={asyncOverrides(loader)} />);
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+
+    const control = screen.getByRole("combobox", { name: "Region" });
+    const hint = hintParagraph(control) as HTMLElement;
+
+    expect(hint).toHaveTextContent("Couldn't load options.");
+    expect(control).toBeDisabled();
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(hint).toHaveTextContent("Loading options…");
+    expect(control).toBeDisabled();
+
+    await act(async () => {
+      d2.resolve(REGION_OPTIONS);
+    });
+
+    expect(control).not.toBeDisabled();
+    expect(
+      within(control).getByRole("option", { name: "Europe" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(hint).toHaveTextContent("");
+  });
+
+  it("styles Rejected distinctly from validation Error — no aria-invalid and the error slot stays untouched", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const d = deferred<Option[]>();
+      render(
+        <ControlledHarness
+          handleRef={createRef<FieldHandle>()}
+          overrides={asyncOverrides(() => d.promise)}
+        />,
+      );
+
+      await act(async () => {
+        d.reject(new Error("boom"));
+      });
+
+      const control = screen.getByRole("combobox", { name: "Region" });
+      const error = errorParagraph(control) as HTMLElement;
+
+      expect(control).not.toHaveAttribute("aria-invalid");
+      expect(error).toHaveTextContent("");
+
+      // The rejection lives in the hint slot, not the Error paragraph.
+      expect(hintParagraph(control)).toHaveTextContent(
+        "Couldn't load options.",
+      );
+      expect(error).not.toHaveTextContent("Couldn't load options.");
+
+      // An absent selection is still expected, not stale, once Rejected.
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("never fires the stale-value warn for an absent selection while a load is in flight", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const d = deferred<Option[]>();
+      render(
+        <ControlledHarness
+          initialValue="eu"
+          overrides={asyncOverrides(() => d.promise)}
+        />,
+      );
+
+      const control = screen.getByRole("combobox", { name: "Region" });
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+
+      await act(async () => {
+        d.resolve(REGION_OPTIONS);
+      });
+
+      expect(control).toHaveValue("eu");
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

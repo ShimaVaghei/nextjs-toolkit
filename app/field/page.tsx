@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Field, type FieldConfig } from "@/components/Field";
 
 export default function FieldDemoPage() {
@@ -12,6 +12,13 @@ export default function FieldDemoPage() {
   const [consent, setConsent] = useState(false);
   const [country, setCountry] = useState("");
   const [legacyPlan, setLegacyPlan] = useState("starter");
+  const [region, setRegion] = useState("");
+  const [simulateRejection, setSimulateRejection] = useState(false);
+
+  // Kept out of render state so the mounted loader is never re-fired by a
+  // toggle; each attempt reads the ref when it settles, and Retry always sees
+  // the latest position.
+  const regionRejectionRef = useRef(false);
 
   const nameConfig: FieldConfig = {
     kind: "input",
@@ -106,6 +113,37 @@ export default function FieldDemoPage() {
     ],
   };
 
+  const regionConfig: FieldConfig = {
+    kind: "select",
+    label: "Region",
+    hint: "Options come from a simulated API; flip the toggle, then hit Retry to walk the failure path.",
+    value: region,
+    onValueChange: (value) => setRegion(String(value)),
+    validator: { required: { value: true, message: "Choose a region." } },
+    placeholder: "Choose a region",
+    options: () =>
+      new Promise((resolve, reject) => {
+        window.setTimeout(() => {
+          if (regionRejectionRef.current) {
+            reject(new Error("Simulated region load rejection."));
+          } else {
+            resolve([
+              { label: "Africa", value: "af" },
+              { label: "Americas", value: "am" },
+              { label: "Asia", value: "as" },
+              { label: "Europe", value: "eu" },
+              { label: "Oceania", value: "oc" },
+            ]);
+          }
+        }, 800);
+      }),
+  };
+
+  const toggleSimulateRejection = (checked: boolean) => {
+    regionRejectionRef.current = checked;
+    setSimulateRejection(checked);
+  };
+
   return (
     <div className="space-y-10">
       <header>
@@ -148,6 +186,33 @@ export default function FieldDemoPage() {
         </div>
         <Field config={countryConfig} />
         <Field config={legacyPlanConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Async options
+          </h2>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+            <input
+              type="checkbox"
+              checked={simulateRejection}
+              onChange={(event) =>
+                toggleSimulateRejection(event.target.checked)
+              }
+              className="h-4 w-4 accent-neutral-900 dark:accent-neutral-100"
+            />
+            Simulate load rejection
+          </label>
+        </div>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          The loader fires once on mount: the control stays disabled with a
+          muted &ldquo;Loading options…&rdquo; status until the options
+          arrive. Turn on the simulation, then hit Retry to see the rejection;
+          turn it off and hit Retry to recover. A held selection stays visible
+          the whole time.
+        </p>
+        <Field config={regionConfig} />
       </section>
 
       <section className="space-y-6">
