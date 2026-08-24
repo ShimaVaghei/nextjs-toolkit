@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Field, type FieldConfig, type FieldHandle, type Option } from "./Field";
+import { Field, type FieldConfig, type FieldHandle, type FieldValue, type Option } from "./Field";
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
 
@@ -36,9 +36,9 @@ function ControlledHarness({
   onChangeSpy,
   handleRef,
 }: {
-  initialValue?: string | number | boolean;
+  initialValue?: FieldValue;
   overrides?: FieldOverrides;
-  onChangeSpy?: (value: string | number | boolean) => void;
+  onChangeSpy?: (value: FieldValue) => void;
   handleRef?: React.Ref<FieldHandle>;
 }) {
   const [value, setValue] = useState(initialValue);
@@ -96,7 +96,7 @@ afterEach(() => {
 
 describe("Field rendering", () => {
   it("renders an explicitly associated labeled input and reports every edit through the change callback", () => {
-    const changes: Array<string | number | boolean> = [];
+    const changes: FieldValue[] = [];
     render(
       <ControlledHarness
         onChangeSpy={(value) => changes.push(value)}
@@ -482,7 +482,7 @@ function fireRawChange(control: HTMLElement, raw: string) {
 
 describe("Field number coercion", () => {
   it("coerces number-input edits per the matrix before handing them to the parent", () => {
-    const received: Array<string | number | boolean> = [];
+    const received: FieldValue[] = [];
     render(
       <ControlledHarness
         overrides={{
@@ -541,7 +541,7 @@ describe("Field number coercion", () => {
   });
 
   it("leaves textual kinds uncoerced", () => {
-    const received: Array<string | number | boolean> = [];
+    const received: FieldValue[] = [];
     render(
       <ControlledHarness
         onChangeSpy={(value) => received.push(value)}
@@ -586,7 +586,7 @@ describe("Field checkbox kind", () => {
   });
 
   it("reports toggles through the change callback as real booleans", () => {
-    const received: Array<string | number | boolean> = [];
+    const received: FieldValue[] = [];
     render(
       <ControlledHarness
         initialValue={false}
@@ -742,7 +742,7 @@ const COUNTRY_OPTIONS = [
 
 describe("Field select kind", () => {
   it("renders static Options and hands the picked Option's value to the change callback", () => {
-    const received: Array<string | number | boolean> = [];
+    const received: FieldValue[] = [];
     render(
       <ControlledHarness
         onChangeSpy={(value) => received.push(value)}
@@ -1297,6 +1297,443 @@ describe("Field async options", () => {
       });
 
       expect(control).toHaveValue("eu");
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+const TAG_OPTIONS: Option[] = [
+  { label: "Design", value: "design" },
+  { label: "Research", value: "research" },
+  { label: "Engineering", value: "engineering" },
+];
+
+function tagOverrides(): FieldOverrides {
+  return {
+    kind: "multi-select",
+    label: "Tags",
+    validator: undefined,
+    options: TAG_OPTIONS,
+  };
+}
+
+function politeRegion(): HTMLElement {
+  return document.querySelector('[aria-live="polite"]') as HTMLElement;
+}
+
+describe("Field multi-select closed face", () => {
+  it("renders a label-named group of chips beside a separate open button with synced expanded state", () => {
+    render(<ControlledHarness overrides={tagOverrides()} />);
+
+    // The group is named by the visible field label via aria-labelledby.
+    expect(screen.getByRole("group", { name: "Tags" })).toBeInTheDocument();
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+    const panelId = openButton.getAttribute("aria-controls");
+    expect(panelId).not.toBe("");
+
+    fireEvent.click(openButton);
+    expect(openButton).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById(panelId!)).not.toHaveAttribute("hidden");
+
+    fireEvent.click(openButton);
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById(panelId!)).toHaveAttribute("hidden");
+  });
+
+  it("uses no combobox/listbox/option roles and no aria-haspopup anywhere", () => {
+    const { container } = render(
+      <ControlledHarness overrides={tagOverrides()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+
+    expect(
+      container.querySelector("[role=combobox], [role=listbox], [role=option]"),
+    ).toBeNull();
+    expect(container.querySelector("[aria-haspopup]")).toBeNull();
+  });
+
+  it("keeps the chip strip fixed-height and horizontally scrolling", () => {
+    const { container } = render(
+      <ControlledHarness
+        initialValue={["design", "research"]}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const strip = container.querySelector<HTMLElement>(".field-chip-strip");
+    expect(strip).not.toBeNull();
+    expect(strip).toHaveClass("overflow-x-auto");
+    expect(strip).toHaveClass("h-11");
+  });
+});
+
+describe("Field multi-select toggle semantics", () => {
+  it("adds and removes membership through panel checkboxes with Chips appearing and disappearing in step", () => {
+    const received: FieldValue[] = [];
+    render(
+      <ControlledHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    expect(received).toEqual([["design"]]);
+    expect(
+      screen.getByRole("button", { name: "Remove Design" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Research" }));
+    expect(received).toEqual([["design"], ["design", "research"]]);
+    expect(
+      screen.getByRole("button", { name: "Remove Research" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    expect(received).toEqual([["design"], ["design", "research"], ["research"]]);
+    expect(
+      screen.queryByRole("button", { name: "Remove Design" }),
+    ).toBeNull();
+  });
+
+  it("removes membership from anywhere: each Chip's named remove button works while the popup is closed", () => {
+    const received: FieldValue[] = [];
+    render(
+      <ControlledHarness
+        initialValue={["design", "research"]}
+        onChangeSpy={(value) => received.push(value)}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Remove Design" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Research" }));
+
+    expect(received).toEqual([["design"]]);
+    expect(
+      screen.queryByRole("button", { name: "Remove Research" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Remove Design" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Field multi-select panel", () => {
+  it("filters rows client-side from the labelled search input, removing filtered rows entirely", () => {
+    render(<ControlledHarness overrides={tagOverrides()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    const search = screen.getByRole("textbox", { name: "Search options" });
+
+    fireEvent.change(search, { target: { value: "re" } });
+    expect(screen.getByRole("checkbox", { name: "Research" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Design" })).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "Engineering" }),
+    ).toBeNull();
+
+    fireEvent.change(search, { target: { value: "" } });
+    expect(
+      screen.getByRole("checkbox", { name: "Engineering" }),
+    ).toBeInTheDocument();
+  });
+
+  it("wraps native checkbox rows in a fieldset/legend group with the search input outside it", () => {
+    render(<ControlledHarness overrides={tagOverrides()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+
+    const rowsGroup = screen.getByRole("group", { name: "Options" });
+    expect(rowsGroup.tagName).toBe("FIELDSET");
+    expect(rowsGroup.querySelector("legend")).toHaveTextContent("Options");
+
+    const design = within(rowsGroup).getByRole("checkbox", { name: "Design" });
+    expect(design).toHaveAttribute("type", "checkbox");
+
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search.closest("fieldset")).toBeNull();
+  });
+
+  it("renders disabled Options as disabled checkboxes that cannot join the selection", () => {
+    render(
+      <ControlledHarness
+        overrides={{
+          ...tagOverrides(),
+          options: [...TAG_OPTIONS, { label: "Archived", value: "archived", disabled: true }],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    const archived = screen.getByRole("checkbox", { name: "Archived" });
+    expect(archived).toBeDisabled();
+    expect(archived).not.toBeChecked();
+  });
+});
+
+describe("Field multi-select focus choreography", () => {
+  it("opens onto the search input, and Escape closes and returns focus to the open button", () => {
+    render(<ControlledHarness overrides={tagOverrides()} />);
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    fireEvent.click(openButton);
+    expect(
+      screen.getByRole("textbox", { name: "Search options" }),
+    ).toHaveFocus();
+
+    fireEvent.keyDown(
+      screen.getByRole("textbox", { name: "Search options" }),
+      { key: "Escape" },
+    );
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+    expect(openButton).toHaveFocus();
+  });
+
+  it("closes on pointer-down outside without moving focus", () => {
+    render(
+      <>
+        <button type="button">Elsewhere</button>
+        <ControlledHarness overrides={tagOverrides()} />
+      </>,
+    );
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    fireEvent.click(openButton);
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search).toHaveFocus();
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+    // Pointer dismissal never yanks focus anywhere.
+    expect(search).toHaveFocus();
+  });
+
+  it("closes when focus tabs out of the widget and lets focus move naturally", () => {
+    render(
+      <>
+        <ControlledHarness overrides={tagOverrides()} />
+        <input aria-label="Outside" />
+      </>,
+    );
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    fireEvent.click(openButton);
+    expect(openButton).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.blur(screen.getByRole("textbox", { name: "Search options" }), {
+      relatedTarget: screen.getByLabelText("Outside"),
+    });
+
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("hops focus to the chip that took the removed focused chip's slot", () => {
+    render(
+      <ControlledHarness
+        initialValue={["design", "research", "engineering"]}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const researchRemove = screen.getByRole("button", {
+      name: "Remove Research",
+    });
+    act(() => researchRemove.focus());
+    fireEvent.click(researchRemove);
+
+    expect(
+      screen.getByRole("button", { name: "Remove Engineering" }),
+    ).toHaveFocus();
+  });
+
+  it("hops focus to the last remaining chip when the focused last-positioned chip is removed", () => {
+    render(
+      <ControlledHarness
+        initialValue={["design", "research"]}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const researchRemove = screen.getByRole("button", {
+      name: "Remove Research",
+    });
+    act(() => researchRemove.focus());
+    fireEvent.click(researchRemove);
+
+    expect(screen.getByRole("button", { name: "Remove Design" })).toHaveFocus();
+  });
+
+  it("returns focus to the open button when the final focused chip is removed", () => {
+    render(
+      <ControlledHarness
+        initialValue={["design"]}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const designRemove = screen.getByRole("button", { name: "Remove Design" });
+    act(() => designRemove.focus());
+    fireEvent.click(designRemove);
+
+    expect(
+      screen.queryByRole("button", { name: "Remove Design" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Show options" })).toHaveFocus();
+  });
+});
+
+describe("Field multi-select removal announcements", () => {
+  it("writes 'Removed X. N selected.' into the shared polite region with the last message winning", () => {
+    render(
+      <ControlledHarness
+        initialValue={["design", "research"]}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const region = politeRegion();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Design" }));
+    expect(region).toHaveTextContent("Removed Design. 1 selected.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Research" }));
+    expect(region).toHaveTextContent("Removed Research. 0 selected.");
+  });
+
+  it("stays silent while toggling inside the panel — native checked announcements suffice", () => {
+    render(<ControlledHarness overrides={tagOverrides()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    const region = politeRegion();
+    expect(region).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Research" }));
+    expect(region).toHaveTextContent("");
+  });
+});
+
+describe("Field multi-select Empty, placeholder, and stale chips", () => {
+  it("counts [] as Empty so required reveals on leaving the widget and clears once something is selected", () => {
+    render(
+      <ControlledHarness
+        overrides={{ ...tagOverrides(), validator: { required: true } }}
+      />,
+    );
+
+    // The group's accessible name carries the required marker.
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    expect(
+      screen.getByRole("group", { name: "Tags (required)" }),
+    ).toBeInTheDocument();
+    expect(politeRegion()).toHaveTextContent("");
+
+    // Invalid while untouched stays silent; leaving the widget evaluates.
+    fireEvent.blur(openButton, { relatedTarget: document.body });
+    expect(politeRegion()).toHaveTextContent(DEFAULT_REQUIRED_MESSAGE);
+
+    // The closed-face group anchors invalid state and hint→error describedby.
+    const group = screen.getByRole("group", { name: "Tags (required)" });
+    expect(group).toHaveAttribute("aria-invalid", "true");
+    expect(group).toHaveAttribute("aria-required", "true");
+    const describedBy = (group.getAttribute("aria-describedby") ?? "").split(/\s+/);
+    expect(describedBy).toHaveLength(2);
+    expect(document.getElementById(describedBy[0])!.tagName).toBe("P");
+    expect(document.getElementById(describedBy[1])!).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+
+    // Selecting re-evaluates instantly and clears the Error.
+    fireEvent.click(openButton);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    expect(politeRegion()).toHaveTextContent("");
+    expect(group).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("ignores placeholder entirely", () => {
+    render(
+      <ControlledHarness
+        overrides={{ ...tagOverrides(), placeholder: "Pick some tags" }}
+      />,
+    );
+
+    expect(screen.queryByText("Pick some tags")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    expect(screen.queryByText("Pick some tags")).toBeNull();
+  });
+
+  it("renders unknown values as removable raw-value fallback chips with a dev-only warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const received: FieldValue[] = [];
+      render(
+        <ControlledHarness
+          initialValue={["design", "zz"]}
+          onChangeSpy={(value) => received.push(value)}
+          overrides={tagOverrides()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Remove zz" }),
+      ).toBeInTheDocument();
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Tags"');
+      expect(message).toContain('"zz"');
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove zz" }));
+      expect(received).toEqual([["design"]]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("stays quiet while a load is Pending — held selections are expected-absent, not stale", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const d = deferred<Option[]>();
+      render(
+        <ControlledHarness
+          initialValue={["eu"]}
+          overrides={{
+            ...tagOverrides(),
+            options: () => d.promise,
+          }}
+        />,
+      );
+
+      // Held selection stays visible as a chip while the load is in flight,
+      // and the shared status contract shows in the hint slot.
+      expect(screen.getByRole("button", { name: "Remove eu" })).toBeInTheDocument();
+      expect(screen.getByText("Loading options…")).toBeInTheDocument();
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+
+      await act(async () => {
+        d.resolve([
+          { label: "Europe", value: "eu" },
+          { label: "Africa", value: "af" },
+        ]);
+      });
+
+      // Once resolved the chip upgrades to its Option label — no stale warn.
+      expect(
+        screen.getByRole("button", { name: "Remove Europe" }),
+      ).toBeInTheDocument();
       expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
         .toHaveLength(0);
     } finally {

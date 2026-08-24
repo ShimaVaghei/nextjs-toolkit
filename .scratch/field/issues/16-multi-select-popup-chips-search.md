@@ -1,7 +1,7 @@
 # 16 — Multi-select popup — Chips, search, focus choreography
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 
 ## What to build
 
@@ -21,10 +21,16 @@ Blocked by: 14 — Select kind with static Options.
 
 ## Acceptance criteria
 
-- [ ] Closed face: group container named by the visible label; each Chip removable via its own named button; separate open button carries synced `aria-expanded`/`aria-controls`
-- [ ] Panel: search filters rows client-side; rows are fieldset/legend-wrapped native checkboxes; filtered rows leave the accessibility tree
-- [ ] Toggle semantics: checkbox adds/removes membership; Chip appears/disappears in step; Chip × removes while closed or open
-- [ ] Focus: open→search input; Escape→open button; outside pointer click closes without moving focus; removal focus-hops correctly down to zero chips
-- [ ] Removals from the closed face announce "Removed X. N selected."; in-panel toggles announce nothing extra
-- [ ] Strip scrolls horizontally with the styled scrollbar; never grows vertically; dark mode holds
-- [ ] Multi-select toggle semantics and popup choreography pinned by tests at the public seam; demo page gains a multi-select section; lint and typecheck green
+- [x] Closed face: group container named by the visible label; each Chip removable via its own named button; separate open button carries synced `aria-expanded`/`aria-controls`
+- [x] Panel: search filters rows client-side; rows are fieldset/legend-wrapped native checkboxes; filtered rows leave the accessibility tree
+- [x] Toggle semantics: checkbox adds/removes membership; Chip appears/disappears in step; Chip × removes while closed or open
+- [x] Focus: open→search input; Escape→open button; outside pointer click closes without moving focus; removal focus-hops correctly down to zero chips
+- [x] Removals from the closed face announce "Removed X. N selected."; in-panel toggles announce nothing extra
+- [x] Strip scrolls horizontally with the styled scrollbar; never grows vertically; dark mode holds
+- [x] Multi-select toggle semantics and popup choreography pinned by tests at the public seam; demo page gains a multi-select section; lint and typecheck green
+
+## Comments
+
+Implemented 2026-08-26 on branch `field`. The `multi-select` kind joins the Field component (`components/Field.tsx`) over static Options: closed face is a label-named `role="group"` of removable Chips plus a separate open button (`aria-expanded`/`aria-controls`, "Show options"); panel is an always-mounted disclosure div with a labelled search input above a fieldset/legend checkbox group (filtered rows unrendered). Focus choreography, removal announcements ("Removed X. N selected." into the shared polite region), stale fallback chips, and `[]`-Empty required semantics pinned by tests in `components/Field.test.tsx` at the public seam. Slim styled scrollbar lives in `app/globals.css` under `.field-chip-strip` (light + dark). Demo section added to `/field`. Async parity + full demo completion remain for ticket 17.
+
+Code-review follow-ups applied: the hint slot now serves multi-select Pending/Rejected status too (was select-gated); `aria-required` + `aria-invalid` anchor on the named group via an explicit documented attributes spread (the composite kind has no single native control to host them); in-panel toggles clear the pending removal message so repeated removals re-announce; spec-creep cut ("No matching options." empty state, chevron rotation); tests use the exported `FieldValue` type.

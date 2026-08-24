@@ -11,6 +11,7 @@ export default function FieldDemoPage() {
   const [age, setAge] = useState<number | "">("");
   const [consent, setConsent] = useState(false);
   const [country, setCountry] = useState("");
+  const [tags, setTags] = useState<string[]>(["research"]);
   const [legacyPlan, setLegacyPlan] = useState("starter");
   const [region, setRegion] = useState("");
   const [simulateRejection, setSimulateRejection] = useState(false);
@@ -96,6 +97,22 @@ export default function FieldDemoPage() {
       { label: "Japan", value: "jp" },
       { label: "United States", value: "us" },
       { label: "Antarctica — research programmes only", value: "aq", disabled: true },
+    ],
+  };
+
+  const tagsConfig: FieldConfig = {
+    kind: "multi-select",
+    label: "Tags",
+    hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
+    value: tags,
+    onValueChange: (value) => setTags(Array.isArray(value) ? value : []),
+    validator: { required: { value: true, message: "Pick at least one tag." } },
+    options: [
+      { label: "Design", value: "design" },
+      { label: "Research", value: "research" },
+      { label: "Engineering", value: "engineering" },
+      { label: "Documentation", value: "docs" },
+      { label: "Accessibility", value: "a11y" },
     ],
   };
 
@@ -186,6 +203,23 @@ export default function FieldDemoPage() {
         </div>
         <Field config={countryConfig} />
         <Field config={legacyPlanConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Multi-select
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Selections render as removable chips in a fixed-height strip that
+            scrolls horizontally. &ldquo;Show options&rdquo; opens a plain
+            disclosure popup: a search box filters the rows above a group of
+            native checkboxes. Opening lands focus on the search box, Escape
+            returns it to the button, clicking outside closes quietly, and
+            removing the focused chip hops focus to its neighbour.
+          </p>
+        </div>
+        <Field config={tagsConfig} />
       </section>
 
       <section className="space-y-6">

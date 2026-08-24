@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import type { ChangeEvent, Ref } from "react";
+import type { ChangeEvent, FocusEvent, KeyboardEvent, Ref } from "react";
 
-export type FieldKind = "input" | "textarea" | "checkbox" | "select";
+export type FieldKind =
+  | "input"
+  | "textarea"
+  | "checkbox"
+  | "select"
+  | "multi-select";
 export type InputType = "text" | "email" | "password" | "number";
 
 /** One choice offered by a choice kind: display label, handed-over value, optional unselectable flag. */
@@ -13,7 +18,7 @@ export type Option = {
   disabled?: boolean;
 };
 
-export type FieldValue = string | number | boolean;
+export type FieldValue = string | number | boolean | string[];
 
 export type RequiredRule = boolean | { value: boolean; message: string };
 export type MinRule = number | { value: number; message: string };
@@ -40,7 +45,7 @@ export type FieldConfig = {
   validator?: Validator;
   /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
   options?: Option[] | (() => Promise<Option[]>);
-  /** Select-only: labels the closed control while empty via the ghost option. */
+  /** Select-only: labels the closed control while empty via the ghost option. Multi-select ignores it. */
   placeholder?: string;
   /**
    * Whether a held currently-selected-but-disabled Option stays legally
@@ -127,6 +132,38 @@ const CHECKBOX_CLASS =
 const CHECKBOX_LABEL_CLASS =
   "ml-2 text-sm font-medium text-neutral-900 dark:text-neutral-100";
 
+/** Fixed-height chip strip: scrolls horizontally under a slim styled scrollbar, never grows. */
+const CHIP_STRIP_CLASS =
+  "field-chip-strip flex h-11 min-w-0 flex-1 items-center gap-1.5 overflow-x-auto rounded-md border border-neutral-300 bg-white px-2 py-1 " +
+  "dark:border-neutral-700 dark:bg-neutral-900";
+
+const CHIP_CLASS =
+  "inline-flex shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-neutral-100 py-0.5 pl-2.5 pr-0.5 " +
+  "text-xs font-medium text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100";
+
+const CHIP_REMOVE_CLASS =
+  "flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-neutral-500 " +
+  "hover:bg-neutral-300 hover:text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+  "disabled:cursor-not-allowed disabled:text-neutral-400 disabled:hover:bg-transparent " +
+  "dark:text-neutral-400 dark:hover:bg-neutral-600 dark:hover:text-neutral-200 dark:focus:ring-neutral-400/30 " +
+  "dark:disabled:hover:bg-transparent";
+
+const OPEN_BUTTON_CLASS =
+  "flex w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-neutral-300 bg-white " +
+  "text-neutral-500 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+  "disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 disabled:hover:bg-white " +
+  "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 " +
+  "dark:focus:ring-neutral-400/30 dark:disabled:bg-neutral-800 dark:disabled:hover:bg-neutral-800";
+
+const PANEL_CLASS =
+  "absolute left-0 right-0 top-full z-10 mt-1.5 space-y-3 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
+  "dark:border-neutral-700 dark:bg-neutral-900";
+
+const ROW_LABEL_CLASS =
+  "flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-100";
+
+const ROW_LABEL_DISABLED_CLASS = " cursor-not-allowed opacity-60";
+
 type Constraint<T> = T | { value: T; message: string };
 
 function isConstraintPair<T>(
@@ -186,6 +223,54 @@ function selectRawValue(value: FieldValue): string {
 type SelectEntry =
   | { kind: "option"; option: Option }
   | { kind: "fallback"; raw: string };
+
+/** One rendered Chip: a matched Option or a raw-value fallback for an unknown selection. */
+type ChipEntry = SelectEntry;
+
+function chipValue(entry: ChipEntry): string {
+  return entry.kind === "option" ? entry.option.value : entry.raw;
+}
+
+function chipLabel(entry: ChipEntry): string {
+  return entry.kind === "option" ? entry.option.label : entry.raw;
+}
+
+/**
+ * Resolves the rendered Chips for a multi-select in Options order, with held
+ * disabled Options demoted to fallbacks by keepDisabledSelection and unknown
+ * values appended as raw-value fallback chips. While Options are not yet
+ * authoritative (a load is Pending or Rejected) held selections stay visible
+ * without being reported stale.
+ */
+function resolveChips(
+  options: Option[],
+  values: string[],
+  keepDisabledSelection: boolean,
+  optionsAuthoritative: boolean,
+): { entries: ChipEntry[]; staleValues: string[] } {
+  const entries: ChipEntry[] = [];
+  const known = new Set<string>();
+  for (const option of options) {
+    if (!values.includes(option.value)) {
+      continue;
+    }
+    known.add(option.value);
+    entries.push(
+      option.disabled && !keepDisabledSelection
+        ? { kind: "fallback", raw: option.value }
+        : { kind: "option", option },
+    );
+  }
+  const staleValues = optionsAuthoritative
+    ? values.filter((value) => !known.has(value))
+    : [];
+  for (const value of values) {
+    if (!known.has(value)) {
+      entries.push({ kind: "fallback", raw: value });
+    }
+  }
+  return { entries, staleValues };
+}
 
 /**
  * Resolves the rendered dropdown entries for a select: real Options as-is,
@@ -276,6 +361,9 @@ function isEmpty(value: FieldValue): boolean {
   }
   if (typeof value === "boolean") {
     return value === false;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
   }
   return value.trim() === "";
 }
@@ -390,9 +478,23 @@ export function Field({
   const controlId = `${baseId}-control`;
   const hintId = `${baseId}-hint`;
   const errorId = `${baseId}-error`;
+  const labelId = `${baseId}-label`;
+  const panelId = `${baseId}-panel`;
+  const searchId = `${baseId}-search`;
 
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Multi-select popup state: disclosure visibility plus the client-side
+  // search query; the query resets whenever the panel closes.
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+
+  const widgetRef = useRef<HTMLDivElement>(null);
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const chipRemoveRefs = useRef(new Map<string, HTMLButtonElement>());
 
   // Async Option load lifecycle (loader-form configs only): Pending until the
   // mount-fired loader settles, then Resolved with the Options or Rejected.
@@ -482,13 +584,14 @@ export function Field({
   // Select display resolution: raw value matched against Options, with the
   // stale flag driving the dev-only warn and the synthetic fallback entry.
   // Under a loader, Options only become authoritative once a load has resolved.
+  const optionsAuthoritative = !optionsIsLoader || loadStatus === "resolved";
   const rawValue = kind === "select" ? selectRawValue(value) : "";
   const selectOptions = optionsIsLoader ? loadedOptions : (options as Option[]);
   const { entries: selectEntries, isStale } = resolveSelectEntries(
     selectOptions,
     rawValue,
     keepDisabledSelection,
-    !optionsIsLoader || loadStatus === "resolved",
+    optionsAuthoritative,
   );
 
   useEffect(() => {
@@ -498,6 +601,25 @@ export function Field({
       );
     }
   }, [isStale, rawValue, label]);
+
+  // Multi-select resolution: Chips in Options order plus fallback chips for
+  // unknown values; the joined stale list keeps the dev-warn effect stable.
+  const selectedValues: string[] =
+    kind === "multi-select" && Array.isArray(value) ? value : [];
+  const { entries: chips, staleValues } = resolveChips(
+    selectOptions,
+    selectedValues,
+    keepDisabledSelection,
+    optionsAuthoritative,
+  );
+  const staleChipList = staleValues.join('", "');
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production" && staleChipList !== "") {
+      console.warn(
+        `[Field] Value(s) "${staleChipList}" of multi-select "${label}" do not match any Option and are shown as raw-value fallback chips.`,
+      );
+    }
+  }, [staleChipList, label]);
 
   const rule = validator?.required;
   const isRequired = rule !== undefined && requiredConstraint(rule).isRequired;
@@ -538,10 +660,126 @@ export function Field({
     setError(evaluate(config, value));
   };
 
+  // Multi-select: membership toggles and chip removals flow through one
+  // controlled hand-off that keeps the Touched lifecycle honest.
+  const applyMultiValue = (next: string[]) => {
+    onValueChange(next);
+    if (touched) {
+      setError(evaluate(config, next));
+    }
+  };
+
+  const toggleOption = (optionValue: string) => {
+    // In-panel toggles announce nothing extra — clear any pending removal
+    // message so a repeated removal re-announces with fresh text.
+    setAnnouncement(null);
+    applyMultiValue(
+      selectedValues.includes(optionValue)
+        ? selectedValues.filter((value) => value !== optionValue)
+        : [...selectedValues, optionValue],
+    );
+  };
+
+  const removeChip = (entry: ChipEntry, index: number) => {
+    const removedValue = chipValue(entry);
+    const removedLabel = chipLabel(entry);
+    const next = selectedValues.filter((value) => value !== removedValue);
+    applyMultiValue(next);
+
+    // Closed-face removals announce through the shared always-mounted polite
+    // region; last message wins. In-panel toggles never reach this path.
+    setAnnouncement(`Removed ${removedLabel}. ${next.length} selected.`);
+
+    // Focus hop over the post-removal chip list so focus never rests on a
+    // removed node: the chip that took its slot, the last chip, or the open button.
+    const { entries: remaining } = resolveChips(
+      selectOptions,
+      next,
+      keepDisabledSelection,
+      optionsAuthoritative,
+    );
+    if (remaining.length === 0) {
+      openButtonRef.current?.focus();
+      return;
+    }
+    const hopEntry = remaining[Math.min(index, remaining.length - 1)];
+    chipRemoveRefs.current.get(chipValue(hopEntry))?.focus();
+  };
+
+  // Every close path funnels here: the panel hides and the search query
+  // resets so reopening starts unfiltered.
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    setSearch("");
+  }, []);
+
+  // Escape anywhere in the widget closes the panel and returns focus to the
+  // open button.
+  const handleWidgetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (open && event.key === "Escape") {
+      closePanel();
+      openButtonRef.current?.focus();
+    }
+  };
+
+  // Pointer-down outside the widget closes the panel without moving focus.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handlePointerDown = (event: PointerEvent | Event) => {
+      const target = event.target;
+      if (target instanceof Node && widgetRef.current?.contains(target)) {
+        return;
+      }
+      closePanel();
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [closePanel, open]);
+
+  const toggleOpen = () => {
+    if (open) {
+      closePanel();
+    } else {
+      setOpen(true);
+    }
+  };
+
+  // Focus leaving the whole widget (Tab-out or otherwise) closes the panel
+  // naturally — no trap — and counts as leaving the field for the Touched
+  // lifecycle. Internal focus moves are ignored.
+  const handleWidgetBlur = (event: FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && widgetRef.current?.contains(next)) {
+      return;
+    }
+    if (open) {
+      closePanel();
+    }
+    setTouched(true);
+    setError(evaluate(config, value));
+  };
+
+  // Opening moves DOM focus to the search input.
+  useEffect(() => {
+    if (open) {
+      searchRef.current?.focus();
+    }
+  }, [open]);
+
+  // The search filters resolved Options client-side; filtered rows leave the
+  // accessibility tree because they are not rendered at all.
+  const query = search.trim().toLowerCase();
+  const panelRows = selectOptions.filter((option) =>
+    option.label.toLowerCase().includes(query),
+  );
+
   // Pending/Rejected block choosing on choice kinds; the parent's own
   // disabled flag still applies independently.
   const optionsLoadBlocked =
     optionsIsLoader && loadStatus !== "resolved";
+  const multiDisabled = disabled || optionsLoadBlocked;
 
   const controlProps: ControlAttributes = {
     id: controlId,
@@ -554,7 +792,7 @@ export function Field({
   // NaN displays as Empty; React would otherwise stringify it into the control.
   // Checkboxes render `checked` instead, so booleans never reach this value.
   const displayValue: string | number =
-    typeof value === "boolean"
+    typeof value === "boolean" || Array.isArray(value)
       ? ""
       : isNumberInput(kind, inputType) &&
           typeof value === "number" &&
@@ -562,9 +800,145 @@ export function Field({
         ? ""
         : value;
 
+  // The composite multi-select has no single native control to host failure
+  // state, so the named closed-face group anchors it. Spread deliberately:
+  // jsx-a11y's role map has no entry for these on `group`, but the DOM/a11y
+  // contract requires aria-invalid while failing and wired aria-required.
+  const groupStatusAttributes = {
+    "aria-required": isRequired || undefined,
+    "aria-invalid": error ? true : undefined,
+  };
+
   return (
     <div className={className}>
-      {kind === "checkbox" ? (
+      {kind === "multi-select" ? (
+        <>
+          {/* The visible label names the closed-face group via aria-labelledby — never content-computed. */}
+          <label id={labelId} className={LABEL_CLASS}>
+            {label}
+            {requiredMarker}
+          </label>
+
+          <div
+            ref={widgetRef}
+            className="relative mt-1.5"
+            onBlur={handleWidgetBlur}
+            onKeyDown={handleWidgetKeyDown}
+          >
+            <div
+              role="group"
+              id={controlId}
+              aria-labelledby={labelId}
+              aria-describedby={`${hintId} ${errorId}`}
+              {...groupStatusAttributes}
+              className="flex items-stretch gap-1.5"
+            >
+              <div className={CHIP_STRIP_CLASS}>
+                {chips.map((entry, index) => (
+                  <span key={chipValue(entry)} className={CHIP_CLASS}>
+                    <span className="max-w-40 truncate">
+                      {chipLabel(entry)}
+                    </span>
+                    <button
+                      type="button"
+                      ref={(element) => {
+                        if (element) {
+                          chipRemoveRefs.current.set(chipValue(entry), element);
+                        } else {
+                          chipRemoveRefs.current.delete(chipValue(entry));
+                        }
+                      }}
+                      aria-label={`Remove ${chipLabel(entry)}`}
+                      disabled={multiDisabled || undefined}
+                      onClick={() => removeChip(entry, index)}
+                      className={CHIP_REMOVE_CLASS}
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        className="size-3"
+                      >
+                        <path
+                          d="M3 3l6 6M9 3l-6 6"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <button
+                type="button"
+                ref={openButtonRef}
+                onClick={toggleOpen}
+                disabled={multiDisabled || undefined}
+                aria-expanded={open}
+                aria-controls={panelId}
+                aria-label="Show options"
+                className={OPEN_BUTTON_CLASS}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="size-4"
+                >
+                  <path
+                    d="M4 6l4 4 4-4"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Plain disclosure popup: no dialog/listbox role, no focus trap. */}
+            <div id={panelId} hidden={!open} className={PANEL_CLASS}>
+              <label htmlFor={searchId} className="sr-only">
+                Search options
+              </label>
+              <input
+                ref={searchRef}
+                id={searchId}
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className={`${CONTROL_CLASS} mt-0`}
+              />
+              <fieldset className="min-w-0 border-0 p-0">
+                <legend className="sr-only">Options</legend>
+                <div className="max-h-60 space-y-1 overflow-y-auto p-0.5">
+                  {panelRows.map((option) => (
+                    <label
+                      key={option.value}
+                      className={
+                        ROW_LABEL_CLASS +
+                        (option.disabled ? ROW_LABEL_DISABLED_CLASS : "")
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        className={CHECKBOX_CLASS}
+                        checked={selectedValues.includes(option.value)}
+                        disabled={
+                          option.disabled || multiDisabled || undefined
+                        }
+                        onChange={() => toggleOption(option.value)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          </div>
+        </>
+      ) : kind === "checkbox" ? (
         <div className={CHECKBOX_ROW_CLASS}>
           <input
             {...controlProps}
@@ -638,7 +1012,8 @@ export function Field({
 
       {/* Persistent hint slot: Pending/Rejected status lines swap in without unmounting the node. */}
       <p id={hintId} className={HINT_CLASS}>
-        {kind === "select" && optionsLoadBlocked ? (
+        {(kind === "select" || kind === "multi-select") &&
+        optionsLoadBlocked ? (
           loadStatus === "pending" ? (
             <span className="flex items-center gap-1.5">
               {OPTION_LOAD_SPINNER}
@@ -668,6 +1043,10 @@ export function Field({
             <span className="sr-only">Error:</span>
             {error}
           </>
+        )}
+        {/* Multi-select closed-face removal announcements share this polite region, visually hidden. */}
+        {announcement && (
+          <span className="sr-only">{announcement}</span>
         )}
       </p>
     </div>
