@@ -3,8 +3,15 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 
-export type FieldKind = "input" | "textarea" | "checkbox";
+export type FieldKind = "input" | "textarea" | "checkbox" | "select";
 export type InputType = "text" | "email" | "password" | "number";
+
+/** One choice offered by a choice kind: display label, handed-over value, optional unselectable flag. */
+export type Option = {
+  label: string;
+  value: string;
+  disabled?: boolean;
+};
 
 export type FieldValue = string | number | boolean;
 
@@ -31,6 +38,15 @@ export type FieldConfig = {
   value: FieldValue;
   onValueChange: (value: FieldValue) => void;
   validator?: Validator;
+  /** Choice kinds only; select renders a static array here. */
+  options?: Option[];
+  /** Select-only: labels the closed control while empty via the ghost option. */
+  placeholder?: string;
+  /**
+   * Whether a held currently-selected-but-disabled Option stays legally
+   * selected (default true); false demotes it to the raw-value fallback.
+   */
+  keepDisabledSelection?: boolean;
   hint?: string;
   disabled?: boolean;
   className?: string;
@@ -121,6 +137,43 @@ function isNumberInput(
  */
 function coerceNumberInput(raw: string): FieldValue {
   return raw.trim() === "" ? "" : Number(raw);
+}
+
+/** The string a native <select> matches against its options; Empty renders as "". */
+function selectRawValue(value: FieldValue): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "number") {
+    return Number.isNaN(value) ? "" : String(value);
+  }
+  return String(value);
+}
+
+type SelectEntry =
+  | { kind: "option"; option: Option }
+  | { kind: "fallback"; raw: string };
+
+/**
+ * Resolves the rendered dropdown entries for a select: real Options as-is,
+ * a held disabled Option swapped for the raw-value fallback when demoted by
+ * keepDisabledSelection, and one appended fallback for a stale/unknown value.
+ */
+function resolveSelectEntries(
+  options: Option[],
+  raw: string,
+  keepDisabledSelection: boolean,
+): { entries: SelectEntry[]; isStale: boolean } {
+  const isStale = raw !== "" && !options.some((option) => option.value === raw);
+  const entries: SelectEntry[] = options.map((option) =>
+    option.value === raw && option.disabled && !keepDisabledSelection
+      ? { kind: "fallback", raw }
+      : { kind: "option", option },
+  );
+  if (isStale) {
+    entries.push({ kind: "fallback", raw });
+  }
+  return { entries, isStale };
 }
 
 /** Textual rules fit textarea and non-number inputs — never a checkbox. */
@@ -276,6 +329,9 @@ export function Field({
     value,
     onValueChange,
     validator,
+    options = [],
+    placeholder,
+    keepDisabledSelection = true,
     hint,
     disabled,
     className,
@@ -327,6 +383,23 @@ export function Field({
     }
   }, [validator, kind, inputType, label]);
 
+  // Select display resolution: raw value matched against Options, with the
+  // stale flag driving the dev-only warn and the synthetic fallback entry.
+  const rawValue = kind === "select" ? selectRawValue(value) : "";
+  const { entries: selectEntries, isStale } = resolveSelectEntries(
+    options,
+    rawValue,
+    keepDisabledSelection,
+  );
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production" && isStale) {
+      console.warn(
+        `[Field] Value "${rawValue}" of select "${label}" does not match any Option and is shown as a raw-value fallback.`,
+      );
+    }
+  }, [isStale, rawValue, label]);
+
   const rule = validator?.required;
   const isRequired = rule !== undefined && requiredConstraint(rule).isRequired;
 
@@ -341,15 +414,19 @@ export function Field({
   );
 
   const handleChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    event: ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) => {
     const next =
       kind === "checkbox"
         ? // Only a checkbox input renders this branch, so the target carries checked.
           (event.target as HTMLInputElement).checked
-        : isNumberInput(kind, inputType)
-          ? coerceNumberInput(event.target.value)
-          : event.target.value;
+        : kind === "select"
+          ? event.target.value
+          : isNumberInput(kind, inputType)
+            ? coerceNumberInput(event.target.value)
+            : event.target.value;
     onValueChange(next);
     if (touched) {
       setError(evaluate(config, next));
@@ -414,6 +491,34 @@ export function Field({
               onBlur={handleBlur}
               className={CONTROL_CLASS}
             />
+          ) : kind === "select" ? (
+            <select
+              {...controlProps}
+              value={rawValue}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              className={CONTROL_CLASS}
+            >
+              {/* Ghost: labels the closed control while empty, drops out of the open dropdown after a choice. */}
+              <option value="" disabled hidden={rawValue !== ""}>
+                {placeholder}
+              </option>
+              {selectEntries.map((entry, index) =>
+                entry.kind === "option" ? (
+                  <option
+                    key={`${entry.option.value}-${index}`}
+                    value={entry.option.value}
+                    disabled={entry.option.disabled || undefined}
+                  >
+                    {entry.option.label}
+                  </option>
+                ) : (
+                  <option key={`fallback-${index}`} value={entry.raw} disabled>
+                    {entry.raw}
+                  </option>
+                ),
+              )}
+            </select>
           ) : (
             <textarea
               {...controlProps}

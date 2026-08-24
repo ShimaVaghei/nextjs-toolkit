@@ -10,6 +10,8 @@ export default function FieldDemoPage() {
   const [bio, setBio] = useState("");
   const [age, setAge] = useState<number | "">("");
   const [consent, setConsent] = useState(false);
+  const [country, setCountry] = useState("");
+  const [legacyPlan, setLegacyPlan] = useState("starter");
 
   const nameConfig: FieldConfig = {
     kind: "input",
@@ -74,6 +76,36 @@ export default function FieldDemoPage() {
     },
   };
 
+  const countryConfig: FieldConfig = {
+    kind: "select",
+    label: "Country",
+    hint: "Static options; the placeholder drops out of the dropdown once a value is chosen.",
+    value: country,
+    onValueChange: (value) => setCountry(String(value)),
+    validator: { required: { value: true, message: "Choose a country." } },
+    placeholder: "Choose a country",
+    options: [
+      { label: "France", value: "fr" },
+      { label: "Japan", value: "jp" },
+      { label: "United States", value: "us" },
+      { label: "Antarctica — research programmes only", value: "aq", disabled: true },
+    ],
+  };
+
+  const legacyPlanConfig: FieldConfig = {
+    kind: "select",
+    label: "Plan",
+    hint: "Holds the retired Starter plan selected by default (keepDisabledSelection); pick another to move off it.",
+    value: legacyPlan,
+    onValueChange: (value) => setLegacyPlan(String(value)),
+    placeholder: "Choose a plan",
+    options: [
+      { label: "Starter (retired)", value: "starter", disabled: true },
+      { label: "Growth", value: "growth" },
+      { label: "Scale", value: "scale" },
+    ],
+  };
+
   return (
     <div className="space-y-10">
       <header>
@@ -99,6 +131,23 @@ export default function FieldDemoPage() {
         <Field config={passwordConfig} />
         <Field config={bioConfig} />
         <Field config={ageConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Select
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Static options behind the usual config. The placeholder is a ghost
+            option: it labels the closed control while empty and drops out of
+            the dropdown once you choose. Antarctica is disabled yet stays
+            legally selected if your state holds it; a value no option matches
+            renders as a raw-value fallback instead.
+          </p>
+        </div>
+        <Field config={countryConfig} />
+        <Field config={legacyPlanConfig} />
       </section>
 
       <section className="space-y-6">

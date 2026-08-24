@@ -735,6 +735,255 @@ describe("Field checkbox kind", () => {
   });
 });
 
+const COUNTRY_OPTIONS = [
+  { label: "France", value: "fr" },
+  { label: "Japan", value: "jp" },
+];
+
+describe("Field select kind", () => {
+  it("renders static Options and hands the picked Option's value to the change callback", () => {
+    const received: Array<string | number | boolean> = [];
+    render(
+      <ControlledHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{
+          kind: "select",
+          label: "Country",
+          validator: undefined,
+          options: COUNTRY_OPTIONS,
+        }}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Country" });
+    expect(control.tagName).toBe("SELECT");
+    expect(
+      within(control).getByRole("option", { name: "France" }),
+    ).toHaveValue("fr");
+    expect(
+      within(control).getByRole("option", { name: "Japan" }),
+    ).toHaveValue("jp");
+
+    fireEvent.change(control, { target: { value: "jp" } });
+    expect(received).toEqual(["jp"]);
+    expect(control).toHaveValue("jp");
+  });
+
+  it("follows the Touched lifecycle with required over Empty", () => {
+    render(
+      <ControlledHarness
+        overrides={{
+          kind: "select",
+          label: "Country",
+          options: COUNTRY_OPTIONS,
+        }}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Country (required)" });
+
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+    expect(control).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.change(control, { target: { value: "fr" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("ignores a textual rule with a dev-only warn naming field and rule", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <ControlledHarness
+          overrides={{
+            kind: "select",
+            label: "Country",
+            options: COUNTRY_OPTIONS,
+            validator: { required: true, minLength: 3 },
+          }}
+        />,
+      );
+
+      const control = screen.getByRole("combobox", {
+        name: "Country (required)",
+      });
+      fireEvent.change(control, { target: { value: "fr" } });
+      fireEvent.blur(control);
+
+      expect(errorParagraph(control)).toHaveTextContent("");
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Country"');
+      expect(message).toContain('"minLength"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("Field select ghost option", () => {
+  const ghostOverrides: Partial<FieldConfig> = {
+    kind: "select",
+    label: "Country",
+    validator: undefined,
+    placeholder: "Choose a country",
+    options: COUNTRY_OPTIONS,
+  };
+
+  it("shows the placeholder ghost while empty and never pre-selects a real Option", () => {
+    render(<ControlledHarness overrides={{ ...ghostOverrides }} />);
+
+    const control = screen.getByRole("combobox", { name: "Country" });
+    const ghost = within(control).getByRole("option", {
+      name: "Choose a country",
+    });
+
+    expect(ghost).toHaveValue("");
+    expect(ghost).toBeDisabled();
+    expect(ghost).not.toHaveAttribute("hidden");
+    expect(control).toHaveValue("");
+  });
+
+  it("hides the ghost from the open dropdown once a value is chosen", () => {
+    render(<ControlledHarness overrides={{ ...ghostOverrides }} />);
+
+    const control = screen.getByRole("combobox", { name: "Country" });
+    expect(
+      within(control).getByRole("option", { name: "Choose a country" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(control, { target: { value: "fr" } });
+
+    // Still mounted but hidden — dropped from the open dropdown's a11y tree.
+    expect(
+      within(control).queryByRole("option", { name: "Choose a country" }),
+    ).toBeNull();
+    const ghost = control.querySelector<HTMLSelectElement>('option[value=""]');
+    expect(ghost).toHaveAttribute("hidden");
+    expect(ghost).toHaveTextContent("Choose a country");
+  });
+
+  it("ignores placeholder on non-select kinds", () => {
+    render(<Field config={makeConfig({ placeholder: "Not used" })} />);
+
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Name (required)" }),
+    ).not.toHaveAttribute("placeholder");
+  });
+});
+
+describe("Field select stale value", () => {
+  const staleOverrides: Partial<FieldConfig> = {
+    kind: "select",
+    label: "Country",
+    validator: undefined,
+    options: COUNTRY_OPTIONS,
+  };
+
+  it("renders an unknown current value as a disabled raw-value entry with a dev-only warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <ControlledHarness
+          initialValue="zz"
+          overrides={{ ...staleOverrides }}
+        />,
+      );
+
+      const control = screen.getByRole("combobox", { name: "Country" });
+      const fallback = within(control).getByRole("option", { name: "zz" });
+
+      expect(fallback).toHaveValue("zz");
+      expect(fallback).toBeDisabled();
+      expect(control).toHaveValue("zz");
+
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Country"');
+      expect(message).toContain('"zz"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("stays quiet while the value is empty — absence of a choice is not staleness", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(<ControlledHarness overrides={{ ...staleOverrides }} />);
+
+      const control = screen.getByRole("combobox", { name: "Country" });
+
+      expect(control).toHaveValue("");
+      expect(
+        warnSpy.mock.calls.filter((call) => typeof call[0] === "string"),
+      ).toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("Field select keepDisabledSelection", () => {
+  const heldOverrides: Partial<FieldConfig> = {
+    kind: "select",
+    label: "Country",
+    validator: undefined,
+    options: [
+      ...COUNTRY_OPTIONS,
+      { label: "Antarctica", value: "aq", disabled: true },
+    ],
+  };
+
+  it("keeps a held disabled Option legally selected by default", () => {
+    render(
+      <ControlledHarness
+        initialValue="aq"
+        overrides={{ ...heldOverrides }}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Country" });
+
+    expect(control).toHaveValue("aq");
+    const held = within(control).getByRole("option", { name: "Antarctica" });
+    expect(held).toHaveValue("aq");
+    expect(held).toBeDisabled();
+    // No raw-value fallback duplicates the display.
+    expect(within(control).queryByRole("option", { name: "aq" })).toBeNull();
+  });
+
+  it("demotes a held disabled Option to the raw-value fallback when keepDisabledSelection is false", () => {
+    render(
+      <ControlledHarness
+        initialValue="aq"
+        overrides={{ ...heldOverrides, keepDisabledSelection: false }}
+      />,
+    );
+
+    const control = screen.getByRole("combobox", { name: "Country" });
+
+    expect(control).toHaveValue("aq");
+    expect(
+      within(control).queryByRole("option", { name: "Antarctica" }),
+    ).toBeNull();
+    const fallback = within(control).getByRole("option", { name: "aq" });
+    expect(fallback).toBeDisabled();
+    // Other choices remain pickable so the user can deselect.
+    expect(
+      within(control).getByRole("option", { name: "France" }),
+    ).toBeEnabled();
+  });
+});
+
 describe("FieldHandle.validate()", () => {
   it("force-runs every rule regardless of Touched, reveals any Error, and reports invalid", () => {
     const handle = createRef<FieldHandle>();
