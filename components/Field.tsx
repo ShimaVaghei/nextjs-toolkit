@@ -739,6 +739,11 @@ export function Field({
   }, [closePanel, open]);
 
   const toggleOpen = () => {
+    // The popup only ever opens once options are resolved — Pending and
+    // Rejected refuse outright, independent of the disabled open button.
+    if (!open && optionsLoadBlocked) {
+      return;
+    }
     if (open) {
       closePanel();
     } else {

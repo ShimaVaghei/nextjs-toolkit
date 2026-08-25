@@ -1,7 +1,7 @@
 # 15 — Async Options — Pending/Rejected/Retry
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 
 ## What to build
 
@@ -17,9 +17,13 @@ Blocked by: 14 — Select kind with static Options.
 
 ## Acceptance criteria
 
-- [ ] Passing a loader function fires it exactly once on mount; resolved Options render and the control enables
-- [ ] During Pending the control is disabled, "Loading options…" shows in the hint slot, and any selection remains visible
-- [ ] On rejection, "Couldn't load options." appears beside a Retry button that re-fires the loader successfully
-- [ ] Rejected styling is distinct from validation Error styling — no `aria-invalid`, error slot untouched
-- [ ] No stale-value warn while a load is in flight
-- [ ] Demo page gains the "Async options" section (select on a loadable source) with a simulate-failure toggle mirroring the server Table demo; async Pending/Resolved/Rejected/Retry pinned by tests; lint and typecheck green
+- [x] Passing a loader function fires it exactly once on mount; resolved Options render and the control enables
+- [x] During Pending the control is disabled, "Loading options…" shows in the hint slot, and any selection remains visible
+- [x] On rejection, "Couldn't load options." appears beside a Retry button that re-fires the loader successfully
+- [x] Rejected styling is distinct from validation Error styling — no `aria-invalid`, error slot untouched
+- [x] No stale-value warn while a load is in flight
+- [x] Demo page gains the "Async options" section (select on a loadable source) with a simulate-failure toggle mirroring the server Table demo; async Pending/Resolved/Rejected/Retry pinned by tests; lint and typecheck green
+
+## Comments
+
+Implemented 2026-08-25 in commit 8529f08 — status line left unflipped at the time; recorded resolved while closing ticket 17, which consumed this shared status contract for the multi-select kind.

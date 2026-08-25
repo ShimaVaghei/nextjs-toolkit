@@ -1741,3 +1741,140 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
     }
   });
 });
+
+describe("Field multi-select async options", () => {
+  function asyncTagOverrides(loader: FieldConfig["options"]): FieldOverrides {
+    return {
+      kind: "multi-select",
+      label: "Tags",
+      validator: undefined,
+      options: loader,
+    };
+  }
+
+  it("fires the loader exactly once on mount; Pending disables the widget while chips stay visible", async () => {
+    const d = deferred<Option[]>();
+    const loader = vi.fn(() => d.promise);
+    render(
+      <ControlledHarness
+        initialValue={["design"]}
+        overrides={asyncTagOverrides(loader)}
+      />,
+    );
+
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    // Unresolved Options leave the held selection visible as its raw-value
+    // fallback chip — expected-absent, never stale.
+    const chipRemove = screen.getByRole("button", { name: "Remove design" });
+
+    expect(openButton).toBeDisabled();
+    expect(chipRemove).toBeDisabled();
+    // The shared status contract renders in the persistent hint slot.
+    const hint = hintParagraph(screen.getByRole("group", { name: "Tags" }))!;
+    expect(hint).toHaveTextContent("Loading options…");
+
+    await act(async () => {
+      d.resolve(TAG_OPTIONS);
+    });
+
+    // The same persistent hint node swaps content — it never unmounts.
+    expect(hint).toHaveTextContent("");
+    expect(openButton).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Remove design" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Remove Design" }),
+    ).not.toBeDisabled();
+    expect(screen.queryByText("Loading options…")).toBeNull();
+    // Interacting afterwards must not re-fire the loader.
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the popup closed through Pending and Rejected, then Retry recovers it to fully usable", async () => {
+    const d1 = deferred<Option[]>();
+    const d2 = deferred<Option[]>();
+    const loader = vi
+      .fn<() => Promise<Option[]>>()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+    render(<ControlledHarness overrides={asyncTagOverrides(loader)} />);
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    const panelId = openButton.getAttribute("aria-controls")!;
+
+    // Pending: the popup refuses to open.
+    fireEvent.click(openButton);
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById(panelId)).toHaveAttribute("hidden");
+    expect(screen.queryByRole("checkbox", { name: "Design" })).toBeNull();
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+
+    // Rejected: still refused, with the failure status beside Retry.
+    expect(screen.getByText("Couldn't load options.")).toBeInTheDocument();
+    fireEvent.click(openButton);
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById(panelId)).toHaveAttribute("hidden");
+
+    // Retry re-fires the loader and resolves recovery.
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(loader).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      d2.resolve(TAG_OPTIONS);
+    });
+
+    expect(screen.queryByText("Couldn't load options.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(openButton).not.toBeDisabled();
+
+    // Resolved: the popup opens normally and toggles work end to end.
+    fireEvent.click(openButton);
+    expect(openButton).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Research" }));
+    expect(
+      screen.getByRole("button", { name: "Remove Research" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps held fallback chips visible through Rejected until Retry resolves them to their labels", async () => {
+    const d1 = deferred<Option[]>();
+    const d2 = deferred<Option[]>();
+    const loader = vi
+      .fn<() => Promise<Option[]>>()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+    render(
+      <ControlledHarness
+        initialValue={["eu"]}
+        overrides={asyncTagOverrides(loader)}
+      />,
+    );
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+
+    // The held selection stays visible as its raw value while unresolved.
+    expect(screen.getByRole("button", { name: "Remove eu" })).toBeDisabled();
+    expect(screen.getByText("Couldn't load options.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await act(async () => {
+      d2.resolve([
+        { label: "Europe", value: "eu" },
+        { label: "Africa", value: "af" },
+      ]);
+    });
+
+    // Recovered: the chip upgrades to its Option label and removal works.
+    const chipRemove = screen.getByRole("button", { name: "Remove Europe" });
+    expect(chipRemove).not.toBeDisabled();
+    fireEvent.click(chipRemove);
+    expect(
+      screen.queryByRole("button", { name: "Remove Europe" }),
+    ).toBeNull();
+  });
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Field, type FieldConfig } from "@/components/Field";
+import { Field, type FieldConfig, type Option } from "@/components/Field";
 
 export default function FieldDemoPage() {
   const [name, setName] = useState("");
@@ -14,12 +14,13 @@ export default function FieldDemoPage() {
   const [tags, setTags] = useState<string[]>(["research"]);
   const [legacyPlan, setLegacyPlan] = useState("starter");
   const [region, setRegion] = useState("");
+  const [teams, setTeams] = useState<string[]>(["platform"]);
   const [simulateRejection, setSimulateRejection] = useState(false);
 
-  // Kept out of render state so the mounted loader is never re-fired by a
+  // Kept out of render state so mounted loaders are never re-fired by a
   // toggle; each attempt reads the ref when it settles, and Retry always sees
-  // the latest position.
-  const regionRejectionRef = useRef(false);
+  // the latest position. One shared flag drives both async demo Fields.
+  const loadRejectionRef = useRef(false);
 
   const nameConfig: FieldConfig = {
     kind: "input",
@@ -130,6 +131,26 @@ export default function FieldDemoPage() {
     ],
   };
 
+  const toggleSimulateRejection = (checked: boolean) => {
+    loadRejectionRef.current = checked;
+    setSimulateRejection(checked);
+  };
+
+  // One simulated API shape behind both async demo Fields; each call gets its
+  // own loader closure, and the shared flag is read only when a load settles.
+  const simulateOptionLoad =
+    (delayMs: number, rejectionMessage: string, options: Option[]) =>
+    () =>
+      new Promise<Option[]>((resolve, reject) => {
+        window.setTimeout(() => {
+          if (loadRejectionRef.current) {
+            reject(new Error(rejectionMessage));
+          } else {
+            resolve(options);
+          }
+        }, delayMs);
+      });
+
   const regionConfig: FieldConfig = {
     kind: "select",
     label: "Region",
@@ -138,27 +159,30 @@ export default function FieldDemoPage() {
     onValueChange: (value) => setRegion(String(value)),
     validator: { required: { value: true, message: "Choose a region." } },
     placeholder: "Choose a region",
-    options: () =>
-      new Promise((resolve, reject) => {
-        window.setTimeout(() => {
-          if (regionRejectionRef.current) {
-            reject(new Error("Simulated region load rejection."));
-          } else {
-            resolve([
-              { label: "Africa", value: "af" },
-              { label: "Americas", value: "am" },
-              { label: "Asia", value: "as" },
-              { label: "Europe", value: "eu" },
-              { label: "Oceania", value: "oc" },
-            ]);
-          }
-        }, 800);
-      }),
+    options: simulateOptionLoad(800, "Simulated region load rejection.", [
+      { label: "Africa", value: "af" },
+      { label: "Americas", value: "am" },
+      { label: "Asia", value: "as" },
+      { label: "Europe", value: "eu" },
+      { label: "Oceania", value: "oc" },
+    ]),
   };
 
-  const toggleSimulateRejection = (checked: boolean) => {
-    regionRejectionRef.current = checked;
-    setSimulateRejection(checked);
+  const teamsConfig: FieldConfig = {
+    kind: "multi-select",
+    label: "Teams",
+    hint: "The same async contract on the multi-select kind: chips stay visible while Pending, and the popup only opens once options resolve.",
+    className: "max-w-md",
+    value: teams,
+    onValueChange: (value) => setTeams(Array.isArray(value) ? value : []),
+    validator: { required: { value: true, message: "Pick at least one team." } },
+    options: simulateOptionLoad(1100, "Simulated teams load rejection.", [
+      { label: "Platform", value: "platform" },
+      { label: "Mobile", value: "mobile" },
+      { label: "Data", value: "data" },
+      { label: "Security", value: "security" },
+      { label: "Archived incubator", value: "incubator", disabled: true },
+    ]),
   };
 
   return (
@@ -172,20 +196,33 @@ export default function FieldDemoPage() {
       <section className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-            Input &amp; textarea
+            Input
           </h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             One labeled control per Field, driven entirely by its config.
             Required fields stay quiet until first blur; leave one empty, tab
             away, and the error appears — then clears the moment you fix the
-            value. Length and pattern rules behave the same way.
+            value. Length and pattern rules behave the same way, and the
+            number Field coerces edits before your state ever sees them.
           </p>
         </div>
         <Field config={nameConfig} />
         <Field config={emailConfig} />
         <Field config={passwordConfig} />
-        <Field config={bioConfig} />
         <Field config={ageConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Textarea
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            The same Touched lifecycle over a multi-line control; a custom
+            required message comes straight from the Validator.
+          </p>
+        </div>
+        <Field config={bioConfig} />
       </section>
 
       <section className="space-y-6">
@@ -240,13 +277,16 @@ export default function FieldDemoPage() {
           </label>
         </div>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          The loader fires once on mount: the control stays disabled with a
-          muted &ldquo;Loading options…&rdquo; status until the options
-          arrive. Turn on the simulation, then hit Retry to see the rejection;
-          turn it off and hit Retry to recover. A held selection stays visible
-          the whole time.
+          Both choice kinds load their options from a simulated API. The
+          loader fires once on mount: each control stays disabled with a muted
+          &ldquo;Loading options…&rdquo; status until its options arrive, and
+          any held selection stays visible the whole time — for the
+          multi-select as chips, with the popup refusing to open until
+          resolved. Turn on the simulation, then hit Retry to see the
+          rejection; turn it off and hit Retry to recover.
         </p>
         <Field config={regionConfig} />
+        <Field config={teamsConfig} />
       </section>
 
       <section className="space-y-6">
