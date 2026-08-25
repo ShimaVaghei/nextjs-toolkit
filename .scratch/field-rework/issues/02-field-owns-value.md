@@ -4,13 +4,13 @@
 
 **Blocked by:** 01 — Prefactor: prefix all exported Field types.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A field renders, accepts edits, and validates with no observer callback configured
-- [ ] The Initial value seeds once at mount; undefined is allowed for every kind; a changed prop after mount is ignored and draws a dev-only console warning
-- [ ] The observer fires for user edits and for imperative sets alike — one honest stream
-- [ ] `getValue()` on the FieldHandle returns the current internal value including undefined
-- [ ] `setValue()` updates internal state, fires the observer, and re-evaluates the Error when Touched
-- [ ] `validate()` behaves exactly as before (force-run, shows Error, returns validity)
-- [ ] Empty, Touched, Error, Chip, Pending/Rejected semantics unchanged
-- [ ] Full test suite migrated to the seed-once contract and green; demo page migrated and shows an uncontrolled field
+- [x] A field renders, accepts edits, and validates with no observer callback configured
+- [x] The Initial value seeds once at mount; undefined is allowed for every kind; a changed prop after mount is ignored and draws a dev-only console warning
+- [x] The observer fires for user edits and for imperative sets alike — one honest stream
+- [x] `getValue()` on the FieldHandle returns the current internal value including undefined
+- [x] `setValue()` updates internal state, fires the observer, and re-evaluates the Error when Touched
+- [x] `validate()` behaves exactly as before (force-run, shows Error, returns validity)
+- [x] Empty, Touched, Error, Chip, Pending/Rejected semantics unchanged
+- [x] Full test suite migrated to the seed-once contract and green; demo page migrated and shows an uncontrolled field

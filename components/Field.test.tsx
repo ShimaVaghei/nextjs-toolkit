@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { useState, createRef, act } from "react";
+import { createRef, act } from "react";
 import {
   render,
   screen,
@@ -18,30 +18,25 @@ function makeConfig(overrides: FieldOverrides = {}): FieldConfig {
   return {
     kind: "input",
     label: "Name",
-    value: "",
-    onValueChange: vi.fn(),
     validator: { required: true },
     ...overrides,
   };
 }
 
 /**
- * Renders Field fully controlled, like a real parent would: the value lives in
- * harness state and flows back through onValueChange. An optional spy observes
- * each emitted edit without breaking the controlled loop.
+ * Renders an uncontrolled Field, exactly like a parent with no value wiring
+ * would. An optional spy observes the emitted change stream; Initial values
+ * and any other config ride through `overrides`.
  */
-function ControlledHarness({
-  initialValue = "",
+function FieldHarness({
   overrides,
   onChangeSpy,
   handleRef,
 }: {
-  initialValue?: FieldValue;
   overrides?: FieldOverrides;
   onChangeSpy?: (value: FieldValue) => void;
   handleRef?: React.Ref<FieldHandle>;
 }) {
-  const [value, setValue] = useState(initialValue);
   return (
     <Field
       ref={handleRef}
@@ -49,12 +44,8 @@ function ControlledHarness({
         kind: "input",
         label: "Name",
         validator: { required: true },
+        onValueChange: onChangeSpy,
         ...overrides,
-        value,
-        onValueChange: (next) => {
-          onChangeSpy?.(next);
-          setValue(next);
-        },
       }}
     />
   );
@@ -95,10 +86,10 @@ afterEach(() => {
 });
 
 describe("Field rendering", () => {
-  it("renders an explicitly associated labeled input and reports every edit through the change callback", () => {
+  it("renders an explicitly associated labeled input and reports every edit through the observer", () => {
     const changes: FieldValue[] = [];
     render(
-      <ControlledHarness
+      <FieldHarness
         onChangeSpy={(value) => changes.push(value)}
         overrides={{ label: "Full name" }}
       />,
@@ -141,7 +132,6 @@ describe("Field rendering", () => {
         config={makeConfig({
           kind: "textarea",
           label: "Bio",
-          value: "",
           onValueChange,
           validator: undefined,
         })}
@@ -174,9 +164,154 @@ describe("Field rendering", () => {
   });
 });
 
+/** Re-renders one Field with a fresh Initial value so prop-change behavior is observable. */
+function SeededRerenderer({ initialValue }: { initialValue?: FieldValue }) {
+  return (
+    <Field
+      config={makeConfig({
+        validator: undefined,
+        ...(initialValue === undefined ? {} : { initialValue }),
+      })}
+    />
+  );
+}
+
+describe("Field value ownership", () => {
+  it("renders, accepts edits, and validates with no observer callback configured", () => {
+    render(<Field config={makeConfig()} />);
+
+    const control = requiredControl("Name");
+
+    expect(control).toHaveValue("");
+    fireEvent.change(control, { target: { value: "Ada" } });
+
+    expect(control).toHaveValue("Ada");
+
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent("");
+  });
+
+  it("seeds internal state once from the Initial value at mount", () => {
+    render(<Field config={makeConfig({ initialValue: "Ada" })} />);
+
+    const control = screen.getByRole("textbox", { name: "Name (required)" });
+    expect(control).toHaveValue("Ada");
+
+    fireEvent.change(control, { target: { value: "Lovelace" } });
+    expect(control).toHaveValue("Lovelace");
+  });
+
+  it("ignores a changed Initial value prop after mount and draws a dev-only warning naming the Field", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { rerender } = render(<SeededRerenderer initialValue="Ada" />);
+
+      const control = screen.getByRole("textbox", { name: "Name" });
+      expect(control).toHaveValue("Ada");
+
+      rerender(<SeededRerenderer initialValue="Bob" />);
+      rerender(<SeededRerenderer initialValue="Bob" />);
+
+      // The live value stays user-owned; the late prop never lands.
+      expect(control).toHaveValue("Ada");
+      const warnings = warnSpy.mock.calls.filter(
+        (call) => typeof call[0] === "string",
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0][0]).toContain('"Name"');
+      expect(warnings[0][0]).toContain("initialValue");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("stays quiet across re-renders while the Initial value prop is unchanged", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { rerender } = render(<SeededRerenderer initialValue="Ada" />);
+      rerender(<SeededRerenderer initialValue="Ada" />);
+
+      expect(
+        warnSpy.mock.calls.filter((call) => typeof call[0] === "string"),
+      ).toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("treats undefined as no seed for every kind", () => {
+    const text = render(
+      <Field
+        config={makeConfig({ validator: undefined })}
+      />,
+    );
+    expect(text.getByRole("textbox")).toHaveValue("");
+    text.unmount();
+
+    const bio = render(
+      <Field
+        config={makeConfig({
+          kind: "textarea",
+          label: "Bio",
+          validator: undefined,
+        })}
+      />,
+    );
+    expect(bio.getByRole("textbox", { name: "Bio" })).toHaveValue("");
+    bio.unmount();
+
+    const checkbox = render(
+      <Field
+        config={makeConfig({
+          kind: "checkbox",
+          label: "Terms",
+          validator: undefined,
+          initialValue: undefined,
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Terms" }),
+    ).not.toBeChecked();
+    checkbox.unmount();
+
+    const select = render(
+      <Field
+        config={makeConfig({
+          kind: "select",
+          label: "Country",
+          validator: undefined,
+          placeholder: "Choose a country",
+          options: COUNTRY_OPTIONS,
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Country" }),
+    ).toHaveValue("");
+    select.unmount();
+
+    const multi = render(
+      <Field
+        config={makeConfig({
+          kind: "multi-select",
+          label: "Tags",
+          validator: undefined,
+          options: TAG_OPTIONS,
+        })}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
+    expect(
+      screen.getByRole("group", { name: "Tags" }),
+    ).toBeInTheDocument();
+    multi.unmount();
+  });
+});
+
 describe("Field required over Empty", () => {
   it("counts whitespace-only values as Empty without altering the stored value", () => {
-    render(<ControlledHarness initialValue="   " />);
+    render(<FieldHarness overrides={{ initialValue: "   " }} />);
 
     const control = requiredControl("Name");
     fireEvent.blur(control);
@@ -189,7 +324,7 @@ describe("Field required over Empty", () => {
 
   it("shows a custom message from a { value, message } pair", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           validator: {
             required: { value: true, message: "Enter your name." },
@@ -205,7 +340,7 @@ describe("Field required over Empty", () => {
   });
 
   it("skips required entirely when not configured", () => {
-    render(<ControlledHarness overrides={{ validator: undefined }} />);
+    render(<FieldHarness overrides={{ validator: undefined }} />);
 
     const control = screen.getByRole("textbox", { name: "Name" });
     fireEvent.blur(control);
@@ -217,7 +352,7 @@ describe("Field required over Empty", () => {
 
 describe("Field Touched lifecycle", () => {
   it("stays silent until Touched, reveals on first blur, and re-evaluates on every later change", () => {
-    render(<ControlledHarness />);
+    render(<FieldHarness />);
 
     const control = requiredControl("Name");
 
@@ -242,7 +377,7 @@ describe("Field Touched lifecycle", () => {
   });
 
   it("never shouts while typing before the field is Touched, even with invalid values", () => {
-    render(<ControlledHarness />);
+    render(<FieldHarness />);
 
     const control = requiredControl("Name");
 
@@ -262,7 +397,7 @@ describe("Field Touched lifecycle", () => {
 
 describe("Field Validator rule set", () => {
   it("enforces minLength on an input with the built-in default message and clears once satisfied", () => {
-    render(<ControlledHarness overrides={{ validator: { minLength: 3 } }} />);
+    render(<FieldHarness overrides={{ validator: { minLength: 3 } }} />);
 
     const control = screen.getByRole("textbox", { name: "Name" });
     fireEvent.change(control, { target: { value: "ab" } });
@@ -280,7 +415,7 @@ describe("Field Validator rule set", () => {
 
   it("enforces maxLength on a textarea with a custom { value, message } pair", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           kind: "textarea",
           validator: {
@@ -298,7 +433,7 @@ describe("Field Validator rule set", () => {
   });
 
   it("enforces regex with the built-in default message and accepts a matching value", () => {
-    render(<ControlledHarness overrides={{ validator: { regex: /^\d+$/ } }} />);
+    render(<FieldHarness overrides={{ validator: { regex: /^\d+$/ } }} />);
 
     const control = screen.getByRole("textbox", { name: "Name" });
     fireEvent.change(control, { target: { value: "abc" } });
@@ -311,7 +446,7 @@ describe("Field Validator rule set", () => {
 
   it("enforces textual rules on textareas too, minLength taking precedence over regex", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ kind: "textarea", validator: { minLength: 3, regex: /^[a-z]+$/ } }}
       />,
     );
@@ -331,7 +466,7 @@ describe("Field Validator rule set", () => {
   });
 
   it("enforces maxLength on an input with the built-in default message", () => {
-    render(<ControlledHarness overrides={{ validator: { maxLength: 2 } }} />);
+    render(<FieldHarness overrides={{ validator: { maxLength: 2 } }} />);
 
     const control = screen.getByRole("textbox", { name: "Name" });
     fireEvent.change(control, { target: { value: "Ada" } });
@@ -344,7 +479,7 @@ describe("Field Validator rule set", () => {
 
   it("honors custom { value, message } pairs for numeric and regex constraints", () => {
     const numeric = render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           inputType: "number",
           validator: { min: { value: 1, message: "Too small." } },
@@ -358,7 +493,7 @@ describe("Field Validator rule set", () => {
     numeric.unmount();
 
     const pattern = render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           validator: {
             regex: { value: /^[a-z]+$/, message: "Lowercase letters only." },
@@ -376,9 +511,12 @@ describe("Field Validator rule set", () => {
 
   it("enforces numeric min and max only on number inputs, with boundaries passing", () => {
     render(
-      <ControlledHarness
-        initialValue={5}
-        overrides={{ inputType: "number", validator: { min: 1, max: 10 } }}
+      <FieldHarness
+        overrides={{
+          inputType: "number",
+          validator: { min: 1, max: 10 },
+          initialValue: 5,
+        }}
       />,
     );
 
@@ -400,7 +538,7 @@ describe("Field Validator rule set", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       render(
-        <ControlledHarness
+        <FieldHarness
           overrides={{
             inputType: "number",
             label: "Age",
@@ -429,7 +567,7 @@ describe("Field Validator rule set", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       render(
-        <ControlledHarness
+        <FieldHarness
           overrides={{ kind: "textarea", validator: { min: 1 } }}
         />,
       );
@@ -451,7 +589,7 @@ describe("Field Validator rule set", () => {
 
   it("shows at most one Error — required wins while Empty, then textual rules take over", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ validator: { required: true, minLength: 3 } }}
       />,
     );
@@ -484,7 +622,7 @@ describe("Field number coercion", () => {
   it("coerces number-input edits per the matrix before handing them to the parent", () => {
     const received: FieldValue[] = [];
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           inputType: "number",
           label: "Age",
@@ -507,7 +645,7 @@ describe("Field number coercion", () => {
 
   it("counts coerced NaN as Empty so required catches it", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ inputType: "number", label: "Age" }}
       />,
     );
@@ -525,7 +663,7 @@ describe("Field number coercion", () => {
 
   it("skips min and max evaluation while the value is Empty or NaN", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ inputType: "number", label: "Age", validator: { min: 0 } }}
       />,
     );
@@ -543,7 +681,7 @@ describe("Field number coercion", () => {
   it("leaves textual kinds uncoerced", () => {
     const received: FieldValue[] = [];
     render(
-      <ControlledHarness
+      <FieldHarness
         onChangeSpy={(value) => received.push(value)}
         overrides={{ kind: "textarea" }}
       />,
@@ -564,7 +702,6 @@ describe("Field checkbox kind", () => {
         config={makeConfig({
           kind: "checkbox",
           label: "Subscribe",
-          value: false,
           onValueChange,
           validator: undefined,
         })}
@@ -588,10 +725,13 @@ describe("Field checkbox kind", () => {
   it("reports toggles through the change callback as real booleans", () => {
     const received: FieldValue[] = [];
     render(
-      <ControlledHarness
-        initialValue={false}
+      <FieldHarness
         onChangeSpy={(value) => received.push(value)}
-        overrides={{ kind: "checkbox", label: "Terms" }}
+        overrides={{
+          kind: "checkbox",
+          label: "Terms",
+          initialValue: false,
+        }}
       />,
     );
 
@@ -605,9 +745,8 @@ describe("Field checkbox kind", () => {
 
   it("counts unticked as Empty so required follows the Touched lifecycle", () => {
     render(
-      <ControlledHarness
-        initialValue={false}
-        overrides={{ kind: "checkbox", label: "Terms" }}
+      <FieldHarness
+        overrides={{ kind: "checkbox", label: "Terms", initialValue: false }}
       />,
     );
 
@@ -637,9 +776,8 @@ describe("Field checkbox kind", () => {
 
   it("accepts a ticked required checkbox as valid", () => {
     render(
-      <ControlledHarness
-        initialValue={true}
-        overrides={{ kind: "checkbox", label: "Terms" }}
+      <FieldHarness
+        overrides={{ kind: "checkbox", label: "Terms", initialValue: true }}
       />,
     );
 
@@ -652,12 +790,12 @@ describe("Field checkbox kind", () => {
 
   it("carries aria-required, aria-invalid, and describedby directly on the input", () => {
     render(
-      <ControlledHarness
-        initialValue={false}
+      <FieldHarness
         overrides={{
           kind: "checkbox",
           label: "Terms",
           hint: "Required to continue.",
+          initialValue: false,
         }}
       />,
     );
@@ -687,7 +825,7 @@ describe("Field checkbox kind", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       render(
-        <ControlledHarness
+        <FieldHarness
           overrides={{
             kind: "checkbox",
             label: "Terms",
@@ -714,10 +852,9 @@ describe("Field checkbox kind", () => {
   it("exposes validate() through the handle, revealing the consent Error while pristine", () => {
     const handle = createRef<FieldHandle>();
     render(
-      <ControlledHarness
-        initialValue={false}
+      <FieldHarness
         handleRef={handle}
-        overrides={{ kind: "checkbox", label: "Terms" }}
+        overrides={{ kind: "checkbox", label: "Terms", initialValue: false }}
       />,
     );
 
@@ -744,7 +881,7 @@ describe("Field select kind", () => {
   it("renders static Options and hands the picked Option's value to the change callback", () => {
     const received: FieldValue[] = [];
     render(
-      <ControlledHarness
+      <FieldHarness
         onChangeSpy={(value) => received.push(value)}
         overrides={{
           kind: "select",
@@ -771,7 +908,7 @@ describe("Field select kind", () => {
 
   it("follows the Touched lifecycle with required over Empty", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           kind: "select",
           label: "Country",
@@ -800,7 +937,7 @@ describe("Field select kind", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       render(
-        <ControlledHarness
+        <FieldHarness
           overrides={{
             kind: "select",
             label: "Country",
@@ -838,7 +975,7 @@ describe("Field select ghost option", () => {
   };
 
   it("shows the placeholder ghost while empty and never pre-selects a real Option", () => {
-    render(<ControlledHarness overrides={{ ...ghostOverrides }} />);
+    render(<FieldHarness overrides={{ ...ghostOverrides }} />);
 
     const control = screen.getByRole("combobox", { name: "Country" });
     const ghost = within(control).getByRole("option", {
@@ -852,7 +989,7 @@ describe("Field select ghost option", () => {
   });
 
   it("hides the ghost from the open dropdown once a value is chosen", () => {
-    render(<ControlledHarness overrides={{ ...ghostOverrides }} />);
+    render(<FieldHarness overrides={{ ...ghostOverrides }} />);
 
     const control = screen.getByRole("combobox", { name: "Country" });
     expect(
@@ -892,9 +1029,8 @@ describe("Field select stale value", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       render(
-        <ControlledHarness
-          initialValue="zz"
-          overrides={{ ...staleOverrides }}
+        <FieldHarness
+          overrides={{ ...staleOverrides, initialValue: "zz" }}
         />,
       );
 
@@ -918,7 +1054,7 @@ describe("Field select stale value", () => {
   it("stays quiet while the value is empty — absence of a choice is not staleness", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      render(<ControlledHarness overrides={{ ...staleOverrides }} />);
+      render(<FieldHarness overrides={{ ...staleOverrides }} />);
 
       const control = screen.getByRole("combobox", { name: "Country" });
 
@@ -945,9 +1081,8 @@ describe("Field select keepDisabledSelection", () => {
 
   it("keeps a held disabled Option legally selected by default", () => {
     render(
-      <ControlledHarness
-        initialValue="aq"
-        overrides={{ ...heldOverrides }}
+      <FieldHarness
+        overrides={{ ...heldOverrides, initialValue: "aq" }}
       />,
     );
 
@@ -963,9 +1098,12 @@ describe("Field select keepDisabledSelection", () => {
 
   it("demotes a held disabled Option to the raw-value fallback when keepDisabledSelection is false", () => {
     render(
-      <ControlledHarness
-        initialValue="aq"
-        overrides={{ ...heldOverrides, keepDisabledSelection: false }}
+      <FieldHarness
+        overrides={{
+          ...heldOverrides,
+          keepDisabledSelection: false,
+          initialValue: "aq",
+        }}
       />,
     );
 
@@ -987,7 +1125,7 @@ describe("Field select keepDisabledSelection", () => {
 describe("FieldHandle.validate()", () => {
   it("force-runs every rule regardless of Touched, reveals any Error, and reports invalid", () => {
     const handle = createRef<FieldHandle>();
-    render(<ControlledHarness handleRef={handle} />);
+    render(<FieldHarness handleRef={handle} />);
 
     const control = requiredControl("Name");
     expect(errorParagraph(control)).toHaveTextContent("");
@@ -1007,7 +1145,9 @@ describe("FieldHandle.validate()", () => {
 
   it("returns true for a valid field that was never Touched, without revealing an Error", () => {
     const handle = createRef<FieldHandle>();
-    render(<ControlledHarness handleRef={handle} initialValue="Ada" />);
+    render(
+      <FieldHarness handleRef={handle} overrides={{ initialValue: "Ada" }} />,
+    );
 
     const control = requiredControl("Name");
     let valid: boolean | undefined;
@@ -1020,9 +1160,9 @@ describe("FieldHandle.validate()", () => {
     expect(control).not.toHaveAttribute("aria-invalid");
   });
 
-  it("re-validates against the current parent value after fixes clear the Error", () => {
+  it("re-validates against the current internal value after fixes clear the Error", () => {
     const handle = createRef<FieldHandle>();
-    render(<ControlledHarness handleRef={handle} />);
+    render(<FieldHarness handleRef={handle} />);
 
     act(() => {
       handle.current!.validate();
@@ -1040,10 +1180,101 @@ describe("FieldHandle.validate()", () => {
   });
 });
 
+describe("FieldHandle value control", () => {
+  it("getValue() returns the current internal value, including undefined before any edit", () => {
+    const handle = createRef<FieldHandle>();
+    render(<FieldHarness handleRef={handle} />);
+
+    const control = requiredControl("Name");
+
+    let read: FieldValue | undefined;
+    act(() => {
+      read = handle.current!.getValue();
+    });
+    expect(read).toBeUndefined();
+    expect(control).toHaveValue("");
+
+    fireEvent.change(control, { target: { value: "Ada" } });
+    act(() => {
+      read = handle.current!.getValue();
+    });
+    expect(read).toBe("Ada");
+  });
+
+  it("setValue() installs the value through the same pipeline: DOM updates, observer fires", () => {
+    const changes: FieldValue[] = [];
+    const handle = createRef<FieldHandle>();
+    render(<FieldHarness handleRef={handle} onChangeSpy={(v) => changes.push(v)} />);
+
+    const control = requiredControl("Name");
+    act(() => {
+      handle.current!.setValue("Ada");
+    });
+
+    expect(control).toHaveValue("Ada");
+    expect(changes).toEqual(["Ada"]);
+    act(() => {
+      handle.current!.setValue("");
+    });
+    expect(control).toHaveValue("");
+    expect(changes).toEqual(["Ada", ""]);
+  });
+
+  it("setValue() re-evaluates the Error when Touched but never reveals one while pristine", () => {
+    const handle = createRef<FieldHandle>();
+    render(
+      <FieldHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    const control = requiredControl("Name");
+
+    // Pristine: an invalid imperative set stays silent.
+    act(() => {
+      handle.current!.setValue("");
+    });
+    expect(errorParagraph(control)).toHaveTextContent("");
+
+    // Once Touched, every set re-evaluates.
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_REQUIRED_MESSAGE);
+
+    act(() => {
+      handle.current!.setValue("Ada");
+    });
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+
+    act(() => {
+      handle.current!.setValue("   ");
+    });
+    expect(errorParagraph(control)).toHaveTextContent(
+      DEFAULT_REQUIRED_MESSAGE,
+    );
+  });
+
+  it("fires the observer once per change for user edits and imperative sets alike — one honest stream", () => {
+    const changes: FieldValue[] = [];
+    const handle = createRef<FieldHandle>();
+    render(<FieldHarness handleRef={handle} onChangeSpy={(v) => changes.push(v)} />);
+
+    const control = requiredControl("Name");
+    fireEvent.change(control, { target: { value: "A" } });
+    act(() => {
+      handle.current!.setValue("B");
+    });
+    fireEvent.change(control, { target: { value: "C" } });
+
+    expect(changes).toEqual(["A", "B", "C"]);
+  });
+});
+
 describe("Field accessibility floor", () => {
   it("keeps the hint and error paragraphs permanently mounted and orders describedby hint→error", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ hint: "Shown publicly on your profile." }}
       />,
     );
@@ -1072,7 +1303,7 @@ describe("Field accessibility floor", () => {
   });
 
   it("leaves an unconfigured hint slot mounted but empty", () => {
-    render(<ControlledHarness />);
+    render(<FieldHarness />);
 
     const control = requiredControl("Name");
     const hint = hintParagraph(control) as HTMLElement;
@@ -1082,7 +1313,7 @@ describe("Field accessibility floor", () => {
   });
 
   it("carries a visually-hidden Error: prefix inside the revealed message", () => {
-    render(<ControlledHarness />);
+    render(<FieldHarness />);
 
     const control = requiredControl("Name");
     fireEvent.blur(control);
@@ -1094,7 +1325,7 @@ describe("Field accessibility floor", () => {
   });
 
   it("marks requiredness with * beside the label, visually-hidden (required), and aria-required", () => {
-    render(<ControlledHarness />);
+    render(<FieldHarness />);
 
     const control = requiredControl("Name");
     const label = labelFor(control) as HTMLLabelElement;
@@ -1111,7 +1342,7 @@ describe("Field accessibility floor", () => {
   });
 
   it("omits the required marker and aria-required when the field is not required", () => {
-    render(<ControlledHarness overrides={{ validator: undefined }} />);
+    render(<FieldHarness overrides={{ validator: undefined }} />);
 
     const control = screen.getByRole("textbox", { name: "Name" });
     const label = labelFor(control) as HTMLLabelElement;
@@ -1151,7 +1382,7 @@ describe("Field async options", () => {
   it("fires the loader exactly once on mount, then renders resolved Options and enables the control", async () => {
     const d = deferred<FieldOption[]>();
     const loader = vi.fn(() => d.promise);
-    render(<ControlledHarness overrides={asyncOverrides(loader)} />);
+    render(<FieldHarness overrides={asyncOverrides(loader)} />);
 
     expect(loader).toHaveBeenCalledTimes(1);
 
@@ -1179,9 +1410,11 @@ describe("Field async options", () => {
   it("blocks choosing while Pending with 'Loading options…' in the hint slot and keeps any selection visible", async () => {
     const d = deferred<FieldOption[]>();
     render(
-      <ControlledHarness
-        initialValue="eu"
-        overrides={asyncOverrides(() => d.promise)}
+      <FieldHarness
+        overrides={{
+          ...asyncOverrides(() => d.promise),
+          initialValue: "eu",
+        }}
       />,
     );
 
@@ -1211,7 +1444,7 @@ describe("Field async options", () => {
       .fn<() => Promise<FieldOption[]>>()
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
-    render(<ControlledHarness overrides={asyncOverrides(loader)} />);
+    render(<FieldHarness overrides={asyncOverrides(loader)} />);
 
     await act(async () => {
       d1.reject(new Error("boom"));
@@ -1247,7 +1480,7 @@ describe("Field async options", () => {
     try {
       const d = deferred<FieldOption[]>();
       render(
-        <ControlledHarness
+        <FieldHarness
           handleRef={createRef<FieldHandle>()}
           overrides={asyncOverrides(() => d.promise)}
         />,
@@ -1282,9 +1515,11 @@ describe("Field async options", () => {
     try {
       const d = deferred<FieldOption[]>();
       render(
-        <ControlledHarness
-          initialValue="eu"
-          overrides={asyncOverrides(() => d.promise)}
+        <FieldHarness
+          overrides={{
+            ...asyncOverrides(() => d.promise),
+            initialValue: "eu",
+          }}
         />,
       );
 
@@ -1326,7 +1561,7 @@ function politeRegion(): HTMLElement {
 
 describe("Field multi-select closed face", () => {
   it("renders a label-named group of chips beside a separate open button with synced expanded state", () => {
-    render(<ControlledHarness overrides={tagOverrides()} />);
+    render(<FieldHarness overrides={tagOverrides()} />);
 
     // The group is named by the visible field label via aria-labelledby.
     expect(screen.getByRole("group", { name: "Tags" })).toBeInTheDocument();
@@ -1347,7 +1582,7 @@ describe("Field multi-select closed face", () => {
 
   it("uses no combobox/listbox/option roles and no aria-haspopup anywhere", () => {
     const { container } = render(
-      <ControlledHarness overrides={tagOverrides()} />,
+      <FieldHarness overrides={tagOverrides()} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Show options" }));
 
@@ -1359,9 +1594,8 @@ describe("Field multi-select closed face", () => {
 
   it("keeps the chip strip fixed-height and horizontally scrolling", () => {
     const { container } = render(
-      <ControlledHarness
-        initialValue={["design", "research"]}
-        overrides={tagOverrides()}
+      <FieldHarness
+        overrides={{ ...tagOverrides(), initialValue: ["design", "research"] }}
       />,
     );
 
@@ -1376,7 +1610,7 @@ describe("Field multi-select toggle semantics", () => {
   it("adds and removes membership through panel checkboxes with Chips appearing and disappearing in step", () => {
     const received: FieldValue[] = [];
     render(
-      <ControlledHarness
+      <FieldHarness
         onChangeSpy={(value) => received.push(value)}
         overrides={tagOverrides()}
       />,
@@ -1406,10 +1640,12 @@ describe("Field multi-select toggle semantics", () => {
   it("removes membership from anywhere: each Chip's named remove button works while the popup is closed", () => {
     const received: FieldValue[] = [];
     render(
-      <ControlledHarness
-        initialValue={["design", "research"]}
+      <FieldHarness
         onChangeSpy={(value) => received.push(value)}
-        overrides={tagOverrides()}
+        overrides={{
+          ...tagOverrides(),
+          initialValue: ["design", "research"],
+        }}
       />,
     );
 
@@ -1430,7 +1666,7 @@ describe("Field multi-select toggle semantics", () => {
 
 describe("Field multi-select panel", () => {
   it("filters rows client-side from the labelled search input, removing filtered rows entirely", () => {
-    render(<ControlledHarness overrides={tagOverrides()} />);
+    render(<FieldHarness overrides={tagOverrides()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show options" }));
     const search = screen.getByRole("textbox", { name: "Search options" });
@@ -1449,7 +1685,7 @@ describe("Field multi-select panel", () => {
   });
 
   it("wraps native checkbox rows in a fieldset/legend group with the search input outside it", () => {
-    render(<ControlledHarness overrides={tagOverrides()} />);
+    render(<FieldHarness overrides={tagOverrides()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show options" }));
 
@@ -1466,7 +1702,7 @@ describe("Field multi-select panel", () => {
 
   it("renders disabled Options as disabled checkboxes that cannot join the selection", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{
           ...tagOverrides(),
           options: [...TAG_OPTIONS, { label: "Archived", value: "archived", disabled: true }],
@@ -1483,7 +1719,7 @@ describe("Field multi-select panel", () => {
 
 describe("Field multi-select focus choreography", () => {
   it("opens onto the search input, and Escape closes and returns focus to the open button", () => {
-    render(<ControlledHarness overrides={tagOverrides()} />);
+    render(<FieldHarness overrides={tagOverrides()} />);
 
     const openButton = screen.getByRole("button", { name: "Show options" });
     fireEvent.click(openButton);
@@ -1503,7 +1739,7 @@ describe("Field multi-select focus choreography", () => {
     render(
       <>
         <button type="button">Elsewhere</button>
-        <ControlledHarness overrides={tagOverrides()} />
+        <FieldHarness overrides={tagOverrides()} />
       </>,
     );
 
@@ -1521,7 +1757,7 @@ describe("Field multi-select focus choreography", () => {
   it("closes when focus tabs out of the widget and lets focus move naturally", () => {
     render(
       <>
-        <ControlledHarness overrides={tagOverrides()} />
+        <FieldHarness overrides={tagOverrides()} />
         <input aria-label="Outside" />
       </>,
     );
@@ -1539,9 +1775,11 @@ describe("Field multi-select focus choreography", () => {
 
   it("hops focus to the chip that took the removed focused chip's slot", () => {
     render(
-      <ControlledHarness
-        initialValue={["design", "research", "engineering"]}
-        overrides={tagOverrides()}
+      <FieldHarness
+        overrides={{
+          ...tagOverrides(),
+          initialValue: ["design", "research", "engineering"],
+        }}
       />,
     );
 
@@ -1558,9 +1796,8 @@ describe("Field multi-select focus choreography", () => {
 
   it("hops focus to the last remaining chip when the focused last-positioned chip is removed", () => {
     render(
-      <ControlledHarness
-        initialValue={["design", "research"]}
-        overrides={tagOverrides()}
+      <FieldHarness
+        overrides={{ ...tagOverrides(), initialValue: ["design", "research"] }}
       />,
     );
 
@@ -1575,9 +1812,8 @@ describe("Field multi-select focus choreography", () => {
 
   it("returns focus to the open button when the final focused chip is removed", () => {
     render(
-      <ControlledHarness
-        initialValue={["design"]}
-        overrides={tagOverrides()}
+      <FieldHarness
+        overrides={{ ...tagOverrides(), initialValue: ["design"] }}
       />,
     );
 
@@ -1595,9 +1831,8 @@ describe("Field multi-select focus choreography", () => {
 describe("Field multi-select removal announcements", () => {
   it("writes 'Removed X. N selected.' into the shared polite region with the last message winning", () => {
     render(
-      <ControlledHarness
-        initialValue={["design", "research"]}
-        overrides={tagOverrides()}
+      <FieldHarness
+        overrides={{ ...tagOverrides(), initialValue: ["design", "research"] }}
       />,
     );
 
@@ -1610,7 +1845,7 @@ describe("Field multi-select removal announcements", () => {
   });
 
   it("stays silent while toggling inside the panel — native checked announcements suffice", () => {
-    render(<ControlledHarness overrides={tagOverrides()} />);
+    render(<FieldHarness overrides={tagOverrides()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show options" }));
     const region = politeRegion();
@@ -1625,7 +1860,7 @@ describe("Field multi-select removal announcements", () => {
 describe("Field multi-select Empty, placeholder, and stale chips", () => {
   it("counts [] as Empty so required reveals on leaving the widget and clears once something is selected", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ ...tagOverrides(), validator: { required: true } }}
       />,
     );
@@ -1662,7 +1897,7 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
 
   it("ignores placeholder entirely", () => {
     render(
-      <ControlledHarness
+      <FieldHarness
         overrides={{ ...tagOverrides(), placeholder: "Pick some tags" }}
       />,
     );
@@ -1679,10 +1914,9 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
     try {
       const received: FieldValue[] = [];
       render(
-        <ControlledHarness
-          initialValue={["design", "zz"]}
+        <FieldHarness
           onChangeSpy={(value) => received.push(value)}
-          overrides={tagOverrides()}
+          overrides={{ ...tagOverrides(), initialValue: ["design", "zz"] }}
         />,
       );
 
@@ -1707,11 +1941,11 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
     try {
       const d = deferred<FieldOption[]>();
       render(
-        <ControlledHarness
-          initialValue={["eu"]}
+        <FieldHarness
           overrides={{
             ...tagOverrides(),
             options: () => d.promise,
+            initialValue: ["eu"],
           }}
         />,
       );
@@ -1756,9 +1990,8 @@ describe("Field multi-select async options", () => {
     const d = deferred<FieldOption[]>();
     const loader = vi.fn(() => d.promise);
     render(
-      <ControlledHarness
-        initialValue={["design"]}
-        overrides={asyncTagOverrides(loader)}
+      <FieldHarness
+        overrides={{ ...asyncTagOverrides(loader), initialValue: ["design"] }}
       />,
     );
 
@@ -1798,7 +2031,7 @@ describe("Field multi-select async options", () => {
       .fn<() => Promise<FieldOption[]>>()
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
-    render(<ControlledHarness overrides={asyncTagOverrides(loader)} />);
+    render(<FieldHarness overrides={asyncTagOverrides(loader)} />);
 
     const openButton = screen.getByRole("button", { name: "Show options" });
     const panelId = openButton.getAttribute("aria-controls")!;
@@ -1847,9 +2080,8 @@ describe("Field multi-select async options", () => {
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
     render(
-      <ControlledHarness
-        initialValue={["eu"]}
-        overrides={asyncTagOverrides(loader)}
+      <FieldHarness
+        overrides={{ ...asyncTagOverrides(loader), initialValue: ["eu"] }}
       />,
     );
 

@@ -40,8 +40,15 @@ export type FieldConfig = {
   kind: FieldKind;
   inputType?: FieldInputType;
   label: string;
-  value: FieldValue;
-  onValueChange: (value: FieldValue) => void;
+  /**
+   * Optional mount-time seed: read exactly once when the Field mounts, then
+   * ignored — undefined seeds nothing. A changed prop after mount draws a
+   * dev-only warning; live control flows only through user edits, setValue,
+   * and onValueChange observation.
+   */
+  initialValue?: FieldValue;
+  /** Optional observer: fired for every committed change, however caused. */
+  onValueChange?: (value: FieldValue) => void;
   validator?: FieldValidator;
   /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
   options?: FieldOption[] | (() => Promise<FieldOption[]>);
@@ -59,6 +66,8 @@ export type FieldConfig = {
 
 export type FieldHandle = {
   validate: () => boolean;
+  getValue: () => FieldValue | undefined;
+  setValue: (value: FieldValue) => void;
 };
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
@@ -210,7 +219,7 @@ function coerceNumberInput(raw: string): FieldValue {
 }
 
 /** The string a native <select> matches against its options; Empty renders as "". */
-function selectRawValue(value: FieldValue): string {
+function selectRawValue(value: FieldValue | undefined): string {
   if (value === null || value === undefined) {
     return "";
   }
@@ -304,6 +313,26 @@ function resolveSelectEntries(
 /** Lifecycle of an async Option load; only meaningful when `options` is a loader. */
 type OptionLoadStatus = "pending" | "resolved" | "rejected";
 
+/**
+ * Seed-once comparison: strict identity, with a shallow pass for arrays so a
+ * re-created-but-equal literal (the common multi-select call site) does not
+ * read as a changed Initial value.
+ */
+function sameInitial(
+  a: FieldValue | undefined,
+  b: FieldValue | undefined,
+): boolean {
+  if (Object.is(a, b)) {
+    return true;
+  }
+  return (
+    Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    a.every((entry, index) => Object.is(entry, b[index]))
+  );
+}
+
 function isOptionsLoader(
   options: FieldConfig["options"],
 ): options is () => Promise<FieldOption[]> {
@@ -352,7 +381,7 @@ function ruleFits(
  * kinds (trimmed for testing only), NaN on number inputs at runtime, and
  * `false` for checkbox — required means must-tick (the consent pattern).
  */
-function isEmpty(value: FieldValue): boolean {
+function isEmpty(value: FieldValue | undefined): boolean {
   if (value === null || value === undefined) {
     return true;
   }
@@ -369,7 +398,10 @@ function isEmpty(value: FieldValue): boolean {
 }
 
 /** Runs the applicable rules in fixed precedence; the first violation wins. */
-function evaluate(config: FieldConfig, value: FieldValue): string | null {
+function evaluate(
+  config: FieldConfig,
+  value: FieldValue | undefined,
+): string | null {
   const validator = config.validator;
   if (!validator) {
     return null;
@@ -463,8 +495,7 @@ export function Field({
     kind,
     inputType = "text",
     label,
-    value,
-    onValueChange,
+    initialValue,
     validator,
     options = [],
     placeholder,
@@ -485,6 +516,28 @@ export function Field({
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The Field owns its value: the Initial value seeds it exactly once at
+  // mount; afterwards every change flows through commitValue below.
+  const [value, setValueState] = useState<FieldValue | undefined>(initialValue);
+  const valueRef = useRef<FieldValue | undefined>(initialValue);
+
+  /**
+   * Seed-once guard: the Initial prop is compared against the last seen one.
+   */
+  const lastInitialRef = useRef(initialValue);
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+    if (sameInitial(lastInitialRef.current, initialValue)) {
+      return;
+    }
+    lastInitialRef.current = initialValue;
+    console.warn(
+      `[Field] initialValue of "${label}" changed after mount. A Field seeds its value once at mount; the new Initial value is ignored.`,
+    );
+  }, [initialValue, label]);
+
   // Multi-select popup state: disclosure visibility plus the client-side
   // search query; the query resets whenever the panel closes.
   const [open, setOpen] = useState(false);
@@ -502,13 +555,29 @@ export function Field({
   const [loadedOptions, setLoadedOptions] = useState<FieldOption[]>([]);
   const [loadStatus, setLoadStatus] = useState<OptionLoadStatus>("pending");
 
-  // validate() runs against the latest committed config and value.
+  // validate()/getValue()/setValue() run against the latest committed config,
+  // Touched state, and value.
   const configRef = useRef(config);
-  const valueRef = useRef(value);
+  const touchedRef = useRef(touched);
   useEffect(() => {
     configRef.current = config;
+    touchedRef.current = touched;
     valueRef.current = value;
   });
+
+  /**
+   * One honest pipeline for every committed change, however caused — user
+   * edit or setValue: install the value internally, notify the observer, and
+   * re-evaluate the Error when Touched.
+   */
+  const commitValue = useCallback((next: FieldValue) => {
+    valueRef.current = next;
+    setValueState(next);
+    configRef.current.onValueChange?.(next);
+    if (touchedRef.current) {
+      setError(evaluate(configRef.current, next));
+    }
+  }, []);
 
   // Retry always re-fires the newest loader the parent passed.
   const loaderRef = useRef(options);
@@ -560,8 +629,10 @@ export function Field({
         setError(message);
         return message === null;
       },
+      getValue: () => valueRef.current,
+      setValue: commitValue,
     }),
-    [],
+    [commitValue],
   );
 
   // Dev-only: name any rule configured on a kind it does not fit, whenever the
@@ -648,10 +719,7 @@ export function Field({
           : isNumberInput(kind, inputType)
             ? coerceNumberInput(event.target.value)
             : event.target.value;
-    onValueChange(next);
-    if (touched) {
-      setError(evaluate(config, next));
-    }
+    commitValue(next);
   };
 
   const handleBlur = () => {
@@ -660,20 +728,11 @@ export function Field({
     setError(evaluate(config, value));
   };
 
-  // Multi-select: membership toggles and chip removals flow through one
-  // controlled hand-off that keeps the Touched lifecycle honest.
-  const applyMultiValue = (next: string[]) => {
-    onValueChange(next);
-    if (touched) {
-      setError(evaluate(config, next));
-    }
-  };
-
   const toggleOption = (optionValue: string) => {
     // In-panel toggles announce nothing extra — clear any pending removal
     // message so a repeated removal re-announces with fresh text.
     setAnnouncement(null);
-    applyMultiValue(
+    commitValue(
       selectedValues.includes(optionValue)
         ? selectedValues.filter((value) => value !== optionValue)
         : [...selectedValues, optionValue],
@@ -684,7 +743,7 @@ export function Field({
     const removedValue = chipValue(entry);
     const removedLabel = chipLabel(entry);
     const next = selectedValues.filter((value) => value !== removedValue);
-    applyMultiValue(next);
+    commitValue(next);
 
     // Closed-face removals announce through the shared always-mounted polite
     // region; last message wins. In-panel toggles never reach this path.
@@ -794,10 +853,13 @@ export function Field({
     "aria-describedby": `${hintId} ${errorId}`,
   };
 
-  // NaN displays as Empty; React would otherwise stringify it into the control.
-  // Checkboxes render `checked` instead, so booleans never reach this value.
+  // NaN and seeded-nothing display as Empty; React would otherwise stringify
+  // them into the control. Checkboxes render `checked` instead, so booleans
+  // never reach this value.
   const displayValue: string | number =
-    typeof value === "boolean" || Array.isArray(value)
+    value === undefined ||
+    typeof value === "boolean" ||
+    Array.isArray(value)
       ? ""
       : isNumberInput(kind, inputType) &&
           typeof value === "number" &&

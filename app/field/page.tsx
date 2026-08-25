@@ -1,20 +1,118 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Field, type FieldConfig, type FieldOption } from "@/components/Field";
+import {
+  Field,
+  type FieldConfig,
+  type FieldHandle,
+  type FieldOption,
+} from "@/components/Field";
+
+// Configs are plain data: each Field owns its value internally, so none of
+// these carry live state or change callbacks.
+const nameConfig: FieldConfig = {
+  kind: "input",
+  inputType: "text",
+  label: "Name",
+  hint: "Shown publicly on your profile.",
+  validator: { required: true },
+};
+
+const emailConfig: FieldConfig = {
+  kind: "input",
+  inputType: "email",
+  label: "Email",
+  validator: { required: true, regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
+};
+
+const passwordConfig: FieldConfig = {
+  kind: "input",
+  inputType: "password",
+  label: "Password",
+  hint: "Never shared.",
+  validator: { minLength: 8 },
+};
+
+const bioConfig: FieldConfig = {
+  kind: "textarea",
+  label: "Bio",
+  hint: "A short introduction.",
+  className: "max-w-md",
+  validator: {
+    required: { value: true, message: "Tell us a bit about yourself." },
+    maxLength: 200,
+  },
+};
+
+const ageConfig: FieldConfig = {
+  kind: "input",
+  inputType: "number",
+  label: "Age",
+  hint: "Whole years; empty or unparseable counts as not filled in.",
+  validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
+};
+
+const consentConfig: FieldConfig = {
+  kind: "checkbox",
+  label: "I agree to the terms of service.",
+  hint: "Required to continue — an unticked box counts as not filled in.",
+  validator: {
+    required: { value: true, message: "You must accept the terms." },
+  },
+};
+
+const countryConfig: FieldConfig = {
+  kind: "select",
+  label: "Country",
+  hint: "Static options; the placeholder drops out of the dropdown once a value is chosen.",
+  validator: { required: { value: true, message: "Choose a country." } },
+  placeholder: "Choose a country",
+  options: [
+    { label: "France", value: "fr" },
+    { label: "Japan", value: "jp" },
+    { label: "United States", value: "us" },
+    {
+      label: "Antarctica — research programmes only",
+      value: "aq",
+      disabled: true,
+    },
+  ],
+};
+
+const tagsConfig: FieldConfig = {
+  kind: "multi-select",
+  label: "Tags",
+  hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
+  initialValue: ["research"],
+  validator: { required: { value: true, message: "Pick at least one tag." } },
+  options: [
+    { label: "Design", value: "design" },
+    { label: "Research", value: "research" },
+    { label: "Engineering", value: "engineering" },
+    { label: "Documentation", value: "docs" },
+    { label: "Accessibility", value: "a11y" },
+  ],
+};
+
+const legacyPlanConfig: FieldConfig = {
+  kind: "select",
+  label: "Plan",
+  hint: "Holds the retired Starter plan selected by default (keepDisabledSelection); pick another to move off it.",
+  initialValue: "starter",
+  placeholder: "Choose a plan",
+  options: [
+    { label: "Starter (retired)", value: "starter", disabled: true },
+    { label: "Growth", value: "growth" },
+    { label: "Scale", value: "scale" },
+  ],
+};
+
+const REF_BUTTON_CLASS =
+  "cursor-pointer rounded-md border border-neutral-300 bg-white px-2 py-1 font-medium " +
+  "text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+  "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800";
 
 export default function FieldDemoPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [bio, setBio] = useState("");
-  const [age, setAge] = useState<number | "">("");
-  const [consent, setConsent] = useState(false);
-  const [country, setCountry] = useState("");
-  const [tags, setTags] = useState<string[]>(["research"]);
-  const [legacyPlan, setLegacyPlan] = useState("starter");
-  const [region, setRegion] = useState("");
-  const [teams, setTeams] = useState<string[]>(["platform"]);
   const [simulateRejection, setSimulateRejection] = useState(false);
 
   // Kept out of render state so mounted loaders are never re-fired by a
@@ -22,114 +120,12 @@ export default function FieldDemoPage() {
   // the latest position. One shared flag drives both async demo Fields.
   const loadRejectionRef = useRef(false);
 
-  const nameConfig: FieldConfig = {
-    kind: "input",
-    inputType: "text",
-    label: "Name",
-    hint: "Shown publicly on your profile.",
-    value: name,
-    onValueChange: (value) => setName(String(value)),
-    validator: { required: true },
-  };
+  // The uncontrolled example's steering wheel: read and install values
+  // imperatively without ever wiring a change callback.
+  const nicknameRef = useRef<FieldHandle>(null);
+  const [readValue, setReadValue] = useState("(never read)");
 
-  const emailConfig: FieldConfig = {
-    kind: "input",
-    inputType: "email",
-    label: "Email",
-    value: email,
-    onValueChange: (value) => setEmail(String(value)),
-    validator: { required: true, regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
-  };
-
-  const passwordConfig: FieldConfig = {
-    kind: "input",
-    inputType: "password",
-    label: "Password",
-    hint: "Never shared.",
-    value: password,
-    onValueChange: (value) => setPassword(String(value)),
-    validator: { minLength: 8 },
-  };
-
-  const bioConfig: FieldConfig = {
-    kind: "textarea",
-    label: "Bio",
-    hint: "A short introduction.",
-    className: "max-w-md",
-    value: bio,
-    onValueChange: (value) => setBio(String(value)),
-    validator: {
-      required: { value: true, message: "Tell us a bit about yourself." },
-      maxLength: 200,
-    },
-  };
-
-  const ageConfig: FieldConfig = {
-    kind: "input",
-    inputType: "number",
-    label: "Age",
-    hint: "Whole years; empty or unparseable counts as not filled in.",
-    value: age,
-    onValueChange: (value) => setAge(typeof value === "number" ? value : ""),
-    validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
-  };
-
-  const consentConfig: FieldConfig = {
-    kind: "checkbox",
-    label: "I agree to the terms of service.",
-    hint: "Required to continue — an unticked box counts as not filled in.",
-    value: consent,
-    onValueChange: (value) => setConsent(value === true),
-    validator: {
-      required: { value: true, message: "You must accept the terms." },
-    },
-  };
-
-  const countryConfig: FieldConfig = {
-    kind: "select",
-    label: "Country",
-    hint: "Static options; the placeholder drops out of the dropdown once a value is chosen.",
-    value: country,
-    onValueChange: (value) => setCountry(String(value)),
-    validator: { required: { value: true, message: "Choose a country." } },
-    placeholder: "Choose a country",
-    options: [
-      { label: "France", value: "fr" },
-      { label: "Japan", value: "jp" },
-      { label: "United States", value: "us" },
-      { label: "Antarctica — research programmes only", value: "aq", disabled: true },
-    ],
-  };
-
-  const tagsConfig: FieldConfig = {
-    kind: "multi-select",
-    label: "Tags",
-    hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
-    value: tags,
-    onValueChange: (value) => setTags(Array.isArray(value) ? value : []),
-    validator: { required: { value: true, message: "Pick at least one tag." } },
-    options: [
-      { label: "Design", value: "design" },
-      { label: "Research", value: "research" },
-      { label: "Engineering", value: "engineering" },
-      { label: "Documentation", value: "docs" },
-      { label: "Accessibility", value: "a11y" },
-    ],
-  };
-
-  const legacyPlanConfig: FieldConfig = {
-    kind: "select",
-    label: "Plan",
-    hint: "Holds the retired Starter plan selected by default (keepDisabledSelection); pick another to move off it.",
-    value: legacyPlan,
-    onValueChange: (value) => setLegacyPlan(String(value)),
-    placeholder: "Choose a plan",
-    options: [
-      { label: "Starter (retired)", value: "starter", disabled: true },
-      { label: "Growth", value: "growth" },
-      { label: "Scale", value: "scale" },
-    ],
-  };
+  const readNickname = () => setReadValue(String(nicknameRef.current?.getValue()));
 
   const toggleSimulateRejection = (checked: boolean) => {
     loadRejectionRef.current = checked;
@@ -155,8 +151,6 @@ export default function FieldDemoPage() {
     kind: "select",
     label: "Region",
     hint: "Options come from a simulated API; flip the toggle, then hit Retry to walk the failure path.",
-    value: region,
-    onValueChange: (value) => setRegion(String(value)),
     validator: { required: { value: true, message: "Choose a region." } },
     placeholder: "Choose a region",
     options: simulateOptionLoad(800, "Simulated region load rejection.", [
@@ -173,8 +167,7 @@ export default function FieldDemoPage() {
     label: "Teams",
     hint: "The same async contract on the multi-select kind: chips stay visible while Pending, and the popup only opens once options resolve.",
     className: "max-w-md",
-    value: teams,
-    onValueChange: (value) => setTeams(Array.isArray(value) ? value : []),
+    initialValue: ["platform"],
     validator: { required: { value: true, message: "Pick at least one team." } },
     options: simulateOptionLoad(1100, "Simulated teams load rejection.", [
       { label: "Platform", value: "platform" },
@@ -196,6 +189,52 @@ export default function FieldDemoPage() {
       <section className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Uncontrolled
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            A fully working field with no change callback at all: the config
+            carries no state wiring, edits live inside the Field, and the
+            parent steers only through its ref — read the current value or
+            install a new one, exactly as if the user had typed it.
+          </p>
+        </div>
+        <Field
+          config={{
+            kind: "input",
+            label: "Nickname",
+            hint: "No onValueChange anywhere; the Initial value seeds once at mount.",
+            initialValue: "Ace",
+            validator: { required: true },
+          }}
+          ref={nicknameRef}
+        />
+        <div className="flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400">
+          <button
+            type="button"
+            onClick={readNickname}
+            className={REF_BUTTON_CLASS}
+          >
+            Read value
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              nicknameRef.current?.setValue("");
+              readNickname();
+            }}
+            className={REF_BUTTON_CLASS}
+          >
+            Clear via ref
+          </button>
+          <span>
+            getValue(): <code className="font-mono">{readValue}</code>
+          </span>
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
             Input
           </h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
@@ -203,7 +242,7 @@ export default function FieldDemoPage() {
             Required fields stay quiet until first blur; leave one empty, tab
             away, and the error appears — then clears the moment you fix the
             value. Length and pattern rules behave the same way, and the
-            number Field coerces edits before your state ever sees them.
+            number Field coerces edits before storing them.
           </p>
         </div>
         <Field config={nameConfig} />
