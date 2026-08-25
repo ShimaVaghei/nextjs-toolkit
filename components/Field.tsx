@@ -9,7 +9,7 @@ export type FieldKind =
   | "checkbox"
   | "select"
   | "multi-select";
-export type FieldInputType = "text" | "email" | "password" | "number";
+export type FieldInputType = "text" | "password" | "number";
 
 /** One choice offered by a choice kind: display label, handed-over value, optional unselectable flag. */
 export type FieldOption = {
@@ -25,6 +25,7 @@ export type FieldMinRule = number | { value: number; message: string };
 export type FieldMaxRule = number | { value: number; message: string };
 export type FieldMinLengthRule = number | { value: number; message: string };
 export type FieldMaxLengthRule = number | { value: number; message: string };
+export type FieldEmailRule = boolean | { value: boolean; message: string };
 export type FieldRegexRule = RegExp | { value: RegExp; message: string };
 
 export type FieldValidator = {
@@ -33,6 +34,7 @@ export type FieldValidator = {
   max?: FieldMaxRule;
   minLength?: FieldMinLengthRule;
   maxLength?: FieldMaxLengthRule;
+  email?: FieldEmailRule;
   regex?: FieldRegexRule;
 };
 
@@ -77,7 +79,11 @@ const DEFAULT_MIN_LENGTH_MESSAGE = (minLength: number) =>
   `Must be at least ${minLength} characters.`;
 const DEFAULT_MAX_LENGTH_MESSAGE = (maxLength: number) =>
   `Must be at most ${maxLength} characters.`;
+const DEFAULT_EMAIL_MESSAGE = "Enter a valid email address.";
 const DEFAULT_REGEX_MESSAGE = "Invalid format.";
+
+/** The demo page's long-standing hand-written baseline, promoted to the built-in. */
+const DEFAULT_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const LABEL_CLASS =
   "block text-sm font-medium text-neutral-900 dark:text-neutral-100";
@@ -347,6 +353,14 @@ function fitsTextualRules(
   return kind === "textarea" || (kind === "input" && !isNumberInput(kind, inputType));
 }
 
+/** The email rule fits non-number inputs only — never a number input or textarea. */
+function fitsEmailRule(
+  kind: FieldKind,
+  inputType: FieldInputType | undefined,
+): boolean {
+  return kind === "input" && !isNumberInput(kind, inputType);
+}
+
 type RuleName = keyof FieldValidator;
 
 const RULE_NAMES: RuleName[] = [
@@ -355,6 +369,7 @@ const RULE_NAMES: RuleName[] = [
   "max",
   "minLength",
   "maxLength",
+  "email",
   "regex",
 ];
 
@@ -371,6 +386,9 @@ function ruleFits(
       return isNumberInput(kind, inputType);
     case "minLength":
     case "maxLength":
+      return fitsTextualRules(kind, inputType);
+    case "email":
+      return fitsEmailRule(kind, inputType);
     case "regex":
       return fitsTextualRules(kind, inputType);
   }
@@ -456,6 +474,20 @@ function evaluate(
         DEFAULT_MAX_LENGTH_MESSAGE,
       );
       if (value.length > maxLength) {
+        return message;
+      }
+    }
+
+    // Fixed precedence: email sits after maxLength and before regex.
+    if (
+      validator.email !== undefined &&
+      fitsEmailRule(config.kind, config.inputType)
+    ) {
+      const { value: mustBeEmail, message } = unpack(
+        validator.email,
+        () => DEFAULT_EMAIL_MESSAGE,
+      );
+      if (mustBeEmail && !DEFAULT_EMAIL_PATTERN.test(value)) {
         return message;
       }
     }

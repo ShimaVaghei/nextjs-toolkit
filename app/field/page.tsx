@@ -20,9 +20,10 @@ const nameConfig: FieldConfig = {
 
 const emailConfig: FieldConfig = {
   kind: "input",
-  inputType: "email",
+  inputType: "text",
   label: "Email",
-  validator: { required: true, regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
+  hint: "Format checking is the declarative email rule — no hand-written regex.",
+  validator: { required: true, email: true },
 };
 
 const passwordConfig: FieldConfig = {

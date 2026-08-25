@@ -107,10 +107,6 @@ describe("Field rendering", () => {
   });
 
   it("narrows the input by inputType, defaulting to text", () => {
-    const email = render(<Field config={makeConfig({ inputType: "email" })} />);
-    expect(email.getByRole("textbox")).toHaveAttribute("type", "email");
-    email.unmount();
-
     const password = render(
       <Field config={makeConfig({ inputType: "password" })} />,
     );
@@ -121,8 +117,26 @@ describe("Field rendering", () => {
     );
     password.unmount();
 
+    const number = render(<Field config={makeConfig({ inputType: "number" })} />);
+    expect(number.getByRole("spinbutton")).toHaveAttribute("type", "number");
+    number.unmount();
+
     const text = render(<Field config={makeConfig()} />);
     expect(text.getByRole("textbox")).toHaveAttribute("type", "text");
+  });
+
+  it("rejects the retired email input flavor at compile time", () => {
+    render(
+      <Field
+        config={{
+          ...makeConfig(),
+          // @ts-expect-error — email is a Validator rule now, not an input flavor
+          inputType: "email",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
   it("renders a textarea when kind is textarea and reports edits", () => {
@@ -602,6 +616,167 @@ describe("Field Validator rule set", () => {
     expect(errorParagraph(control)).toHaveTextContent(
       "Must be at least 3 characters.",
     );
+  });
+});
+
+describe("Field email rule", () => {
+  const DEFAULT_EMAIL_MESSAGE = "Enter a valid email address.";
+
+  it("rejects a malformed address on an input with the built-in default message and clears once satisfied", () => {
+    render(<FieldHarness overrides={{ validator: { email: true } }} />);
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+
+    // A pristine undefined value never reaches the textual rules…
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+
+    // …but once Touched, typed garbage fails the email check…
+    fireEvent.change(control, { target: { value: "not-an-email" } });
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
+    expect(control).toHaveAttribute("aria-invalid", "true");
+
+    // …and so does clearing back to Empty.
+    fireEvent.change(control, { target: { value: "" } });
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
+
+    fireEvent.change(control, { target: { value: "ada@example.com" } });
+    expect(errorParagraph(control)).toHaveTextContent("");
+    expect(control).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("accepts a custom message from a { value, message } pair and stays inert when disabled", () => {
+    const custom = render(
+      <FieldHarness
+        overrides={{
+          validator: {
+            email: { value: true, message: "That is not an email." },
+          },
+        }}
+      />,
+    );
+    const customControl = custom.getByRole("textbox", { name: "Name" });
+    fireEvent.change(customControl, { target: { value: "nope" } });
+    fireEvent.blur(customControl);
+    expect(errorParagraph(customControl)).toHaveTextContent(
+      "That is not an email.",
+    );
+    custom.unmount();
+
+    const bareDisabled = render(
+      <FieldHarness overrides={{ validator: { email: false } }} />,
+    );
+    const bareControl = bareDisabled.getByRole("textbox", { name: "Name" });
+    fireEvent.change(bareControl, { target: { value: "nope" } });
+    fireEvent.blur(bareControl);
+    expect(errorParagraph(bareControl)).toHaveTextContent("");
+    expect(bareControl).not.toHaveAttribute("aria-invalid");
+    bareDisabled.unmount();
+
+    const pairedDisabled = render(
+      <FieldHarness
+        overrides={{
+          validator: {
+            email: { value: false, message: "Never shown." },
+          },
+        }}
+      />,
+    );
+    const pairedControl = pairedDisabled.getByRole("textbox", { name: "Name" });
+    fireEvent.change(pairedControl, { target: { value: "nope" } });
+    fireEvent.blur(pairedControl);
+    expect(errorParagraph(pairedControl)).toHaveTextContent("");
+    expect(pairedControl).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("lets required short-circuit ahead of it while the value is Empty", () => {
+    render(
+      <FieldHarness overrides={{ validator: { required: true, email: true } }} />,
+    );
+
+    const control = requiredControl("Name");
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_REQUIRED_MESSAGE);
+
+    // Non-Empty garbage hands control to the email rule.
+    fireEvent.change(control, { target: { value: "ada at example dot com" } });
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
+  });
+
+  it("evaluates after maxLength — an over-long value reports length before format", () => {
+    render(
+      <FieldHarness
+        overrides={{ validator: { maxLength: 5, email: true } }}
+      />,
+    );
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(control, { target: { value: "way-too-long" } });
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(
+      "Must be at most 5 characters.",
+    );
+
+    // Once length passes, the email rule takes its turn.
+    fireEvent.change(control, { target: { value: "a@b" } });
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
+  });
+
+  it("evaluates before regex — first violation wins when both fail", () => {
+    render(
+      <FieldHarness
+        overrides={{ validator: { email: true, regex: /^[a-z]+$/ } }}
+      />,
+    );
+
+    const control = screen.getByRole("textbox", { name: "Name" });
+
+    // Fails both; the email message wins because regex runs last.
+    fireEvent.change(control, { target: { value: "a@b" } });
+    fireEvent.blur(control);
+    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
+
+    // A value satisfying email still reaches regex afterwards.
+    fireEvent.change(control, { target: { value: "Ada@example.com" } });
+    expect(errorParagraph(control)).toHaveTextContent("Invalid format.");
+  });
+
+  it("fits non-number inputs only and ignores misplacement with the existing dev-only warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const emailWarning = () =>
+        warnSpy.mock.calls.find(
+          (call) =>
+            typeof call[0] === "string" && call[0].includes('"email"'),
+        )![0] as string;
+
+      const numeric = render(
+        <FieldHarness
+          overrides={{ inputType: "number", label: "Age", validator: { min: 0, email: true } }}
+        />,
+      );
+      const ageControl = numeric.getByRole("spinbutton", { name: "Age" });
+      fireEvent.change(ageControl, { target: { value: "42" } });
+      fireEvent.blur(ageControl);
+      expect(errorParagraph(ageControl)).toHaveTextContent("");
+      expect(emailWarning()).toContain('"Age"');
+      numeric.unmount();
+      warnSpy.mockClear();
+
+      const bio = render(
+        <FieldHarness
+          overrides={{ kind: "textarea", label: "Bio", validator: { email: true } }}
+        />,
+      );
+      const bioControl = bio.getByRole("textbox", { name: "Bio" });
+      fireEvent.change(bioControl, { target: { value: "words" } });
+      fireEvent.blur(bioControl);
+      expect(errorParagraph(bioControl)).toHaveTextContent("");
+      expect(emailWarning()).toContain('"Bio"');
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 
