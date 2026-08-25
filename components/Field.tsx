@@ -9,10 +9,10 @@ export type FieldKind =
   | "checkbox"
   | "select"
   | "multi-select";
-export type InputType = "text" | "email" | "password" | "number";
+export type FieldInputType = "text" | "email" | "password" | "number";
 
 /** One choice offered by a choice kind: display label, handed-over value, optional unselectable flag. */
-export type Option = {
+export type FieldOption = {
   label: string;
   value: string;
   disabled?: boolean;
@@ -20,31 +20,31 @@ export type Option = {
 
 export type FieldValue = string | number | boolean | string[];
 
-export type RequiredRule = boolean | { value: boolean; message: string };
-export type MinRule = number | { value: number; message: string };
-export type MaxRule = number | { value: number; message: string };
-export type MinLengthRule = number | { value: number; message: string };
-export type MaxLengthRule = number | { value: number; message: string };
-export type RegexRule = RegExp | { value: RegExp; message: string };
+export type FieldRequiredRule = boolean | { value: boolean; message: string };
+export type FieldMinRule = number | { value: number; message: string };
+export type FieldMaxRule = number | { value: number; message: string };
+export type FieldMinLengthRule = number | { value: number; message: string };
+export type FieldMaxLengthRule = number | { value: number; message: string };
+export type FieldRegexRule = RegExp | { value: RegExp; message: string };
 
-export type Validator = {
-  required?: RequiredRule;
-  min?: MinRule;
-  max?: MaxRule;
-  minLength?: MinLengthRule;
-  maxLength?: MaxLengthRule;
-  regex?: RegexRule;
+export type FieldValidator = {
+  required?: FieldRequiredRule;
+  min?: FieldMinRule;
+  max?: FieldMaxRule;
+  minLength?: FieldMinLengthRule;
+  maxLength?: FieldMaxLengthRule;
+  regex?: FieldRegexRule;
 };
 
 export type FieldConfig = {
   kind: FieldKind;
-  inputType?: InputType;
+  inputType?: FieldInputType;
   label: string;
   value: FieldValue;
   onValueChange: (value: FieldValue) => void;
-  validator?: Validator;
+  validator?: FieldValidator;
   /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
-  options?: Option[] | (() => Promise<Option[]>);
+  options?: FieldOption[] | (() => Promise<FieldOption[]>);
   /** Select-only: labels the closed control while empty via the ghost option. Multi-select ignores it. */
   placeholder?: string;
   /**
@@ -188,7 +188,7 @@ function unpack<T>(
 }
 
 function requiredConstraint(
-  rule: NonNullable<Validator["required"]>,
+  rule: NonNullable<FieldValidator["required"]>,
 ): { isRequired: boolean; message: string } {
   const { value, message } = unpack(rule, () => DEFAULT_REQUIRED_MESSAGE);
   return { isRequired: value, message };
@@ -196,7 +196,7 @@ function requiredConstraint(
 
 function isNumberInput(
   kind: FieldKind,
-  inputType: InputType | undefined,
+  inputType: FieldInputType | undefined,
 ): boolean {
   return kind === "input" && inputType === "number";
 }
@@ -221,7 +221,7 @@ function selectRawValue(value: FieldValue): string {
 }
 
 type SelectEntry =
-  | { kind: "option"; option: Option }
+  | { kind: "option"; option: FieldOption }
   | { kind: "fallback"; raw: string };
 
 /** One rendered Chip: a matched Option or a raw-value fallback for an unknown selection. */
@@ -243,7 +243,7 @@ function chipLabel(entry: ChipEntry): string {
  * without being reported stale.
  */
 function resolveChips(
-  options: Option[],
+  options: FieldOption[],
   values: string[],
   keepDisabledSelection: boolean,
   optionsAuthoritative: boolean,
@@ -281,7 +281,7 @@ function resolveChips(
  * fallback entry so it stays visible, but no staleness is reported.
  */
 function resolveSelectEntries(
-  options: Option[],
+  options: FieldOption[],
   raw: string,
   keepDisabledSelection: boolean,
   optionsAuthoritative: boolean,
@@ -306,19 +306,19 @@ type OptionLoadStatus = "pending" | "resolved" | "rejected";
 
 function isOptionsLoader(
   options: FieldConfig["options"],
-): options is () => Promise<Option[]> {
+): options is () => Promise<FieldOption[]> {
   return typeof options === "function";
 }
 
 /** Textual rules fit textarea and non-number inputs — never a checkbox. */
 function fitsTextualRules(
   kind: FieldKind,
-  inputType: InputType | undefined,
+  inputType: FieldInputType | undefined,
 ): boolean {
   return kind === "textarea" || (kind === "input" && !isNumberInput(kind, inputType));
 }
 
-type RuleName = keyof Validator;
+type RuleName = keyof FieldValidator;
 
 const RULE_NAMES: RuleName[] = [
   "required",
@@ -331,7 +331,7 @@ const RULE_NAMES: RuleName[] = [
 
 function ruleFits(
   kind: FieldKind,
-  inputType: InputType | undefined,
+  inputType: FieldInputType | undefined,
   name: RuleName,
 ): boolean {
   switch (name) {
@@ -499,7 +499,7 @@ export function Field({
   // Async Option load lifecycle (loader-form configs only): Pending until the
   // mount-fired loader settles, then Resolved with the Options or Rejected.
   const optionsIsLoader = isOptionsLoader(options);
-  const [loadedOptions, setLoadedOptions] = useState<Option[]>([]);
+  const [loadedOptions, setLoadedOptions] = useState<FieldOption[]>([]);
   const [loadStatus, setLoadStatus] = useState<OptionLoadStatus>("pending");
 
   // validate() runs against the latest committed config and value.
@@ -586,7 +586,7 @@ export function Field({
   // Under a loader, Options only become authoritative once a load has resolved.
   const optionsAuthoritative = !optionsIsLoader || loadStatus === "resolved";
   const rawValue = kind === "select" ? selectRawValue(value) : "";
-  const selectOptions = optionsIsLoader ? loadedOptions : (options as Option[]);
+  const selectOptions = optionsIsLoader ? loadedOptions : (options as FieldOption[]);
   const { entries: selectEntries, isStale } = resolveSelectEntries(
     selectOptions,
     rawValue,

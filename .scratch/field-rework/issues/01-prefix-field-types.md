@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Every exported Field-family type carries the prefix: `FieldInputType`, `FieldOption`, `FieldValidator`, `FieldRequiredRule`, `FieldMinRule`, `FieldMaxRule`, `FieldMinLengthRule`, `FieldMaxLengthRule`, `FieldRegexRule` (`FieldKind`, `FieldValue`, `FieldConfig`, `FieldHandle` are already prefixed)
-- [ ] No old unprefixed name remains exported anywhere in the codebase
-- [ ] Test suite passes with changes limited to import/reference renames
-- [ ] Demo page compiles against the renamed exports
+- [x] Every exported Field-family type carries the prefix: `FieldInputType`, `FieldOption`, `FieldValidator`, `FieldRequiredRule`, `FieldMinRule`, `FieldMaxRule`, `FieldMinLengthRule`, `FieldMaxLengthRule`, `FieldRegexRule` (`FieldKind`, `FieldValue`, `FieldConfig`, `FieldHandle` are already prefixed)
+- [x] No old unprefixed name remains exported anywhere in the codebase
+- [x] Test suite passes with changes limited to import/reference renames
+- [x] Demo page compiles against the renamed exports

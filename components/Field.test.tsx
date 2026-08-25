@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Field, type FieldConfig, type FieldHandle, type FieldValue, type Option } from "./Field";
+import { Field, type FieldConfig, type FieldHandle, type FieldValue, type FieldOption } from "./Field";
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
 
@@ -1132,7 +1132,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-const REGION_OPTIONS: Option[] = [
+const REGION_OPTIONS: FieldOption[] = [
   { label: "Africa", value: "af" },
   { label: "Europe", value: "eu" },
 ];
@@ -1149,7 +1149,7 @@ describe("Field async options", () => {
   }
 
   it("fires the loader exactly once on mount, then renders resolved Options and enables the control", async () => {
-    const d = deferred<Option[]>();
+    const d = deferred<FieldOption[]>();
     const loader = vi.fn(() => d.promise);
     render(<ControlledHarness overrides={asyncOverrides(loader)} />);
 
@@ -1177,7 +1177,7 @@ describe("Field async options", () => {
   });
 
   it("blocks choosing while Pending with 'Loading options…' in the hint slot and keeps any selection visible", async () => {
-    const d = deferred<Option[]>();
+    const d = deferred<FieldOption[]>();
     render(
       <ControlledHarness
         initialValue="eu"
@@ -1205,10 +1205,10 @@ describe("Field async options", () => {
   });
 
   it("shows 'Couldn't load options.' with a Retry that re-fires the loader successfully", async () => {
-    const d1 = deferred<Option[]>();
-    const d2 = deferred<Option[]>();
+    const d1 = deferred<FieldOption[]>();
+    const d2 = deferred<FieldOption[]>();
     const loader = vi
-      .fn<() => Promise<Option[]>>()
+      .fn<() => Promise<FieldOption[]>>()
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
     render(<ControlledHarness overrides={asyncOverrides(loader)} />);
@@ -1245,7 +1245,7 @@ describe("Field async options", () => {
   it("styles Rejected distinctly from validation Error — no aria-invalid and the error slot stays untouched", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const d = deferred<Option[]>();
+      const d = deferred<FieldOption[]>();
       render(
         <ControlledHarness
           handleRef={createRef<FieldHandle>()}
@@ -1280,7 +1280,7 @@ describe("Field async options", () => {
   it("never fires the stale-value warn for an absent selection while a load is in flight", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const d = deferred<Option[]>();
+      const d = deferred<FieldOption[]>();
       render(
         <ControlledHarness
           initialValue="eu"
@@ -1305,7 +1305,7 @@ describe("Field async options", () => {
   });
 });
 
-const TAG_OPTIONS: Option[] = [
+const TAG_OPTIONS: FieldOption[] = [
   { label: "Design", value: "design" },
   { label: "Research", value: "research" },
   { label: "Engineering", value: "engineering" },
@@ -1705,7 +1705,7 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
   it("stays quiet while a load is Pending — held selections are expected-absent, not stale", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const d = deferred<Option[]>();
+      const d = deferred<FieldOption[]>();
       render(
         <ControlledHarness
           initialValue={["eu"]}
@@ -1753,7 +1753,7 @@ describe("Field multi-select async options", () => {
   }
 
   it("fires the loader exactly once on mount; Pending disables the widget while chips stay visible", async () => {
-    const d = deferred<Option[]>();
+    const d = deferred<FieldOption[]>();
     const loader = vi.fn(() => d.promise);
     render(
       <ControlledHarness
@@ -1792,10 +1792,10 @@ describe("Field multi-select async options", () => {
   });
 
   it("keeps the popup closed through Pending and Rejected, then Retry recovers it to fully usable", async () => {
-    const d1 = deferred<Option[]>();
-    const d2 = deferred<Option[]>();
+    const d1 = deferred<FieldOption[]>();
+    const d2 = deferred<FieldOption[]>();
     const loader = vi
-      .fn<() => Promise<Option[]>>()
+      .fn<() => Promise<FieldOption[]>>()
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
     render(<ControlledHarness overrides={asyncTagOverrides(loader)} />);
@@ -1840,10 +1840,10 @@ describe("Field multi-select async options", () => {
   });
 
   it("keeps held fallback chips visible through Rejected until Retry resolves them to their labels", async () => {
-    const d1 = deferred<Option[]>();
-    const d2 = deferred<Option[]>();
+    const d1 = deferred<FieldOption[]>();
+    const d2 = deferred<FieldOption[]>();
     const loader = vi
-      .fn<() => Promise<Option[]>>()
+      .fn<() => Promise<FieldOption[]>>()
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
     render(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Field, type FieldConfig, type Option } from "@/components/Field";
+import { Field, type FieldConfig, type FieldOption } from "@/components/Field";
 
 export default function FieldDemoPage() {
   const [name, setName] = useState("");
@@ -139,9 +139,9 @@ export default function FieldDemoPage() {
   // One simulated API shape behind both async demo Fields; each call gets its
   // own loader closure, and the shared flag is read only when a load settles.
   const simulateOptionLoad =
-    (delayMs: number, rejectionMessage: string, options: Option[]) =>
+    (delayMs: number, rejectionMessage: string, options: FieldOption[]) =>
     () =>
-      new Promise<Option[]>((resolve, reject) => {
+      new Promise<FieldOption[]>((resolve, reject) => {
         window.setTimeout(() => {
           if (loadRejectionRef.current) {
             reject(new Error(rejectionMessage));
