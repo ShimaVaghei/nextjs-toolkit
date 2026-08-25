@@ -301,8 +301,8 @@ describe("Field value ownership", () => {
       />,
     );
     expect(
-      screen.getByRole("combobox", { name: "Country" }),
-    ).toHaveValue("");
+      within(selectTrigger("Country")).getByText("Choose a country"),
+    ).toBeInTheDocument();
     select.unmount();
 
     const multi = render(
@@ -1052,60 +1052,97 @@ const COUNTRY_OPTIONS = [
   { label: "Japan", value: "jp" },
 ];
 
+const selectTrigger = (name: string) =>
+  screen.getByRole("button", { name }) as HTMLButtonElement;
+
+/** A plain, valid select config every select suite can layer overrides onto. */
+const SELECT_OVERRIDES: Partial<FieldConfig> = {
+  kind: "select",
+  label: "Country",
+  validator: undefined,
+  options: COUNTRY_OPTIONS,
+};
+
 describe("Field select kind", () => {
-  it("renders static Options and hands the picked Option's value to the change callback", () => {
+  it("opens the shared popup from the closed face and hands the picked Option's value to the change callback", () => {
     const received: FieldValue[] = [];
     render(
       <FieldHarness
         onChangeSpy={(value) => received.push(value)}
-        overrides={{
-          kind: "select",
-          label: "Country",
-          validator: undefined,
-          options: COUNTRY_OPTIONS,
-        }}
+        overrides={SELECT_OVERRIDES}
       />,
     );
 
-    const control = screen.getByRole("combobox", { name: "Country" });
-    expect(control.tagName).toBe("SELECT");
-    expect(
-      within(control).getByRole("option", { name: "France" }),
-    ).toHaveValue("fr");
-    expect(
-      within(control).getByRole("option", { name: "Japan" }),
-    ).toHaveValue("jp");
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
 
-    fireEvent.change(control, { target: { value: "jp" } });
+    fireEvent.click(screen.getByRole("button", { name: "Japan" }));
+
     expect(received).toEqual(["jp"]);
-    expect(control).toHaveValue("jp");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("leaves no <select> element or composite popup roles behind", () => {
+    const { container } = render(
+      <FieldHarness overrides={SELECT_OVERRIDES} />,
+    );
+
+    fireEvent.click(selectTrigger("Country"));
+
+    expect(container.querySelector("select")).toBeNull();
+    expect(
+      container.querySelector("[role=combobox], [role=listbox], [role=option]"),
+    ).toBeNull();
+    expect(container.querySelector("[aria-haspopup]")).toBeNull();
   });
 
   it("follows the Touched lifecycle with required over Empty", () => {
     render(
       <FieldHarness
         overrides={{
-          kind: "select",
-          label: "Country",
-          options: COUNTRY_OPTIONS,
+          ...SELECT_OVERRIDES,
+          validator: { required: true },
         }}
       />,
     );
 
-    const control = screen.getByRole("combobox", { name: "Country (required)" });
+    const trigger = selectTrigger("Country (required)");
 
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
+    expect(errorParagraph(trigger)).toHaveTextContent("");
+    expect(trigger).not.toHaveAttribute("aria-invalid");
 
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(
+    fireEvent.blur(trigger);
+    expect(errorParagraph(trigger)).toHaveTextContent(
       DEFAULT_REQUIRED_MESSAGE,
     );
-    expect(control).toHaveAttribute("aria-invalid", "true");
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
 
-    fireEvent.change(control, { target: { value: "fr" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "France" }));
+    expect(errorParagraph(trigger)).toHaveTextContent("");
+    expect(trigger).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("carries aria-required, aria-invalid, and describedby on the trigger", () => {
+    render(
+      <FieldHarness
+        overrides={{
+          kind: "select",
+          label: "Country",
+          hint: "Where you live.",
+          validator: { required: true },
+        }}
+      />,
+    );
+
+    const trigger = selectTrigger("Country (required)");
+    expect(trigger).toHaveAttribute("aria-required", "true");
+
+    fireEvent.blur(trigger);
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    expect(describedIds(trigger)).toHaveLength(2);
+    expect(hintParagraph(trigger)).toHaveTextContent("Where you live.");
   });
 
   it("ignores a textual rule with a dev-only warn naming field and rule", () => {
@@ -1122,13 +1159,12 @@ describe("Field select kind", () => {
         />,
       );
 
-      const control = screen.getByRole("combobox", {
-        name: "Country (required)",
-      });
-      fireEvent.change(control, { target: { value: "fr" } });
-      fireEvent.blur(control);
+      const trigger = selectTrigger("Country (required)");
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole("button", { name: "France" }));
+      fireEvent.blur(trigger);
 
-      expect(errorParagraph(control)).toHaveTextContent("");
+      expect(errorParagraph(trigger)).toHaveTextContent("");
       const [message] = warnSpy.mock.calls.find(
         (call) => typeof call[0] === "string",
       )!;
@@ -1140,7 +1176,7 @@ describe("Field select kind", () => {
   });
 });
 
-describe("Field select ghost option", () => {
+describe("Field select closed face", () => {
   const ghostOverrides: Partial<FieldConfig> = {
     kind: "select",
     label: "Country",
@@ -1152,40 +1188,26 @@ describe("Field select ghost option", () => {
   it("shows the placeholder ghost while empty and never pre-selects a real Option", () => {
     render(<FieldHarness overrides={{ ...ghostOverrides }} />);
 
-    const control = screen.getByRole("combobox", { name: "Country" });
-    const ghost = within(control).getByRole("option", {
-      name: "Choose a country",
-    });
-
-    expect(ghost).toHaveValue("");
-    expect(ghost).toBeDisabled();
-    expect(ghost).not.toHaveAttribute("hidden");
-    expect(control).toHaveValue("");
+    const trigger = selectTrigger("Country");
+    expect(within(trigger).getByText("Choose a country")).toBeInTheDocument();
+    expect(within(trigger).queryByText("France")).toBeNull();
   });
 
-  it("hides the ghost from the open dropdown once a value is chosen", () => {
+  it("replaces the ghost with the chosen Option's label once a choice is made", () => {
     render(<FieldHarness overrides={{ ...ghostOverrides }} />);
 
-    const control = screen.getByRole("combobox", { name: "Country" });
-    expect(
-      within(control).getByRole("option", { name: "Choose a country" }),
-    ).toBeInTheDocument();
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Japan" }));
 
-    fireEvent.change(control, { target: { value: "fr" } });
-
-    // Still mounted but hidden — dropped from the open dropdown's a11y tree.
-    expect(
-      within(control).queryByRole("option", { name: "Choose a country" }),
-    ).toBeNull();
-    const ghost = control.querySelector<HTMLSelectElement>('option[value=""]');
-    expect(ghost).toHaveAttribute("hidden");
-    expect(ghost).toHaveTextContent("Choose a country");
+    expect(trigger).toHaveTextContent("Japan");
+    expect(screen.queryByText("Choose a country")).toBeNull();
   });
 
   it("ignores placeholder on non-select kinds", () => {
     render(<Field config={makeConfig({ placeholder: "Not used" })} />);
 
-    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not used")).toBeNull();
     expect(
       screen.getByRole("textbox", { name: "Name (required)" }),
     ).not.toHaveAttribute("placeholder");
@@ -1200,7 +1222,7 @@ describe("Field select stale value", () => {
     options: COUNTRY_OPTIONS,
   };
 
-  it("renders an unknown current value as a disabled raw-value entry with a dev-only warn", () => {
+  it("renders an unknown current value as inert fallback text on the closed face with a dev-only warn", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       render(
@@ -1209,12 +1231,13 @@ describe("Field select stale value", () => {
         />,
       );
 
-      const control = screen.getByRole("combobox", { name: "Country" });
-      const fallback = within(control).getByRole("option", { name: "zz" });
+      const trigger = selectTrigger("Country");
+      expect(within(trigger).getByText("zz")).toBeInTheDocument();
 
-      expect(fallback).toHaveValue("zz");
-      expect(fallback).toBeDisabled();
-      expect(control).toHaveValue("zz");
+      // The fallback never becomes a choosable row.
+      fireEvent.click(trigger);
+      expect(screen.queryByRole("button", { name: "zz" })).toBeNull();
+      expect(screen.getByRole("button", { name: "France" })).toBeInTheDocument();
 
       const [message] = warnSpy.mock.calls.find(
         (call) => typeof call[0] === "string",
@@ -1231,9 +1254,11 @@ describe("Field select stale value", () => {
     try {
       render(<FieldHarness overrides={{ ...staleOverrides }} />);
 
-      const control = screen.getByRole("combobox", { name: "Country" });
+      const trigger = selectTrigger("Country");
 
-      expect(control).toHaveValue("");
+      expect(
+        within(trigger).queryByText("Choose a country"),
+      ).toBeNull();
       expect(
         warnSpy.mock.calls.filter((call) => typeof call[0] === "string"),
       ).toHaveLength(0);
@@ -1261,14 +1286,13 @@ describe("Field select keepDisabledSelection", () => {
       />,
     );
 
-    const control = screen.getByRole("combobox", { name: "Country" });
+    const trigger = selectTrigger("Country");
+    expect(within(trigger).getByText("Antarctica")).toBeInTheDocument();
+    // No fallback duplicates the display.
+    expect(within(trigger).queryByText("aq")).toBeNull();
 
-    expect(control).toHaveValue("aq");
-    const held = within(control).getByRole("option", { name: "Antarctica" });
-    expect(held).toHaveValue("aq");
-    expect(held).toBeDisabled();
-    // No raw-value fallback duplicates the display.
-    expect(within(control).queryByRole("option", { name: "aq" })).toBeNull();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("button", { name: "Antarctica" })).toBeDisabled();
   });
 
   it("demotes a held disabled Option to the raw-value fallback when keepDisabledSelection is false", () => {
@@ -1282,18 +1306,137 @@ describe("Field select keepDisabledSelection", () => {
       />,
     );
 
-    const control = screen.getByRole("combobox", { name: "Country" });
+    const trigger = selectTrigger("Country");
+    expect(within(trigger).getByText("aq")).toBeInTheDocument();
+    expect(within(trigger).queryByText("Antarctica")).toBeNull();
 
-    expect(control).toHaveValue("aq");
-    expect(
-      within(control).queryByRole("option", { name: "Antarctica" }),
-    ).toBeNull();
-    const fallback = within(control).getByRole("option", { name: "aq" });
-    expect(fallback).toBeDisabled();
+    fireEvent.click(trigger);
+    const antarctica = screen.getByRole("button", { name: "Antarctica" });
+    expect(antarctica).toBeDisabled();
     // Other choices remain pickable so the user can deselect.
-    expect(
-      within(control).getByRole("option", { name: "France" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "France" })).toBeEnabled();
+  });
+});
+
+describe("Field select popup", () => {
+  it("moves focus to the search box on open, filters rows client-side, and resets the query on close", () => {
+    render(<FieldHarness overrides={SELECT_OVERRIDES} />);
+
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search).toHaveFocus();
+
+    fireEvent.change(search, { target: { value: "ja" } });
+    expect(screen.getByRole("button", { name: "Japan" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "France" })).toBeNull();
+
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    expect(search).toHaveValue("");
+    expect(screen.getByRole("button", { name: "France" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Japan" })).toBeInTheDocument();
+  });
+
+  it("closes on pointer-down outside without moving focus", () => {
+    render(
+      <>
+        <button type="button">Elsewhere</button>
+        <FieldHarness overrides={SELECT_OVERRIDES} />
+      </>,
+    );
+
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search).toHaveFocus();
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // Pointer dismissal never yanks focus anywhere.
+    expect(search).toHaveFocus();
+  });
+
+  it("closes when focus tabs out of the widget and lets focus move naturally", () => {
+    render(
+      <>
+        <FieldHarness overrides={SELECT_OVERRIDES} />
+        <input aria-label="Outside" />
+      </>,
+    );
+
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.blur(screen.getByRole("textbox", { name: "Search options" }), {
+      relatedTarget: screen.getByLabelText("Outside"),
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("picks from anywhere in a row and closes, returning focus to the trigger", () => {
+    const received: FieldValue[] = [];
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={SELECT_OVERRIDES}
+      />,
+    );
+
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+
+    const row = screen.getByRole("button", { name: "France" });
+    // Click the row's text node, not its edge — the whole row is the target.
+    fireEvent.click(within(row).getByText("France"));
+
+    expect(received).toEqual(["fr"]);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("renders disabled Options as inert rows that cannot be picked", () => {
+    const received: FieldValue[] = [];
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{
+          ...SELECT_OVERRIDES,
+          options: [
+            ...COUNTRY_OPTIONS,
+            { label: "Antarctica", value: "aq", disabled: true },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(selectTrigger("Country"));
+    const antarctica = screen.getByRole("button", { name: "Antarctica" });
+    expect(antarctica).toBeDisabled();
+
+    fireEvent.click(antarctica);
+    expect(received).toEqual([]);
+    expect(selectTrigger("Country")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("shares the multi-select's popup structure: search outside a legend-named group of rows", () => {
+    render(<FieldHarness overrides={SELECT_OVERRIDES} />);
+
+    fireEvent.click(selectTrigger("Country"));
+
+    const rowsGroup = screen.getByRole("group", { name: "Options" });
+    expect(rowsGroup.tagName).toBe("FIELDSET");
+    expect(rowsGroup.querySelector("legend")).toHaveTextContent("Options");
+    expect(rowsGroup.querySelector("button")).not.toBeNull();
+
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search.closest("fieldset")).toBeNull();
   });
 });
 
@@ -1554,30 +1697,34 @@ describe("Field async options", () => {
     };
   }
 
-  it("fires the loader exactly once on mount, then renders resolved Options and enables the control", async () => {
+  it("fires the loader exactly once on mount, then renders resolved Options and enables choosing", async () => {
+    const received: FieldValue[] = [];
     const d = deferred<FieldOption[]>();
     const loader = vi.fn(() => d.promise);
-    render(<FieldHarness overrides={asyncOverrides(loader)} />);
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={asyncOverrides(loader)}
+      />,
+    );
 
     expect(loader).toHaveBeenCalledTimes(1);
 
-    const control = screen.getByRole("combobox", { name: "Region" });
-    expect(control).toBeDisabled();
+    const trigger = selectTrigger("Region");
+    expect(trigger).toBeDisabled();
 
     await act(async () => {
       d.resolve(REGION_OPTIONS);
     });
 
-    expect(
-      within(control).getByRole("option", { name: "Africa" }),
-    ).toHaveValue("af");
-    expect(
-      within(control).getByRole("option", { name: "Europe" }),
-    ).toHaveValue("eu");
-    expect(control).not.toHaveAttribute("disabled");
+    expect(trigger).not.toBeDisabled();
 
-    fireEvent.change(control, { target: { value: "eu" } });
-    expect(control).toHaveValue("eu");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("button", { name: "Africa" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Europe" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Europe" }));
+    expect(received).toEqual(["eu"]);
     // Interacting afterwards must not re-fire the loader.
     expect(loader).toHaveBeenCalledTimes(1);
   });
@@ -1593,22 +1740,22 @@ describe("Field async options", () => {
       />,
     );
 
-    const control = screen.getByRole("combobox", { name: "Region" });
-    const hint = hintParagraph(control) as HTMLElement;
+    const trigger = selectTrigger("Region");
+    const hint = hintParagraph(trigger) as HTMLElement;
 
-    expect(control).toBeDisabled();
+    expect(trigger).toBeDisabled();
     expect(hint).toHaveTextContent("Loading options…");
     expect(within(hint).getByText("Loading options…")).toBeInTheDocument();
     expect(hint.querySelector(".animate-spin")).not.toBeNull();
     // The held selection stays visible even though its Option has not arrived.
-    expect(control).toHaveValue("eu");
+    expect(within(trigger).getByText("eu")).toBeInTheDocument();
 
     await act(async () => {
       d.resolve(REGION_OPTIONS);
     });
 
-    expect(control).not.toBeDisabled();
-    expect(control).toHaveValue("eu");
+    expect(trigger).not.toBeDisabled();
+    expect(within(trigger).getByText("Europe")).toBeInTheDocument();
     expect(hint).toHaveTextContent("");
   });
 
@@ -1625,29 +1772,69 @@ describe("Field async options", () => {
       d1.reject(new Error("boom"));
     });
 
-    const control = screen.getByRole("combobox", { name: "Region" });
-    const hint = hintParagraph(control) as HTMLElement;
+    const trigger = selectTrigger("Region");
+    const hint = hintParagraph(trigger) as HTMLElement;
 
     expect(hint).toHaveTextContent("Couldn't load options.");
-    expect(control).toBeDisabled();
+    expect(trigger).toBeDisabled();
     expect(loader).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(loader).toHaveBeenCalledTimes(2);
     expect(hint).toHaveTextContent("Loading options…");
-    expect(control).toBeDisabled();
+    expect(trigger).toBeDisabled();
 
     await act(async () => {
       d2.resolve(REGION_OPTIONS);
     });
 
-    expect(control).not.toBeDisabled();
+    expect(trigger).not.toBeDisabled();
+    fireEvent.click(trigger);
     expect(
-      within(control).getByRole("option", { name: "Europe" }),
+      screen.getByRole("button", { name: "Europe" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(hint).toHaveTextContent("");
+  });
+
+  it("keeps the popup closed through Pending and Rejected", async () => {
+    const d1 = deferred<FieldOption[]>();
+    const d2 = deferred<FieldOption[]>();
+    const loader = vi
+      .fn<() => Promise<FieldOption[]>>()
+      .mockReturnValueOnce(d1.promise)
+      .mockReturnValueOnce(d2.promise);
+    render(<FieldHarness overrides={asyncOverrides(loader)} />);
+
+    const trigger = selectTrigger("Region");
+
+    // Pending: the popup refuses to open.
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Africa" })).toBeNull();
+
+    await act(async () => {
+      d1.reject(new Error("boom"));
+    });
+
+    // Rejected: still refused, with Retry offered beside the failure status.
+    expect(screen.getByText("Couldn't load options.")).toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Africa" })).toBeNull();
+
+    // Retry re-fires the loader; once resolved the popup opens normally.
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(loader).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      d2.resolve(REGION_OPTIONS);
+    });
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Africa" }));
+    expect(trigger).toHaveTextContent("Africa");
   });
 
   it("styles Rejected distinctly from validation Error — no aria-invalid and the error slot stays untouched", async () => {
@@ -1665,14 +1852,14 @@ describe("Field async options", () => {
         d.reject(new Error("boom"));
       });
 
-      const control = screen.getByRole("combobox", { name: "Region" });
-      const error = errorParagraph(control) as HTMLElement;
+      const trigger = selectTrigger("Region");
+      const error = errorParagraph(trigger) as HTMLElement;
 
-      expect(control).not.toHaveAttribute("aria-invalid");
+      expect(trigger).not.toHaveAttribute("aria-invalid");
       expect(error).toHaveTextContent("");
 
       // The rejection lives in the hint slot, not the Error paragraph.
-      expect(hintParagraph(control)).toHaveTextContent(
+      expect(hintParagraph(trigger)).toHaveTextContent(
         "Couldn't load options.",
       );
       expect(error).not.toHaveTextContent("Couldn't load options.");
@@ -1698,7 +1885,7 @@ describe("Field async options", () => {
         />,
       );
 
-      const control = screen.getByRole("combobox", { name: "Region" });
+      const trigger = selectTrigger("Region");
       expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
         .toHaveLength(0);
 
@@ -1706,7 +1893,7 @@ describe("Field async options", () => {
         d.resolve(REGION_OPTIONS);
       });
 
-      expect(control).toHaveValue("eu");
+      expect(within(trigger).getByText("Europe")).toBeInTheDocument();
       expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
         .toHaveLength(0);
     } finally {
@@ -1889,6 +2076,49 @@ describe("Field multi-select panel", () => {
     const archived = screen.getByRole("checkbox", { name: "Archived" });
     expect(archived).toBeDisabled();
     expect(archived).not.toBeChecked();
+  });
+
+  it("toggles membership when clicking anywhere in a row — the popup stays open", () => {
+    const received: FieldValue[] = [];
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    fireEvent.click(openButton);
+
+    // Click the row's text node, not the checkbox — the whole row toggles.
+    fireEvent.click(screen.getByText("Research"));
+
+    expect(received).toEqual([["research"]]);
+    expect(openButton).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("checkbox", { name: "Research" }),
+    ).toBeChecked();
+  });
+
+  it("leaves disabled rows inert even when their label text is clicked directly", () => {
+    const received: FieldValue[] = [];
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{
+          ...tagOverrides(),
+          options: [...TAG_OPTIONS, { label: "Archived", value: "archived", disabled: true }],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    fireEvent.click(screen.getByText("Archived"));
+
+    expect(received).toEqual([]);
+    expect(
+      screen.getByRole("checkbox", { name: "Archived" }),
+    ).not.toBeChecked();
   });
 });
 

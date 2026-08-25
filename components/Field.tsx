@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import type { ChangeEvent, FocusEvent, KeyboardEvent, Ref } from "react";
+import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
 
 export type FieldKind =
   | "input"
@@ -54,7 +54,7 @@ export type FieldConfig = {
   validator?: FieldValidator;
   /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
   options?: FieldOption[] | (() => Promise<FieldOption[]>);
-  /** Select-only: labels the closed control while empty via the ghost option. Multi-select ignores it. */
+  /** Select-only: labels the closed control while empty. Multi-select ignores it. */
   placeholder?: string;
   /**
    * Whether a held currently-selected-but-disabled Option stays legally
@@ -179,6 +179,26 @@ const ROW_LABEL_CLASS =
 
 const ROW_LABEL_DISABLED_CLASS = " cursor-not-allowed opacity-60";
 
+/** Closed-face trigger of the select disclosure; the whole face opens the shared Options popup. */
+const SELECT_TRIGGER_CLASS =
+  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 " +
+  "text-left text-sm text-neutral-900 shadow-sm " +
+  "focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+  "disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 " +
+  "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 " +
+  "dark:focus:border-neutral-400 dark:focus:ring-neutral-400/30 " +
+  "dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500";
+
+const SELECT_FACE_GHOST_CLASS = "text-neutral-400 dark:text-neutral-500";
+
+/** One pickable select row inside the Options popup; disabled Options render inert. */
+const ROW_BUTTON_CLASS =
+  "flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-left text-sm font-medium text-neutral-900 " +
+  "hover:bg-neutral-100 focus:bg-neutral-100 focus:outline-none " +
+  "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent " +
+  "dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 " +
+  "dark:disabled:hover:bg-transparent";
+
 type Constraint<T> = T | { value: T; message: string };
 
 function isConstraintPair<T>(
@@ -224,7 +244,7 @@ function coerceNumberInput(raw: string): FieldValue {
   return raw.trim() === "" ? "" : Number(raw);
 }
 
-/** The string a native <select> matches against its options; Empty renders as "". */
+/** The string a select matches against its Options; Empty renders as "". */
 function selectRawValue(value: FieldValue | undefined): string {
   if (value === null || value === undefined) {
     return "";
@@ -235,12 +255,10 @@ function selectRawValue(value: FieldValue | undefined): string {
   return String(value);
 }
 
-type SelectEntry =
+/** One rendered Chip: a matched Option or a fallback for an unknown selection. */
+type ChipEntry =
   | { kind: "option"; option: FieldOption }
   | { kind: "fallback"; raw: string };
-
-/** One rendered Chip: a matched Option or a raw-value fallback for an unknown selection. */
-type ChipEntry = SelectEntry;
 
 function chipValue(entry: ChipEntry): string {
   return entry.kind === "option" ? entry.option.value : entry.raw;
@@ -288,32 +306,35 @@ function resolveChips(
 }
 
 /**
- * Resolves the rendered dropdown entries for a select: real Options as-is,
- * a held disabled Option swapped for the raw-value fallback when demoted by
- * keepDisabledSelection, and one appended fallback for a stale/unknown value.
- * While Options are not yet authoritative (a load is Pending or Rejected) a
- * held selection is expected-absent rather than stale: it still renders as a
- * fallback entry so it stays visible, but no staleness is reported.
+ * The closed-face entry a select shows for its current value: the ghost while
+ * empty, the matched Option's label (a held disabled Option stays legal under
+ * keepDisabledSelection), or the Fallback when demoted or unmatched. While
+ * Options are not yet authoritative (a load is Pending or Rejected) a held
+ * selection is expected-absent rather than stale: it still renders as a
+ * fallback face so it stays visible, but no staleness is reported.
  */
-function resolveSelectEntries(
+type SelectFace =
+  | { kind: "ghost" }
+  | { kind: "option"; option: FieldOption }
+  | { kind: "fallback"; raw: string };
+
+function resolveSelectFace(
   options: FieldOption[],
   raw: string,
   keepDisabledSelection: boolean,
   optionsAuthoritative: boolean,
-): { entries: SelectEntry[]; isStale: boolean } {
-  const isStale =
-    optionsAuthoritative &&
-    raw !== "" &&
-    !options.some((option) => option.value === raw);
-  const entries: SelectEntry[] = options.map((option) =>
-    option.value === raw && option.disabled && !keepDisabledSelection
-      ? { kind: "fallback", raw }
-      : { kind: "option", option },
-  );
-  if (isStale || (!optionsAuthoritative && raw !== "")) {
-    entries.push({ kind: "fallback", raw });
+): { face: SelectFace; isStale: boolean } {
+  if (raw === "") {
+    return { face: { kind: "ghost" }, isStale: false };
   }
-  return { entries, isStale };
+  const isStale =
+    optionsAuthoritative && !options.some((option) => option.value === raw);
+  const matched = options.find((option) => option.value === raw);
+  const face: SelectFace =
+    matched && (!matched.disabled || keepDisabledSelection)
+      ? { kind: "option", option: matched }
+      : { kind: "fallback", raw };
+  return { face, isStale };
 }
 
 /** Lifecycle of an async Option load; only meaningful when `options` is a loader. */
@@ -516,6 +537,52 @@ type ControlAttributes = {
   "aria-describedby"?: string;
 };
 
+/**
+ * The Options popup shared by both choice kinds: a plain disclosure panel
+ * with a search box filtering rows above them. Opening moves focus to the
+ * search box; every close path (Escape, outside click, focus loss) resets
+ * the query via the parent's closePanel. The rows themselves differ per kind.
+ */
+function OptionsPopup({
+  panelId,
+  searchId,
+  open,
+  search,
+  onSearchChange,
+  searchInputRef,
+  children,
+}: {
+  panelId: string;
+  searchId: string;
+  open: boolean;
+  search: string;
+  onSearchChange: (next: string) => void;
+  searchInputRef: RefObject<HTMLInputElement | null>;
+  children: ReactNode;
+}) {
+  return (
+    <div id={panelId} hidden={!open} className={PANEL_CLASS}>
+      <label htmlFor={searchId} className="sr-only">
+        Search options
+      </label>
+      <input
+        ref={searchInputRef}
+        id={searchId}
+        type="text"
+        value={search}
+        onChange={(event) => onSearchChange(event.target.value)}
+        className={`${CONTROL_CLASS} mt-0`}
+      />
+      <fieldset className="min-w-0 border-0 p-0">
+        <legend className="sr-only">Options</legend>
+        <div className="max-h-60 space-y-1 overflow-y-auto p-0.5">
+          {children}
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
 export function Field({
   config,
   ref,
@@ -577,7 +644,9 @@ export function Field({
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const widgetRef = useRef<HTMLDivElement>(null);
-  const openButtonRef = useRef<HTMLButtonElement>(null);
+  // Whichever control opens the popup: the multi-select's chevron button or
+  // the select's closed face. Escape and focus hops return here.
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const chipRemoveRefs = useRef(new Map<string, HTMLButtonElement>());
 
@@ -684,13 +753,13 @@ export function Field({
     }
   }, [validator, kind, inputType, label]);
 
-  // Select display resolution: raw value matched against Options, with the
-  // stale flag driving the dev-only warn and the synthetic fallback entry.
-  // Under a loader, Options only become authoritative once a load has resolved.
+  // Select closed-face resolution: raw value matched against Options, with
+  // the stale flag driving the dev-only warn. Under a loader, Options only
+  // become authoritative once a load has resolved.
   const optionsAuthoritative = !optionsIsLoader || loadStatus === "resolved";
   const rawValue = kind === "select" ? selectRawValue(value) : "";
   const selectOptions = optionsIsLoader ? loadedOptions : (options as FieldOption[]);
-  const { entries: selectEntries, isStale } = resolveSelectEntries(
+  const { face, isStale } = resolveSelectFace(
     selectOptions,
     rawValue,
     keepDisabledSelection,
@@ -738,19 +807,15 @@ export function Field({
   );
 
   const handleChange = (
-    event: ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const next =
       kind === "checkbox"
         ? // Only a checkbox input renders this branch, so the target carries checked.
           (event.target as HTMLInputElement).checked
-        : kind === "select"
-          ? event.target.value
-          : isNumberInput(kind, inputType)
-            ? coerceNumberInput(event.target.value)
-            : event.target.value;
+        : isNumberInput(kind, inputType)
+          ? coerceNumberInput(event.target.value)
+          : event.target.value;
     commitValue(next);
   };
 
@@ -790,7 +855,7 @@ export function Field({
       optionsAuthoritative,
     );
     if (remaining.length === 0) {
-      openButtonRef.current?.focus();
+      triggerRef.current?.focus();
       return;
     }
     const hopEntry = remaining[Math.min(index, remaining.length - 1)];
@@ -804,12 +869,22 @@ export function Field({
     setSearch("");
   }, []);
 
-  // Escape anywhere in the widget closes the panel and returns focus to the
-  // open button.
+  /** Single-choice pick: commit, close the popup, hand focus back to the trigger. */
+  const pickOption = (option: FieldOption) => {
+    if (option.disabled) {
+      return;
+    }
+    commitValue(option.value);
+    closePanel();
+    triggerRef.current?.focus();
+  };
+
+  // Escape anywhere in the widget closes the popup and returns focus to
+  // whichever trigger opened it.
   const handleWidgetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (open && event.key === "Escape") {
       closePanel();
-      openButtonRef.current?.focus();
+      triggerRef.current?.focus();
     }
   };
 
@@ -971,7 +1046,7 @@ export function Field({
               </div>
               <button
                 type="button"
-                ref={openButtonRef}
+                ref={triggerRef}
                 onClick={toggleOpen}
                 disabled={multiDisabled || undefined}
                 aria-expanded={open}
@@ -997,44 +1072,108 @@ export function Field({
             </div>
 
             {/* Plain disclosure popup: no dialog/listbox role, no focus trap. */}
-            <div id={panelId} hidden={!open} className={PANEL_CLASS}>
-              <label htmlFor={searchId} className="sr-only">
-                Search options
-              </label>
-              <input
-                ref={searchRef}
-                id={searchId}
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className={`${CONTROL_CLASS} mt-0`}
-              />
-              <fieldset className="min-w-0 border-0 p-0">
-                <legend className="sr-only">Options</legend>
-                <div className="max-h-60 space-y-1 overflow-y-auto p-0.5">
-                  {panelRows.map((option) => (
-                    <label
-                      key={option.value}
-                      className={
-                        ROW_LABEL_CLASS +
-                        (option.disabled ? ROW_LABEL_DISABLED_CLASS : "")
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        className={CHECKBOX_CLASS}
-                        checked={selectedValues.includes(option.value)}
-                        disabled={
-                          option.disabled || multiDisabled || undefined
-                        }
-                        onChange={() => toggleOption(option.value)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            </div>
+            <OptionsPopup
+              panelId={panelId}
+              searchId={searchId}
+              open={open}
+              search={search}
+              onSearchChange={setSearch}
+              searchInputRef={searchRef}
+            >
+              {panelRows.map((option) => (
+                <label
+                  key={option.value}
+                  className={
+                    ROW_LABEL_CLASS +
+                    (option.disabled ? ROW_LABEL_DISABLED_CLASS : "")
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    className={CHECKBOX_CLASS}
+                    checked={selectedValues.includes(option.value)}
+                    disabled={
+                      option.disabled || multiDisabled || undefined
+                    }
+                    onChange={() => toggleOption(option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </OptionsPopup>
+          </div>
+        </>
+      ) : kind === "select" ? (
+        <>
+          <label htmlFor={controlId} className={LABEL_CLASS}>
+            {label}
+            {requiredMarker}
+          </label>
+
+          <div
+            ref={widgetRef}
+            className="relative mt-1.5"
+            onBlur={handleWidgetBlur}
+            onKeyDown={handleWidgetKeyDown}
+          >
+            {/* Closed face: the ghost while empty, otherwise the selected Option's label. */}
+            <button
+              {...controlProps}
+              type="button"
+              ref={triggerRef}
+              onClick={toggleOpen}
+              aria-expanded={open}
+              aria-controls={panelId}
+              className={SELECT_TRIGGER_CLASS}
+            >
+              <span
+                className={
+                  face.kind === "ghost" ? SELECT_FACE_GHOST_CLASS : undefined
+                }
+              >
+                {face.kind === "ghost"
+                  ? placeholder
+                  : face.kind === "option"
+                    ? face.option.label
+                    : face.raw}
+              </span>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
+              >
+                <path
+                  d="M4 6l4 4 4-4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {/* The same plain-disclosure popup the multi-select opens. */}
+            <OptionsPopup
+              panelId={panelId}
+              searchId={searchId}
+              open={open}
+              search={search}
+              onSearchChange={setSearch}
+              searchInputRef={searchRef}
+            >
+              {panelRows.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => pickOption(option)}
+                  disabled={option.disabled || undefined}
+                  className={ROW_BUTTON_CLASS}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </OptionsPopup>
           </div>
         </>
       ) : kind === "checkbox" ? (
@@ -1068,34 +1207,6 @@ export function Field({
               onBlur={handleBlur}
               className={CONTROL_CLASS}
             />
-          ) : kind === "select" ? (
-            <select
-              {...controlProps}
-              value={rawValue}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              className={CONTROL_CLASS}
-            >
-              {/* Ghost: labels the closed control while empty, drops out of the open dropdown after a choice. */}
-              <option value="" disabled hidden={rawValue !== ""}>
-                {placeholder}
-              </option>
-              {selectEntries.map((entry, index) =>
-                entry.kind === "option" ? (
-                  <option
-                    key={`${entry.option.value}-${index}`}
-                    value={entry.option.value}
-                    disabled={entry.option.disabled || undefined}
-                  >
-                    {entry.option.label}
-                  </option>
-                ) : (
-                  <option key={`fallback-${index}`} value={entry.raw} disabled>
-                    {entry.raw}
-                  </option>
-                ),
-              )}
-            </select>
           ) : (
             <textarea
               {...controlProps}

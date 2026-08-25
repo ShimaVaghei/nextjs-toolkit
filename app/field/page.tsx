@@ -65,7 +65,7 @@ const consentConfig: FieldConfig = {
 const countryConfig: FieldConfig = {
   kind: "select",
   label: "Country",
-  hint: "Static options; the placeholder drops out of the dropdown once a value is chosen.",
+  hint: "Static options behind the shared popup; the placeholder labels the closed control until you choose.",
   validator: { required: { value: true, message: "Choose a country." } },
   placeholder: "Choose a country",
   options: [
@@ -271,11 +271,13 @@ export default function FieldDemoPage() {
             Select
           </h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Static options behind the usual config. The placeholder is a ghost
-            option: it labels the closed control while empty and drops out of
-            the dropdown once you choose. Antarctica is disabled yet stays
-            legally selected if your state holds it; a value no option matches
-            renders as a raw-value fallback instead.
+            The closed face is a disclosure trigger: it shows the placeholder
+            while empty, then the chosen Option&rsquo;s label. Clicking it
+            opens the same searchable popup the multi-select uses, where
+            clicking anywhere in a row picks that Option and closes again.
+            Antarctica is disabled — inert everywhere — yet stays legally
+            selected if your state holds it; a value no option matches
+            renders as an inert fallback instead.
           </p>
         </div>
         <Field config={countryConfig} />
@@ -317,13 +319,14 @@ export default function FieldDemoPage() {
           </label>
         </div>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Both choice kinds load their options from a simulated API. The
-          loader fires once on mount: each control stays disabled with a muted
-          &ldquo;Loading options…&rdquo; status until its options arrive, and
-          any held selection stays visible the whole time — for the
-          multi-select as chips, with the popup refusing to open until
-          resolved. Turn on the simulation, then hit Retry to see the
-          rejection; turn it off and hit Retry to recover.
+          Both choice kinds load their options from a simulated API and open
+          the same searchable popup. The loader fires once on mount: each
+          control stays disabled with a muted &ldquo;Loading
+          options…&rdquo; status until its options arrive, the popup refuses
+          to open until then, and any held selection stays visible the whole
+          time — for the multi-select as chips. Turn on the simulation, then
+          hit Retry to see the rejection; turn it off and hit Retry to
+          recover.
         </p>
         <Field config={regionConfig} />
         <Field config={teamsConfig} />
