@@ -93,7 +93,7 @@ _Avoid_: refreshProp, onRefresh
 ## Form terms
 
 **Field**:
-A reusable client-side component that renders exactly one labeled form control, chosen from the five Field kinds, driven by a `FieldConfig`. Controlled: the value lives in the parent and changes flow back through a single change callback; validation feedback is managed inside the Field.
+A reusable client-side component that renders exactly one labeled form control, chosen from the five Field kinds, driven by a `FieldConfig`. The Field owns its value internally: the optional Initial value seeds it once at mount, every change is handled inside, and the parent observes changes via `onValueChange` and controls the value imperatively through `FieldHandle`. Validation feedback is managed inside the Field.
 _Avoid_: FormControl, FormField, Input
 
 **Field kind**:
@@ -101,12 +101,30 @@ The control variant a Field renders: `input`, `textarea`, `select`, `multi-selec
 _Avoid_: type, control type, variant
 
 **Input type**:
-The HTML-flavored subtype of an input Field: `text`, `email`, `password`, or `number`. Only meaningful when the Field kind is `input`; declared as `inputType`.
+The HTML-flavored subtype of an input Field: `text`, `password`, or `number`. Only meaningful when the Field kind is `input`; declared as `inputType`. Email checking is a Validator rule, not an input type.
 _Avoid_: field type, html type
 
 **Option**:
-One choice offered by a select or multi-select Field: a display `label`, the `value` handed to the parent when chosen, and an optional `disabled` flag making it unselectable.
+One choice offered by a select or multi-select Field: a display `label`, an unbounded `value` handed to the parent when chosen, and an optional `disabled` flag making it unselectable. Users always see labels; values are Matched against, never rendered directly.
 _Avoid_: choice, item, entry
+
+## Choice-kind terms
+
+**Select**:
+A single-choice Field kind rendered as a custom disclosure: a closed face showing either the placeholder or the selected Option's label, opening the shared searchable Options popup. Clicking a row selects its Option and closes the popup. Deliberately not a native `<select>`, so Option values can be any type without stringification.
+_Avoid_: dropdown control, native select, combobox
+
+**Options popup**:
+The disclosure panel shared by select and multi-select: a search box filtering rows above a clickable row list. Opening moves focus to the search box; Escape, outside click, or focus leaving the widget closes it and resets the query. In select, a row click picks and closes; in multi-select, a row click toggles membership and the popup stays open.
+_Avoid_: dropdown list, options menu, picker
+
+**Matching**:
+The equality rule tying a value to an Option: reference identity (`Object.is`) by default, overridable per Field via `matchValue`. Matching drives the closed-face label, popup checkbox states, chip membership, and staleness detection.
+_Avoid_: comparison, deep equal, lookup
+
+**Fallback**:
+The rendering of a value that Matches no Option once Options are authoritative: string/number values render their string form, anything else renders a generic "(unknown option)" marker. A Fallback is visible but inert — never choosable — and always accompanies a dev-only console warning.
+_Avoid_: raw-value fallback, stale entry
 
 **Chip**:
 The removable pill a multi-select Field shows for each selected Option, rendered inside the control and scrolling horizontally when they overflow — the control never grows. Each Chip removes its Option from the selection.
@@ -121,12 +139,16 @@ The state of a select or multi-select Field whose async Option load failed. Choo
 _Avoid_: error state, failure, crashed
 
 **FieldConfig**:
-The configuration object passed to `Field`. Declares the Field kind (and Input type for inputs), the controlled `value` and its change callback, optional Options for choice kinds (a static array or an async load), an optional Validator, a `keepDisabledSelection` flag, and presentation props (label, placeholder — select-only — hint, disabled, className).
+The configuration object passed to `Field`, generic over the Field kind: an optional `kind` (defaulting to `input`) narrows `initialValue`, `onValueChange`, and Options to that kind's value shape. Declares the Input type for inputs, the optional Initial value, an optional `onValueChange` observer, optional Options for choice kinds (a static array or an async load), an optional FieldValidator, a `matchValue` override for Matching, a `keepDisabledSelection` flag, and presentation props (label, placeholder — select-only — hint, disabled, className).
 _Avoid_: FieldProps
 
-**Validator**:
-The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/`max`, textual `minLength`/`maxLength`/`regex`. Each rule is either a bare constraint (built-in default message) or a `{ value, message }` pair (custom text). Rules apply by kind: `required` covers Empty values on every kind; `min`/`max` apply only to number inputs; `minLength`/`maxLength`/`regex` apply only to input and textarea Fields. A rule configured on a kind it does not fit is ignored, with a dev-only console warning naming the Field.
-_Avoid_: rules, schema, validation config
+**Initial value**:
+The optional mount-time seed in a `FieldConfig`, read exactly once and ignored afterwards — undefined allowed, seeding nothing. A changed prop after mount draws a dev-only warning; live control flows only through user edits, `setValue`, and `onValueChange` observation.
+_Avoid_: value, defaultValue, controlled value
+
+**FieldValidator**:
+The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/`max`, textual `minLength`/`maxLength`/`regex`, and input-only `email`. Each rule is either a bare constraint (built-in default message) or a `{ value, message }` pair (custom text). Rules apply by kind: `required` covers Empty values on every kind; `min`/`max` apply only to number inputs; `minLength`/`maxLength` apply to textarea and non-number inputs; `email` applies to non-number inputs only; `regex` applies to textarea and non-number inputs. A rule configured on a kind it does not fit is ignored, with a dev-only console warning naming the Field.
+_Avoid_: rules, schema, validation config, Validator
 
 **Empty**:
 The value state `required` rejects, per Field kind: `""`, `null`, or `undefined` everywhere; plus `[]` for multi-select and `false` for checkbox (required = must-tick). Textual kinds test trimmed emptiness, so whitespace-only counts as Empty; the stored value itself is never altered.
@@ -141,5 +163,5 @@ The single validation message currently shown beneath the control, produced by t
 _Avoid_: errorMessage state, failure
 
 **FieldHandle**:
-The imperative handle a parent obtains from `Field` via the `ref` prop, exposing a single `validate()` that force-runs every rule regardless of Touched state, shows any resulting Error, and returns whether the value is valid. Used at submit time.
+The imperative handle a parent obtains from `Field` via the `ref` prop. `validate()` force-runs every rule regardless of Touched state, shows any resulting Error, and returns whether the value is valid — used at submit time. `getValue()` reads the current internal value; `setValue()` installs one through the same pipeline as a user edit (observer fired, Error re-evaluated when Touched).
 _Avoid_: ref methods, validation API
