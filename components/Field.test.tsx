@@ -8,45 +8,61 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { Field, type FieldConfig, type FieldHandle, type FieldValue, type FieldOption } from "./Field";
+import {
+  Field,
+  type FieldConfig,
+  type FieldHandle,
+  type FieldKind,
+  type FieldOption,
+  type FieldValue,
+  type FieldValueOf,
+} from "./Field";
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
 
-type FieldOverrides = Partial<FieldConfig>;
+type FieldOverrides<K extends FieldKind = "input", T = unknown> = Partial<
+  FieldConfig<K, T>
+>;
 
-function makeConfig(overrides: FieldOverrides = {}): FieldConfig {
+function makeConfig<K extends FieldKind = "input", T = unknown>(
+  overrides: FieldOverrides<K, T> = {},
+): FieldConfig<K, T> {
   return {
     kind: "input",
     label: "Name",
     validator: { required: true },
     ...overrides,
-  };
+  } as FieldConfig<K, T>;
 }
 
 /**
  * Renders an uncontrolled Field, exactly like a parent with no value wiring
  * would. An optional spy observes the emitted change stream; Initial values
- * and any other config ride through `overrides`.
+ * and any other config ride through `overrides`. The kind and Option value
+ * type are inferred from the overrides, so choice-kind suites receive their
+ * narrowed values.
  */
-function FieldHarness({
+function FieldHarness<K extends FieldKind = "input", T = unknown>({
   overrides,
   onChangeSpy,
   handleRef,
 }: {
-  overrides?: FieldOverrides;
-  onChangeSpy?: (value: FieldValue) => void;
-  handleRef?: React.Ref<FieldHandle>;
+  overrides?: FieldOverrides<K, T>;
+  onChangeSpy?: (value: FieldValueOf<K, T>) => void;
+  handleRef?: React.Ref<FieldHandle<FieldValueOf<K, T>>>;
 }) {
   return (
     <Field
       ref={handleRef}
-      config={{
-        kind: "input",
-        label: "Name",
-        validator: { required: true },
-        onValueChange: onChangeSpy,
-        ...overrides,
-      }}
+      config={
+        {
+          kind: "input",
+          label: "Name",
+          validator: { required: true },
+          onValueChange: onChangeSpy,
+          ...overrides,
+        } as FieldConfig<K, T>
+      }
     />
   );
 }
@@ -179,7 +195,12 @@ describe("Field rendering", () => {
 });
 
 /** Re-renders one Field with a fresh Initial value so prop-change behavior is observable. */
-function SeededRerenderer({ initialValue }: { initialValue?: FieldValue }) {
+function SeededRerenderer({
+  initialValue,
+}: {
+  /** Input-kind seeds only: the rerender tests exercise strings and numbers. */
+  initialValue?: string | number;
+}) {
   return (
     <Field
       config={makeConfig({
@@ -1025,7 +1046,7 @@ describe("Field checkbox kind", () => {
   });
 
   it("exposes validate() through the handle, revealing the consent Error while pristine", () => {
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<boolean>>();
     render(
       <FieldHarness
         handleRef={handle}
@@ -1056,7 +1077,7 @@ const selectTrigger = (name: string) =>
   screen.getByRole("button", { name }) as HTMLButtonElement;
 
 /** A plain, valid select config every select suite can layer overrides onto. */
-const SELECT_OVERRIDES: Partial<FieldConfig> = {
+const SELECT_OVERRIDES: FieldOverrides<"select", string> = {
   kind: "select",
   label: "Country",
   validator: undefined,
@@ -1177,7 +1198,7 @@ describe("Field select kind", () => {
 });
 
 describe("Field select closed face", () => {
-  const ghostOverrides: Partial<FieldConfig> = {
+  const ghostOverrides: FieldOverrides<"select", string> = {
     kind: "select",
     label: "Country",
     validator: undefined,
@@ -1215,7 +1236,7 @@ describe("Field select closed face", () => {
 });
 
 describe("Field select stale value", () => {
-  const staleOverrides: Partial<FieldConfig> = {
+  const staleOverrides: FieldOverrides<"select", string> = {
     kind: "select",
     label: "Country",
     validator: undefined,
@@ -1269,7 +1290,7 @@ describe("Field select stale value", () => {
 });
 
 describe("Field select keepDisabledSelection", () => {
-  const heldOverrides: Partial<FieldConfig> = {
+  const heldOverrides: FieldOverrides<"select", string> = {
     kind: "select",
     label: "Country",
     validator: undefined,
@@ -1295,7 +1316,7 @@ describe("Field select keepDisabledSelection", () => {
     expect(screen.getByRole("button", { name: "Antarctica" })).toBeDisabled();
   });
 
-  it("demotes a held disabled Option to the raw-value fallback when keepDisabledSelection is false", () => {
+  it("demotes a held disabled Option to an inert fallback that still shows its label when keepDisabledSelection is false", () => {
     render(
       <FieldHarness
         overrides={{
@@ -1306,9 +1327,11 @@ describe("Field select keepDisabledSelection", () => {
       />,
     );
 
+    // Labels are the only rendered surface — even a demoted fallback never
+    // leaks the raw value.
     const trigger = selectTrigger("Country");
-    expect(within(trigger).getByText("aq")).toBeInTheDocument();
-    expect(within(trigger).queryByText("Antarctica")).toBeNull();
+    expect(within(trigger).getByText("Antarctica")).toBeInTheDocument();
+    expect(within(trigger).queryByText("aq")).toBeNull();
 
     fireEvent.click(trigger);
     const antarctica = screen.getByRole("button", { name: "Antarctica" });
@@ -1442,7 +1465,7 @@ describe("Field select popup", () => {
 
 describe("FieldHandle.validate()", () => {
   it("force-runs every rule regardless of Touched, reveals any Error, and reports invalid", () => {
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(<FieldHarness handleRef={handle} />);
 
     const control = requiredControl("Name");
@@ -1462,7 +1485,7 @@ describe("FieldHandle.validate()", () => {
   });
 
   it("returns true for a valid field that was never Touched, without revealing an Error", () => {
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(
       <FieldHarness handleRef={handle} overrides={{ initialValue: "Ada" }} />,
     );
@@ -1479,7 +1502,7 @@ describe("FieldHandle.validate()", () => {
   });
 
   it("re-validates against the current internal value after fixes clear the Error", () => {
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(<FieldHarness handleRef={handle} />);
 
     act(() => {
@@ -1500,7 +1523,7 @@ describe("FieldHandle.validate()", () => {
 
 describe("FieldHandle value control", () => {
   it("getValue() returns the current internal value, including undefined before any edit", () => {
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(<FieldHarness handleRef={handle} />);
 
     const control = requiredControl("Name");
@@ -1521,7 +1544,7 @@ describe("FieldHandle value control", () => {
 
   it("setValue() installs the value through the same pipeline: DOM updates, observer fires", () => {
     const changes: FieldValue[] = [];
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(<FieldHarness handleRef={handle} onChangeSpy={(v) => changes.push(v)} />);
 
     const control = requiredControl("Name");
@@ -1539,7 +1562,7 @@ describe("FieldHandle value control", () => {
   });
 
   it("setValue() re-evaluates the Error when Touched but never reveals one while pristine", () => {
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(
       <FieldHarness
         handleRef={handle}
@@ -1575,7 +1598,7 @@ describe("FieldHandle value control", () => {
 
   it("fires the observer once per change for user edits and imperative sets alike — one honest stream", () => {
     const changes: FieldValue[] = [];
-    const handle = createRef<FieldHandle>();
+    const handle = createRef<FieldHandle<string | number>>();
     render(<FieldHarness handleRef={handle} onChangeSpy={(v) => changes.push(v)} />);
 
     const control = requiredControl("Name");
@@ -1687,7 +1710,9 @@ const REGION_OPTIONS: FieldOption[] = [
 ];
 
 describe("Field async options", () => {
-  function asyncOverrides(loader: FieldConfig["options"]): FieldOverrides {
+  function asyncOverrides(
+    loader: FieldConfig["options"],
+  ): FieldOverrides<"select", unknown> {
     return {
       kind: "select",
       label: "Region",
@@ -1698,7 +1723,7 @@ describe("Field async options", () => {
   }
 
   it("fires the loader exactly once on mount, then renders resolved Options and enables choosing", async () => {
-    const received: FieldValue[] = [];
+    const received: unknown[] = [];
     const d = deferred<FieldOption[]>();
     const loader = vi.fn(() => d.promise);
     render(
@@ -1843,7 +1868,7 @@ describe("Field async options", () => {
       const d = deferred<FieldOption[]>();
       render(
         <FieldHarness
-          handleRef={createRef<FieldHandle>()}
+          handleRef={createRef<FieldHandle<string | number>>()}
           overrides={asyncOverrides(() => d.promise)}
         />,
       );
@@ -1902,13 +1927,13 @@ describe("Field async options", () => {
   });
 });
 
-const TAG_OPTIONS: FieldOption[] = [
+const TAG_OPTIONS: FieldOption<string>[] = [
   { label: "Design", value: "design" },
   { label: "Research", value: "research" },
   { label: "Engineering", value: "engineering" },
 ];
 
-function tagOverrides(): FieldOverrides {
+function tagOverrides(): FieldOverrides<"multi-select", string> {
   return {
     kind: "multi-select",
     label: "Tags",
@@ -2344,7 +2369,7 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
   it("stays quiet while a load is Pending — held selections are expected-absent, not stale", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const d = deferred<FieldOption[]>();
+      const d = deferred<FieldOption<string>[]>();
       render(
         <FieldHarness
           overrides={{
@@ -2382,7 +2407,9 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
 });
 
 describe("Field multi-select async options", () => {
-  function asyncTagOverrides(loader: FieldConfig["options"]): FieldOverrides {
+  function asyncTagOverrides(
+    loader: FieldConfig["options"],
+  ): FieldOverrides<"multi-select", unknown> {
     return {
       kind: "multi-select",
       label: "Tags",
@@ -2513,5 +2540,393 @@ describe("Field multi-select async options", () => {
     expect(
       screen.queryByRole("button", { name: "Remove Europe" }),
     ).toBeNull();
+  });
+});
+
+// --- Unbounded Option values, Matching, and Fallback ---
+
+type Train = { id: number; codename: string };
+
+const KEPLER: Train = { id: 1, codename: "kepler" };
+const HOPPER: Train = { id: 2, codename: "hopper" };
+const LOVELACE: Train = { id: 3, codename: "lovelace" };
+
+const TRAIN_OPTIONS: FieldOption<Train>[] = [
+  { label: "Kepler", value: KEPLER },
+  { label: "Hopper", value: HOPPER },
+  { label: "Lovelace", value: LOVELACE, disabled: true },
+];
+
+/** A matcher that Matches domain identity instead of references. */
+const matchById = (a: Train, b: Train) => a.id === b.id;
+
+function trainOverrides(): Partial<FieldConfig<"select", Train>> {
+  return {
+    kind: "select",
+    label: "Release train",
+    validator: undefined,
+    placeholder: "Choose a train",
+    options: TRAIN_OPTIONS,
+  };
+}
+
+describe("Field object-valued Options", () => {
+  it("resolves the closed face to the matched Option's label under reference identity, never rendering the value", () => {
+    render(
+      <FieldHarness
+        overrides={{ ...trainOverrides(), initialValue: HOPPER }}
+      />,
+    );
+
+    const trigger = selectTrigger("Release train");
+    expect(within(trigger).getByText("Hopper")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("[object Object]");
+    expect(document.body.textContent).not.toContain("hopper");
+  });
+
+  it("hands the exact Option object through the observer and reads it back through the ref", () => {
+    const received: Train[] = [];
+    const handle = createRef<FieldHandle<Train>>();
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        handleRef={handle}
+        overrides={trainOverrides()}
+      />,
+    );
+
+    fireEvent.click(selectTrigger("Release train"));
+    fireEvent.click(screen.getByRole("button", { name: "Kepler" }));
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toBe(KEPLER);
+    act(() => {
+      expect(handle.current!.getValue()).toBe(KEPLER);
+    });
+  });
+
+  it("installs an object value imperatively and resolves its label on the closed face", () => {
+    const handle = createRef<FieldHandle<Train>>();
+    render(
+      <FieldHarness
+        handleRef={handle}
+        overrides={{ ...trainOverrides(), initialValue: KEPLER }}
+      />,
+    );
+
+    act(() => {
+      expect(handle.current!.getValue()?.id).toBe(1);
+      handle.current!.setValue(HOPPER);
+    });
+
+    expect(within(selectTrigger("Release train")).getByText("Hopper"))
+      .toBeInTheDocument();
+  });
+});
+
+describe("Field matchValue override", () => {
+  it("matches a distinct-but-equal object for the closed face and stays quiet about staleness", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <FieldHarness
+          overrides={{
+            ...trainOverrides(),
+            matchValue: matchById,
+            initialValue: { id: 2, codename: "hopper-copy" },
+          }}
+        />,
+      );
+
+      // Reference identity would call this value stale; the matcher does not.
+      const trigger = selectTrigger("Release train");
+      expect(within(trigger).getByText("Hopper")).toBeInTheDocument();
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+
+      // The popup row reflects membership through the matcher too.
+      fireEvent.click(trigger);
+      expect(screen.getByRole("button", { name: "Hopper" })).toBeInTheDocument();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not mistake a re-created, matcher-equal Initial literal for a changed seed", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { rerender } = render(
+        <FieldHarness
+          overrides={{
+            ...trainOverrides(),
+            matchValue: matchById,
+            initialValue: { id: 2, codename: "hopper-copy" },
+          }}
+        />,
+      );
+
+      // A fresh but id-equal literal is the same Initial under the matcher —
+      // seed-once stays quiet.
+      rerender(
+        <FieldHarness
+          overrides={{
+            ...trainOverrides(),
+            matchValue: matchById,
+            initialValue: { id: 2, codename: "hopper-again" },
+          }}
+        />,
+      );
+      expect(
+        within(selectTrigger("Release train")).getByText("Hopper"),
+      ).toBeInTheDocument();
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("drives checkbox states, chip membership, toggling, and removal on the multi-select", () => {    const received: Train[][] = [];
+    render(
+      <FieldHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{
+          kind: "multi-select",
+          label: "Trains",
+          validator: undefined,
+          options: TRAIN_OPTIONS,
+          matchValue: matchById,
+          initialValue: [{ id: 1, codename: "kepler-copy" }],
+        }}
+      />,
+    );
+
+    // The held id-equal copy renders as its Option's Chip.
+    expect(
+      screen.getByRole("button", { name: "Remove Kepler" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("kepler-copy")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    expect(screen.getByRole("checkbox", { name: "Kepler" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Hopper" })).not.toBeChecked();
+
+    // Toggling appends the Option's own object.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hopper" }));
+    expect(received).toHaveLength(1);
+    expect(received[0][0].id).toBe(1);
+    expect(received[0][1]).toBe(HOPPER);
+
+    // Removing the Kepler chip filters out the id-equal held copy.
+    fireEvent.click(screen.getByRole("button", { name: "Remove Kepler" }));
+    expect(received[1]).toEqual([HOPPER]);
+  });
+});
+
+describe("Field Fallback", () => {
+  it("renders an unmatched primitive as its string form on the select face with the dev-only warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <FieldHarness
+          overrides={{
+            kind: "select",
+            label: "Capacity",
+            validator: undefined,
+            placeholder: "Choose a capacity",
+            options: [
+              { label: "Small", value: 1 },
+              { label: "Large", value: 4 },
+            ],
+            initialValue: 9,
+          }}
+        />,
+      );
+
+      const trigger = selectTrigger("Capacity");
+      expect(within(trigger).getByText("9")).toBeInTheDocument();
+
+      // The fallback never becomes a choosable row.
+      fireEvent.click(trigger);
+      expect(screen.queryByRole("button", { name: "9" })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Small" }),
+      ).toBeInTheDocument();
+
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Capacity"');
+      expect(message).toContain('"9"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("renders an unmatched non-primitive as the generic '(unknown option)' marker with the dev-only warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      render(
+        <FieldHarness
+          overrides={{
+            ...trainOverrides(),
+            initialValue: { id: 99, codename: "soyuz" },
+          }}
+        />,
+      );
+
+      const trigger = selectTrigger("Release train");
+      expect(within(trigger).getByText("(unknown option)")).toBeInTheDocument();
+      // Neither the raw value nor a stringified object ever leaks.
+      expect(document.body.textContent).not.toContain("soyuz");
+      expect(document.body.textContent).not.toContain("[object Object]");
+
+      fireEvent.click(trigger);
+      expect(
+        screen.queryByRole("button", { name: "(unknown option)" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Kepler" }),
+      ).toBeInTheDocument();
+
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Release train"');
+      expect(message).toContain("does not match any Option");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("renders unmatched multi-select selections as honest chips — string form for primitives — and removes them", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const received: number[][] = [];
+      render(
+        <FieldHarness
+          onChangeSpy={(value) => received.push(value)}
+          overrides={{
+            kind: "multi-select",
+            label: "Capacities",
+            validator: undefined,
+            options: [
+              { label: "Small", value: 1 },
+              { label: "Large", value: 4 },
+            ],
+            initialValue: [1, 9],
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Remove Small" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("9")).toBeInTheDocument();
+
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Capacities"');
+      expect(message).toContain('"9"');
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove 9" }));
+      expect(received).toEqual([[1]]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("renders an unmatched non-primitive selection as a removable '(unknown option)' chip without leaking the value", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const received: Train[][] = [];
+      render(
+        <FieldHarness
+          onChangeSpy={(value) => received.push(value)}
+          overrides={{
+            kind: "multi-select",
+            label: "Trains",
+            validator: undefined,
+            options: TRAIN_OPTIONS,
+            initialValue: [KEPLER, { id: 99, codename: "ghost-train" }],
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Remove Kepler" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Remove (unknown option)" }),
+      ).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain("ghost-train");
+      expect(document.body.textContent).not.toContain("[object Object]");
+      expect(warnSpy.mock.calls.find((call) => typeof call[0] === "string")!)
+        .toBeDefined();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove (unknown option)" }),
+      );
+      expect(received).toEqual([[KEPLER]]);
+      expect(received[0][0]).toBe(KEPLER);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("shows a demoted disabled Option's label on its fallback chip when keepDisabledSelection is false", () => {
+    render(
+      <FieldHarness
+        overrides={{
+          kind: "multi-select",
+          label: "Tags",
+          validator: undefined,
+          options: [
+            ...TAG_OPTIONS,
+            { label: "Archived", value: "archived", disabled: true },
+          ],
+          keepDisabledSelection: false,
+          initialValue: ["archived"],
+        }}
+      />,
+    );
+
+    // The demoted chip renders its Option's label, never the raw value.
+    expect(
+      screen.getByRole("button", { name: "Remove Archived" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("archived")).toBeNull();
+  });
+});
+
+describe("Field generic value typing", () => {
+  it("narrows select and multi-select values through the generic config", () => {
+    const selectConfig: FieldConfig<"select", Train> = {
+      kind: "select",
+      label: "Release train",
+      options: TRAIN_OPTIONS,
+    };
+    expect(selectConfig.kind).toBe("select");
+
+    const wrongOption: FieldConfig<"select", Train> = {
+      ...selectConfig,
+      // @ts-expect-error — a string-valued Option cannot pose as a Train option
+      options: [{ label: "Impostor", value: "kepler" }],
+    };
+    expect(wrongOption.label).toBe("Release train");
+
+    const multiConfig: FieldConfig<"multi-select", Train> = {
+      kind: "multi-select",
+      label: "Trains",
+      options: TRAIN_OPTIONS,
+      // @ts-expect-error — a multi-select Initial holds many values, never one bare T
+      initialValue: HOPPER,
+    };
+    expect(multiConfig.label).toBe("Trains");
+
+    // Without kind or Options the config degrades to a plain input Field.
+    const loose: FieldConfig = { label: "Name" };
+    expect(loose.kind).toBeUndefined();
   });
 });

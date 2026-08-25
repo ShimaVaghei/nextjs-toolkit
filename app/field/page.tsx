@@ -9,8 +9,9 @@ import {
 } from "@/components/Field";
 
 // Configs are plain data: each Field owns its value internally, so none of
-// these carry live state or change callbacks.
-const nameConfig: FieldConfig = {
+// these carry live state or change callbacks. The generic parameters pin each
+// Field kind's value shape; choice kinds take theirs from the Options' T.
+const nameConfig: FieldConfig<"input"> = {
   kind: "input",
   inputType: "text",
   label: "Name",
@@ -18,7 +19,7 @@ const nameConfig: FieldConfig = {
   validator: { required: true },
 };
 
-const emailConfig: FieldConfig = {
+const emailConfig: FieldConfig<"input"> = {
   kind: "input",
   inputType: "text",
   label: "Email",
@@ -26,7 +27,7 @@ const emailConfig: FieldConfig = {
   validator: { required: true, email: true },
 };
 
-const passwordConfig: FieldConfig = {
+const passwordConfig: FieldConfig<"input"> = {
   kind: "input",
   inputType: "password",
   label: "Password",
@@ -34,7 +35,7 @@ const passwordConfig: FieldConfig = {
   validator: { minLength: 8 },
 };
 
-const bioConfig: FieldConfig = {
+const bioConfig: FieldConfig<"textarea"> = {
   kind: "textarea",
   label: "Bio",
   hint: "A short introduction.",
@@ -45,7 +46,7 @@ const bioConfig: FieldConfig = {
   },
 };
 
-const ageConfig: FieldConfig = {
+const ageConfig: FieldConfig<"input"> = {
   kind: "input",
   inputType: "number",
   label: "Age",
@@ -53,7 +54,7 @@ const ageConfig: FieldConfig = {
   validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
 };
 
-const consentConfig: FieldConfig = {
+const consentConfig: FieldConfig<"checkbox"> = {
   kind: "checkbox",
   label: "I agree to the terms of service.",
   hint: "Required to continue — an unticked box counts as not filled in.",
@@ -62,7 +63,7 @@ const consentConfig: FieldConfig = {
   },
 };
 
-const countryConfig: FieldConfig = {
+const countryConfig: FieldConfig<"select", string> = {
   kind: "select",
   label: "Country",
   hint: "Static options behind the shared popup; the placeholder labels the closed control until you choose.",
@@ -80,7 +81,7 @@ const countryConfig: FieldConfig = {
   ],
 };
 
-const tagsConfig: FieldConfig = {
+const tagsConfig: FieldConfig<"multi-select", string> = {
   kind: "multi-select",
   label: "Tags",
   hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
@@ -95,7 +96,7 @@ const tagsConfig: FieldConfig = {
   ],
 };
 
-const legacyPlanConfig: FieldConfig = {
+const legacyPlanConfig: FieldConfig<"select", string> = {
   kind: "select",
   label: "Plan",
   hint: "Holds the retired Starter plan selected by default (keepDisabledSelection); pick another to move off it.",
@@ -106,6 +107,44 @@ const legacyPlanConfig: FieldConfig = {
     { label: "Growth", value: "growth" },
     { label: "Scale", value: "scale" },
   ],
+};
+
+/** A domain object handed over whole when its Option is chosen. */
+type ReleaseTrain = { id: number; codename: string };
+
+const RELEASE_TRAINS: FieldOption<ReleaseTrain>[] = [
+  { label: "Kepler", value: { id: 1, codename: "kepler" } },
+  { label: "Hopper", value: { id: 2, codename: "hopper" } },
+  {
+    label: "Lovelace (paused)",
+    value: { id: 3, codename: "lovelace" },
+    disabled: true,
+  },
+];
+
+// Matching ties a held value to its Option by train id, so parent state can
+// hold re-created copies of a domain object and still Match its Option.
+const matchTrainById = (a: ReleaseTrain, b: ReleaseTrain) =>
+  a.id === b.id;
+
+const trainConfig: FieldConfig<"select", ReleaseTrain> = {
+  kind: "select",
+  label: "Release train",
+  hint: "Options carry whole domain objects; matchValue Matches by id instead of reference, and only labels ever render.",
+  placeholder: "Choose a train",
+  validator: { required: { value: true, message: "Choose a release train." } },
+  matchValue: matchTrainById,
+  options: RELEASE_TRAINS,
+};
+
+const retiredTrainConfig: FieldConfig<"select", ReleaseTrain> = {
+  kind: "select",
+  label: "Retired train hold",
+  hint: "The Initial value Matches no Option any more: a non-primitive Fallback renders the honest \"(unknown option)\" marker instead of leaking the object.",
+  placeholder: "Choose a train",
+  matchValue: matchTrainById,
+  options: RELEASE_TRAINS,
+  initialValue: { id: 99, codename: "soyuz" },
 };
 
 const REF_BUTTON_CLASS =
@@ -123,7 +162,7 @@ export default function FieldDemoPage() {
 
   // The uncontrolled example's steering wheel: read and install values
   // imperatively without ever wiring a change callback.
-  const nicknameRef = useRef<FieldHandle>(null);
+  const nicknameRef = useRef<FieldHandle<string | number>>(null);
   const [readValue, setReadValue] = useState("(never read)");
 
   const readNickname = () => setReadValue(String(nicknameRef.current?.getValue()));
@@ -135,10 +174,13 @@ export default function FieldDemoPage() {
 
   // One simulated API shape behind both async demo Fields; each call gets its
   // own loader closure, and the shared flag is read only when a load settles.
-  const simulateOptionLoad =
-    (delayMs: number, rejectionMessage: string, options: FieldOption[]) =>
+  const simulateOptionLoad = <T,>(
+    delayMs: number,
+    rejectionMessage: string,
+    options: FieldOption<T>[],
+  ) =>
     () =>
-      new Promise<FieldOption[]>((resolve, reject) => {
+      new Promise<FieldOption<T>[]>((resolve, reject) => {
         window.setTimeout(() => {
           if (loadRejectionRef.current) {
             reject(new Error(rejectionMessage));
@@ -148,7 +190,7 @@ export default function FieldDemoPage() {
         }, delayMs);
       });
 
-  const regionConfig: FieldConfig = {
+  const regionConfig: FieldConfig<"select", string> = {
     kind: "select",
     label: "Region",
     hint: "Options come from a simulated API; flip the toggle, then hit Retry to walk the failure path.",
@@ -163,7 +205,7 @@ export default function FieldDemoPage() {
     ]),
   };
 
-  const teamsConfig: FieldConfig = {
+  const teamsConfig: FieldConfig<"multi-select", string> = {
     kind: "multi-select",
     label: "Teams",
     hint: "The same async contract on the multi-select kind: chips stay visible while Pending, and the popup only opens once options resolve.",
@@ -282,6 +324,29 @@ export default function FieldDemoPage() {
         </div>
         <Field config={countryConfig} />
         <Field config={legacyPlanConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Object-valued select
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Option values are unbounded: hand the Field whole domain objects
+            and get the exact chosen object back through the ref or observer —
+            no string mapping layer. Users only ever see labels. Matching is
+            reference identity by default; these Fields configure
+            matchValue to compare train ids, so a re-created copy of a
+            domain object still Matches its Option. A held value that
+            Matches nothing stays visible but inert: primitives render their
+            string form, anything else renders the generic &ldquo;(unknown
+            option)&rdquo; marker — never{" "}
+            <code className="font-mono">[object Object]</code> — with a
+            dev-only warning naming the Field.
+          </p>
+        </div>
+        <Field config={trainConfig} />
+        <Field config={retiredTrainConfig} />
       </section>
 
       <section className="space-y-6">

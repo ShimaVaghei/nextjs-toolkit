@@ -11,14 +11,33 @@ export type FieldKind =
   | "multi-select";
 export type FieldInputType = "text" | "password" | "number";
 
-/** One choice offered by a choice kind: display label, handed-over value, optional unselectable flag. */
-export type FieldOption = {
+/**
+ * One choice offered by a choice kind: a display label, an unbounded value
+ * handed over when chosen, and an optional unselectable flag. Labels are the
+ * only rendered surface; values participate only in Matching.
+ */
+export type FieldOption<T = unknown> = {
   label: string;
-  value: string;
+  value: T;
   disabled?: boolean;
 };
 
 export type FieldValue = string | number | boolean | string[];
+
+/**
+ * The value shape each Field kind carries: what Initial seeds, the observer
+ * emits, and the Handle reads and installs. Choice kinds take it from the
+ * config's T; the rest is fixed.
+ */
+export type FieldValueOf<K extends FieldKind, T> = [K] extends ["select"]
+  ? T
+  : [K] extends ["multi-select"]
+    ? T[]
+    : [K] extends ["checkbox"]
+      ? boolean
+      : [K] extends ["textarea"]
+        ? string
+        : string | number;
 
 export type FieldRequiredRule = boolean | { value: boolean; message: string };
 export type FieldMinRule = number | { value: number; message: string };
@@ -38,8 +57,16 @@ export type FieldValidator = {
   regex?: FieldRegexRule;
 };
 
-export type FieldConfig = {
-  kind: FieldKind;
+/**
+ * The configuration object passed to Field, generic over the Field kind: K
+ * picks the value shape (input → string | number, textarea → string,
+ * checkbox → boolean) and T is the Option value type the choice kinds
+ * (select → T, multi-select → T[]) carry through Initial, the observer, and
+ * the Handle. Inference flows from the literal, so an inline config narrows
+ * without annotations.
+ */
+export type FieldConfig<K extends FieldKind = "input", T = unknown> = {
+  kind?: K;
   inputType?: FieldInputType;
   label: string;
   /**
@@ -48,12 +75,19 @@ export type FieldConfig = {
    * dev-only warning; live control flows only through user edits, setValue,
    * and onValueChange observation.
    */
-  initialValue?: FieldValue;
+  initialValue?: NoInfer<FieldValueOf<K, T>>;
   /** Optional observer: fired for every committed change, however caused. */
-  onValueChange?: (value: FieldValue) => void;
+  onValueChange?: (value: NoInfer<FieldValueOf<K, T>>) => void;
   validator?: FieldValidator;
   /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
-  options?: FieldOption[] | (() => Promise<FieldOption[]>);
+  options?: FieldOption<T>[] | (() => Promise<FieldOption<T>[]>);
+  /**
+   * Matching override: replaces Object.is reference identity everywhere
+   * consistently — closed-face resolution, popup checkbox states, chip
+   * membership, and staleness detection. `a` is an Option's value, `b` the
+   * held value.
+   */
+  matchValue?: (a: T, b: T) => boolean;
   /** Select-only: labels the closed control while empty. Multi-select ignores it. */
   placeholder?: string;
   /**
@@ -66,10 +100,16 @@ export type FieldConfig = {
   className?: string;
 };
 
-export type FieldHandle = {
-  validate: () => boolean;
-  getValue: () => FieldValue | undefined;
-  setValue: (value: FieldValue) => void;
+/**
+ * The imperative handle a parent obtains from Field via the ref prop,
+ * carrying the kind's narrowed value shape. Method syntax keeps handles
+ * mutually assignable across differently-narrowed instantiations, so refs
+ * flow through harnesses and callbacks without variance friction.
+ */
+export type FieldHandle<V = FieldValue> = {
+  validate(): boolean;
+  getValue(): V | undefined;
+  setValue(value: V): void;
 };
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
@@ -244,96 +284,164 @@ function coerceNumberInput(raw: string): FieldValue {
   return raw.trim() === "" ? "" : Number(raw);
 }
 
-/** The string a select matches against its Options; Empty renders as "". */
-function selectRawValue(value: FieldValue | undefined): string {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (typeof value === "number") {
-    return Number.isNaN(value) ? "" : String(value);
-  }
-  return String(value);
+/**
+ * Matching ties a held value to an Option: reference identity by default, or
+ * the config's matchValue override — applied identically at every decision
+ * point (closed face, popup checkbox states, chip membership, staleness).
+ */
+type MatchFn = (a: unknown, b: unknown) => boolean;
+
+const IDENTITY_MATCH: MatchFn = Object.is;
+
+/** String and number Fallbacks render their string form; anything else cannot. */
+function isRenderablePrimitive(value: unknown): value is string | number {
+  return typeof value === "string" || typeof value === "number";
 }
 
-/** One rendered Chip: a matched Option or a fallback for an unknown selection. */
-type ChipEntry =
-  | { kind: "option"; option: FieldOption }
-  | { kind: "fallback"; raw: string };
+const UNKNOWN_OPTION_LABEL = "(unknown option)";
 
-function chipValue(entry: ChipEntry): string {
-  return entry.kind === "option" ? entry.option.value : entry.raw;
+/** The rendered surface of a value that Matches no Option. */
+function fallbackLabel(value: unknown): string {
+  return isRenderablePrimitive(value)
+    ? String(value)
+    : UNKNOWN_OPTION_LABEL;
 }
 
-function chipLabel(entry: ChipEntry): string {
-  return entry.kind === "option" ? entry.option.label : entry.raw;
+/** Dev-warning description of an unmatched value; objects are never stringified. */
+function describedStaleValue(value: unknown): string {
+  return isRenderablePrimitive(value)
+    ? `"${String(value)}"`
+    : "(non-primitive value)";
 }
 
 /**
- * Resolves the rendered Chips for a multi-select in Options order, with held
- * disabled Options demoted to fallbacks by keepDisabledSelection and unknown
- * values appended as raw-value fallback chips. While Options are not yet
- * authoritative (a load is Pending or Rejected) held selections stay visible
- * without being reported stale.
+ * Stable cross-render Chip identity for unbounded values, which cannot key
+ * React trees or ref maps directly. Objects and functions get a monotonically
+ * increasing id in a module-level WeakMap — stable for the value's lifetime,
+ * collectable afterwards; primitives get their type prefixed to their string
+ * form so lookalikes never collide. Surviving Chips keep their DOM nodes
+ * across removals, which the focus hop relies on.
+ */
+const objectChipIds = new WeakMap<object, number>();
+let nextObjectChipId = 0;
+
+function chipIdFor(value: unknown): string {
+  if (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function")
+  ) {
+    let id = objectChipIds.get(value);
+    if (id === undefined) {
+      id = ++nextObjectChipId;
+      objectChipIds.set(value, id);
+    }
+    return `object-${id}`;
+  }
+  return `${typeof value}-${String(value)}`;
+}
+
+/** One rendered Chip: a matched Option, or a Fallback for an unmatched or demoted selection. */
+type Chip = {
+  kind: "option" | "fallback";
+  /** Stable cross-render identity backing React keys and focus-hop lookups. */
+  key: string;
+  label: string;
+  value: unknown;
+};
+
+/**
+ * Resolves the rendered Chips for a multi-select in Options order. Held
+ * disabled Options are demoted to label-bearing fallbacks by
+ * keepDisabledSelection; values Matching no Option are appended as fallback
+ * Chips (their string form for primitives, "(unknown option)" otherwise).
+ * While Options are not yet authoritative (a load is Pending or Rejected)
+ * held selections stay visible without being reported stale.
  */
 function resolveChips(
   options: FieldOption[],
-  values: string[],
+  values: unknown[],
+  matches: MatchFn,
   keepDisabledSelection: boolean,
   optionsAuthoritative: boolean,
-): { entries: ChipEntry[]; staleValues: string[] } {
-  const entries: ChipEntry[] = [];
-  const known = new Set<string>();
+): { entries: Chip[]; staleValues: unknown[] } {
+  const chips: Chip[] = [];
+  // Which held values Match some Option — computed once, reused by both the
+  // staleness report and the fallback-Chip pass below.
+  const matchesAnOption = values.map((value) =>
+    options.some((option) => matches(option.value, value)),
+  );
   for (const option of options) {
-    if (!values.includes(option.value)) {
+    const heldIndex = values.findIndex((value) =>
+      matches(option.value, value),
+    );
+    if (heldIndex === -1) {
       continue;
     }
-    known.add(option.value);
-    entries.push(
+    chips.push(
       option.disabled && !keepDisabledSelection
-        ? { kind: "fallback", raw: option.value }
-        : { kind: "option", option },
+        ? {
+            kind: "fallback",
+            key: chipIdFor(option.value),
+            label: option.label,
+            value: option.value,
+          }
+        : {
+            kind: "option",
+            key: chipIdFor(option.value),
+            label: option.label,
+            value: option.value,
+          },
     );
   }
   const staleValues = optionsAuthoritative
-    ? values.filter((value) => !known.has(value))
+    ? values.filter((_, index) => !matchesAnOption[index])
     : [];
-  for (const value of values) {
-    if (!known.has(value)) {
-      entries.push({ kind: "fallback", raw: value });
+  values.forEach((value, index) => {
+    if (!matchesAnOption[index]) {
+      chips.push({
+        kind: "fallback",
+        key: chipIdFor(value),
+        label: fallbackLabel(value),
+        value,
+      });
     }
-  }
-  return { entries, staleValues };
+  });
+  return { entries: chips, staleValues };
 }
 
 /**
- * The closed-face entry a select shows for its current value: the ghost while
- * empty, the matched Option's label (a held disabled Option stays legal under
- * keepDisabledSelection), or the Fallback when demoted or unmatched. While
- * Options are not yet authoritative (a load is Pending or Rejected) a held
- * selection is expected-absent rather than stale: it still renders as a
- * fallback face so it stays visible, but no staleness is reported.
+ * What the closed face of a select renders for its current value for its current value: the ghost while
+ * Empty, the matched Option's label (a held disabled Option stays legal under
+ * keepDisabledSelection), or the Fallback — a demoted Option still renders its
+ * label; an unmatched primitive renders its string form and an unmatched
+ * non-primitive renders "(unknown option)". While Options are not yet
+ * authoritative (a load is Pending or Rejected) a held selection is
+ * expected-absent rather than stale: it still renders as a fallback face so it
+ * stays visible, but no staleness is reported.
  */
 type SelectFace =
   | { kind: "ghost" }
   | { kind: "option"; option: FieldOption }
-  | { kind: "fallback"; raw: string };
+  | { kind: "fallback"; label: string; value: unknown };
 
 function resolveSelectFace(
   options: FieldOption[],
-  raw: string,
+  value: unknown,
+  matches: MatchFn,
   keepDisabledSelection: boolean,
   optionsAuthoritative: boolean,
 ): { face: SelectFace; isStale: boolean } {
-  if (raw === "") {
+  if (value === undefined || value === null || value === "") {
     return { face: { kind: "ghost" }, isStale: false };
   }
-  const isStale =
-    optionsAuthoritative && !options.some((option) => option.value === raw);
-  const matched = options.find((option) => option.value === raw);
+  const matched = options.find((option) => matches(option.value, value));
+  const isStale = optionsAuthoritative && matched === undefined;
   const face: SelectFace =
     matched && (!matched.disabled || keepDisabledSelection)
       ? { kind: "option", option: matched }
-      : { kind: "fallback", raw };
+      : matched
+        ? { kind: "fallback", label: matched.label, value: matched.value }
+        : { kind: "fallback", label: fallbackLabel(value), value };
   return { face, isStale };
 }
 
@@ -341,27 +449,26 @@ function resolveSelectFace(
 type OptionLoadStatus = "pending" | "resolved" | "rejected";
 
 /**
- * Seed-once comparison: strict identity, with a shallow pass for arrays so a
- * re-created-but-equal literal (the common multi-select call site) does not
- * read as a changed Initial value.
+ * Seed-once comparison: Matching-aware identity — Object.is unless the
+ * config overrides it — with a shallow elementwise pass for arrays so a
+ * re-created-but-equal literal (the common multi-select call site, including
+ * object-valued Options under a matchValue) does not read as a changed
+ * Initial value.
  */
-function sameInitial(
-  a: FieldValue | undefined,
-  b: FieldValue | undefined,
-): boolean {
-  if (Object.is(a, b)) {
+function sameInitial(a: unknown, b: unknown, matches: MatchFn): boolean {
+  if (matches(a, b)) {
     return true;
   }
   return (
     Array.isArray(a) &&
     Array.isArray(b) &&
     a.length === b.length &&
-    a.every((entry, index) => Object.is(entry, b[index]))
+    a.every((seed, index) => matches(seed, b[index]))
   );
 }
 
 function isOptionsLoader(
-  options: FieldConfig["options"],
+  options: unknown,
 ): options is () => Promise<FieldOption[]> {
   return typeof options === "function";
 }
@@ -419,8 +526,10 @@ function ruleFits(
  * Empty semantics: null/undefined/"" everywhere, whitespace-only for textual
  * kinds (trimmed for testing only), NaN on number inputs at runtime, and
  * `false` for checkbox — required means must-tick (the consent pattern).
+ * Anything else a choice kind can hold (objects, non-empty arrays) is never
+ * Empty.
  */
-function isEmpty(value: FieldValue | undefined): boolean {
+function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined) {
     return true;
   }
@@ -430,18 +539,22 @@ function isEmpty(value: FieldValue | undefined): boolean {
   if (typeof value === "boolean") {
     return value === false;
   }
+  if (typeof value === "string") {
+    return value.trim() === "";
+  }
   if (Array.isArray(value)) {
     return value.length === 0;
   }
-  return value.trim() === "";
+  return false;
 }
 
 /** Runs the applicable rules in fixed precedence; the first violation wins. */
 function evaluate(
-  config: FieldConfig,
-  value: FieldValue | undefined,
+  kind: FieldKind,
+  inputType: FieldInputType | undefined,
+  validator: FieldValidator | undefined,
+  value: unknown,
 ): string | null {
-  const validator = config.validator;
   if (!validator) {
     return null;
   }
@@ -458,7 +571,7 @@ function evaluate(
 
   if (
     validator.min !== undefined &&
-    isNumberInput(config.kind, config.inputType) &&
+    isNumberInput(kind, inputType) &&
     numericValue !== null
   ) {
     const { value: min, message } = unpack(validator.min, DEFAULT_MIN_MESSAGE);
@@ -469,7 +582,7 @@ function evaluate(
 
   if (
     validator.max !== undefined &&
-    isNumberInput(config.kind, config.inputType) &&
+    isNumberInput(kind, inputType) &&
     numericValue !== null
   ) {
     const { value: max, message } = unpack(validator.max, DEFAULT_MAX_MESSAGE);
@@ -478,7 +591,7 @@ function evaluate(
     }
   }
 
-  if (fitsTextualRules(config.kind, config.inputType) && typeof value === "string") {
+  if (fitsTextualRules(kind, inputType) && typeof value === "string") {
     if (validator.minLength !== undefined) {
       const { value: minLength, message } = unpack(
         validator.minLength,
@@ -502,7 +615,7 @@ function evaluate(
     // Fixed precedence: email sits after maxLength and before regex.
     if (
       validator.email !== undefined &&
-      fitsEmailRule(config.kind, config.inputType)
+      fitsEmailRule(kind, inputType)
     ) {
       const { value: mustBeEmail, message } = unpack(
         validator.email,
@@ -583,15 +696,15 @@ function OptionsPopup({
   );
 }
 
-export function Field({
+export function Field<K extends FieldKind = "input", T = unknown>({
   config,
   ref,
 }: {
-  config: FieldConfig;
-  ref?: Ref<FieldHandle>;
+  config: FieldConfig<K, T>;
+  ref?: Ref<FieldHandle<FieldValueOf<K, T>>>;
 }) {
   const {
-    kind,
+    kind = "input",
     inputType = "text",
     label,
     initialValue,
@@ -603,6 +716,10 @@ export function Field({
     disabled,
     className,
   } = config;
+
+  // Matching: the configured override or Object.is reference identity,
+  // applied at every decision point below.
+  const matches = (config.matchValue ?? IDENTITY_MATCH) as MatchFn;
 
   const baseId = useId();
   const controlId = `${baseId}-control`;
@@ -616,26 +733,29 @@ export function Field({
   const [error, setError] = useState<string | null>(null);
 
   // The Field owns its value: the Initial value seeds it exactly once at
-  // mount; afterwards every change flows through commitValue below.
-  const [value, setValueState] = useState<FieldValue | undefined>(initialValue);
-  const valueRef = useRef<FieldValue | undefined>(initialValue);
+  // mount; afterwards every change flows through commitValue below. The
+  // internal value is unbounded — choice kinds carry whatever their Options
+  // carry — so it is held as unknown and only the types narrow it.
+  const [value, setValueState] = useState<unknown>(initialValue);
+  const valueRef = useRef<unknown>(initialValue);
 
   /**
-   * Seed-once guard: the Initial prop is compared against the last seen one.
+   * Seed-once guard: the Initial prop is compared against the last seen one
+   * under the config's own Matching rule.
    */
   const lastInitialRef = useRef(initialValue);
   useEffect(() => {
     if (process.env.NODE_ENV === "production") {
       return;
     }
-    if (sameInitial(lastInitialRef.current, initialValue)) {
+    if (sameInitial(lastInitialRef.current, initialValue, matches)) {
       return;
     }
     lastInitialRef.current = initialValue;
     console.warn(
       `[Field] initialValue of "${label}" changed after mount. A Field seeds its value once at mount; the new Initial value is ignored.`,
     );
-  }, [initialValue, label]);
+  }, [initialValue, label, matches]);
 
   // Multi-select popup state: disclosure visibility plus the client-side
   // search query; the query resets whenever the panel closes.
@@ -669,16 +789,21 @@ export function Field({
   /**
    * One honest pipeline for every committed change, however caused — user
    * edit or setValue: install the value internally, notify the observer, and
-   * re-evaluate the Error when Touched.
+   * re-evaluate the Error when Touched. The observer's narrowed parameter is
+   * widened here once: only kind-appropriate values ever reach this pipeline.
    */
-  const commitValue = useCallback((next: FieldValue) => {
+  const commitValue = useCallback((next: unknown) => {
     valueRef.current = next;
     setValueState(next);
-    configRef.current.onValueChange?.(next);
+    (
+      configRef.current.onValueChange as ((value: unknown) => void) | undefined
+    )?.(next);
     if (touchedRef.current) {
-      setError(evaluate(configRef.current, next));
+      setError(
+        evaluate(kind, inputType, configRef.current.validator, next),
+      );
     }
-  }, []);
+  }, [kind, inputType]);
 
   // Retry always re-fires the newest loader the parent passed.
   const loaderRef = useRef(options);
@@ -725,15 +850,20 @@ export function Field({
     ref,
     () => ({
       validate: () => {
-        const message = evaluate(configRef.current, valueRef.current);
+        const message = evaluate(
+          kind,
+          inputType,
+          configRef.current.validator,
+          valueRef.current,
+        );
         setTouched(true);
         setError(message);
         return message === null;
       },
-      getValue: () => valueRef.current,
+      getValue: () => valueRef.current as FieldValueOf<K, T> | undefined,
       setValue: commitValue,
     }),
-    [commitValue],
+    [commitValue, kind, inputType],
   );
 
   // Dev-only: name any rule configured on a kind it does not fit, whenever the
@@ -753,45 +883,56 @@ export function Field({
     }
   }, [validator, kind, inputType, label]);
 
-  // Select closed-face resolution: raw value matched against Options, with
-  // the stale flag driving the dev-only warn. Under a loader, Options only
-  // become authoritative once a load has resolved.
+  // Select closed-face resolution: the held value Matched against Options,
+  // with the stale flag driving the dev-only warn. Under a loader, Options
+  // only become authoritative once a load has resolved.
   const optionsAuthoritative = !optionsIsLoader || loadStatus === "resolved";
-  const rawValue = kind === "select" ? selectRawValue(value) : "";
-  const selectOptions = optionsIsLoader ? loadedOptions : (options as FieldOption[]);
+  const selectOptions: FieldOption[] = optionsIsLoader
+    ? loadedOptions
+    : options;
   const { face, isStale } = resolveSelectFace(
     selectOptions,
-    rawValue,
+    kind === "select" ? value : undefined,
+    matches,
     keepDisabledSelection,
     optionsAuthoritative,
   );
 
+  // The description is computed during render so the effect's dependencies
+  // stay primitive — it re-fires only when the unmatched value changes.
+  const staleDescription =
+    isStale && face.kind === "fallback"
+      ? describedStaleValue(face.value)
+      : null;
+
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && isStale) {
+    if (process.env.NODE_ENV !== "production" && staleDescription !== null) {
       console.warn(
-        `[Field] Value "${rawValue}" of select "${label}" does not match any Option and is shown as a raw-value fallback.`,
+        `[Field] Value ${staleDescription} of select "${label}" does not match any Option and is shown as a fallback.`,
       );
     }
-  }, [isStale, rawValue, label]);
+  }, [staleDescription, label]);
 
-  // Multi-select resolution: Chips in Options order plus fallback chips for
-  // unknown values; the joined stale list keeps the dev-warn effect stable.
-  const selectedValues: string[] =
+  // Multi-select resolution: Chips in Options order plus fallback Chips for
+  // values Matching nothing; the joined descriptions keep the dev-warn
+  // effect stable.
+  const selectedValues: unknown[] =
     kind === "multi-select" && Array.isArray(value) ? value : [];
   const { entries: chips, staleValues } = resolveChips(
     selectOptions,
     selectedValues,
+    matches,
     keepDisabledSelection,
     optionsAuthoritative,
   );
-  const staleChipList = staleValues.join('", "');
+  const staleDescriptions = staleValues.map(describedStaleValue).join('", "');
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && staleChipList !== "") {
+    if (process.env.NODE_ENV !== "production" && staleDescriptions !== "") {
       console.warn(
-        `[Field] Value(s) "${staleChipList}" of multi-select "${label}" do not match any Option and are shown as raw-value fallback chips.`,
+        `[Field] Value(s) ${staleDescriptions} of multi-select "${label}" do not match any Option and are shown as fallback chips.`,
       );
     }
-  }, [staleChipList, label]);
+  }, [staleDescriptions, label]);
 
   const rule = validator?.required;
   const isRequired = rule !== undefined && requiredConstraint(rule).isRequired;
@@ -822,35 +963,37 @@ export function Field({
   const handleBlur = () => {
     // Evaluate the committed (already coerced) value, never the raw event string.
     setTouched(true);
-    setError(evaluate(config, value));
+    setError(evaluate(kind, inputType, config.validator, value));
   };
 
-  const toggleOption = (optionValue: string) => {
+  const toggleOption = (option: FieldOption) => {
     // In-panel toggles announce nothing extra — clear any pending removal
     // message so a repeated removal re-announces with fresh text.
     setAnnouncement(null);
+    const kept = selectedValues.filter(
+      (value) => !matches(option.value, value),
+    );
     commitValue(
-      selectedValues.includes(optionValue)
-        ? selectedValues.filter((value) => value !== optionValue)
-        : [...selectedValues, optionValue],
+      kept.length === selectedValues.length
+        ? [...selectedValues, option.value]
+        : kept,
     );
   };
 
-  const removeChip = (entry: ChipEntry, index: number) => {
-    const removedValue = chipValue(entry);
-    const removedLabel = chipLabel(entry);
-    const next = selectedValues.filter((value) => value !== removedValue);
+  const removeChip = (chip: Chip, index: number) => {
+    const next = selectedValues.filter((value) => !matches(chip.value, value));
     commitValue(next);
 
     // Closed-face removals announce through the shared always-mounted polite
     // region; last message wins. In-panel toggles never reach this path.
-    setAnnouncement(`Removed ${removedLabel}. ${next.length} selected.`);
+    setAnnouncement(`Removed ${chip.label}. ${next.length} selected.`);
 
     // Focus hop over the post-removal chip list so focus never rests on a
     // removed node: the chip that took its slot, the last chip, or the open button.
     const { entries: remaining } = resolveChips(
       selectOptions,
       next,
+      matches,
       keepDisabledSelection,
       optionsAuthoritative,
     );
@@ -858,8 +1001,8 @@ export function Field({
       triggerRef.current?.focus();
       return;
     }
-    const hopEntry = remaining[Math.min(index, remaining.length - 1)];
-    chipRemoveRefs.current.get(chipValue(hopEntry))?.focus();
+    const hopChip = remaining[Math.min(index, remaining.length - 1)];
+    chipRemoveRefs.current.get(hopChip.key)?.focus();
   };
 
   // Every close path funnels here: the panel hides and the search query
@@ -929,7 +1072,7 @@ export function Field({
       closePanel();
     }
     setTouched(true);
-    setError(evaluate(config, value));
+    setError(evaluate(kind, inputType, config.validator, value));
   };
 
   // Opening moves DOM focus to the search input.
@@ -940,11 +1083,13 @@ export function Field({
   }, [open]);
 
   // The search filters resolved Options client-side; filtered rows leave the
-  // accessibility tree because they are not rendered at all.
+  // accessibility tree because they are not rendered at all. Rows carry their
+  // position in the full Options list as a stable key — unbounded values
+  // cannot key React trees themselves.
   const query = search.trim().toLowerCase();
-  const panelRows = selectOptions.filter((option) =>
-    option.label.toLowerCase().includes(query),
-  );
+  const panelRows = selectOptions
+    .map((option, index) => ({ option, index }))
+    .filter(({ option }) => option.label.toLowerCase().includes(query));
 
   // Pending/Rejected block choosing on choice kinds; the parent's own
   // disabled flag still applies independently.
@@ -962,17 +1107,16 @@ export function Field({
 
   // NaN and seeded-nothing display as Empty; React would otherwise stringify
   // them into the control. Checkboxes render `checked` instead, so booleans
-  // never reach this value.
+  // never reach this value — and nothing else an unbounded value could be
+  // (objects, arrays) belongs in a textual control.
   const displayValue: string | number =
-    value === undefined ||
-    typeof value === "boolean" ||
-    Array.isArray(value)
-      ? ""
-      : isNumberInput(kind, inputType) &&
-          typeof value === "number" &&
-          Number.isNaN(value)
+    typeof value === "number"
+      ? isNumberInput(kind, inputType) && Number.isNaN(value)
         ? ""
-        : value;
+        : value
+      : typeof value === "string"
+        ? value
+        : "";
 
   // The composite multi-select has no single native control to host failure
   // state, so the named closed-face group anchors it. Spread deliberately:
@@ -1008,23 +1152,21 @@ export function Field({
               className="flex items-stretch gap-1.5"
             >
               <div className={CHIP_STRIP_CLASS}>
-                {chips.map((entry, index) => (
-                  <span key={chipValue(entry)} className={CHIP_CLASS}>
-                    <span className="max-w-40 truncate">
-                      {chipLabel(entry)}
-                    </span>
+                {chips.map((chip, index) => (
+                  <span key={chip.key} className={CHIP_CLASS}>
+                    <span className="max-w-40 truncate">{chip.label}</span>
                     <button
                       type="button"
                       ref={(element) => {
                         if (element) {
-                          chipRemoveRefs.current.set(chipValue(entry), element);
+                          chipRemoveRefs.current.set(chip.key, element);
                         } else {
-                          chipRemoveRefs.current.delete(chipValue(entry));
+                          chipRemoveRefs.current.delete(chip.key);
                         }
                       }}
-                      aria-label={`Remove ${chipLabel(entry)}`}
+                      aria-label={`Remove ${chip.label}`}
                       disabled={multiDisabled || undefined}
-                      onClick={() => removeChip(entry, index)}
+                      onClick={() => removeChip(chip, index)}
                       className={CHIP_REMOVE_CLASS}
                     >
                       <svg
@@ -1080,9 +1222,9 @@ export function Field({
               onSearchChange={setSearch}
               searchInputRef={searchRef}
             >
-              {panelRows.map((option) => (
+              {panelRows.map(({ option, index }) => (
                 <label
-                  key={option.value}
+                  key={index}
                   className={
                     ROW_LABEL_CLASS +
                     (option.disabled ? ROW_LABEL_DISABLED_CLASS : "")
@@ -1091,11 +1233,13 @@ export function Field({
                   <input
                     type="checkbox"
                     className={CHECKBOX_CLASS}
-                    checked={selectedValues.includes(option.value)}
+                    checked={selectedValues.some((value) =>
+                      matches(option.value, value),
+                    )}
                     disabled={
                       option.disabled || multiDisabled || undefined
                     }
-                    onChange={() => toggleOption(option.value)}
+                    onChange={() => toggleOption(option)}
                   />
                   <span>{option.label}</span>
                 </label>
@@ -1135,7 +1279,7 @@ export function Field({
                   ? placeholder
                   : face.kind === "option"
                     ? face.option.label
-                    : face.raw}
+                    : face.label}
               </span>
               <svg
                 aria-hidden="true"
@@ -1162,9 +1306,9 @@ export function Field({
               onSearchChange={setSearch}
               searchInputRef={searchRef}
             >
-              {panelRows.map((option) => (
+              {panelRows.map(({ option, index }) => (
                 <button
-                  key={option.value}
+                  key={index}
                   type="button"
                   onClick={() => pickOption(option)}
                   disabled={option.disabled || undefined}
