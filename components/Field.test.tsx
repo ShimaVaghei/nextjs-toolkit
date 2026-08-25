@@ -2686,6 +2686,33 @@ describe("Field matchValue override", () => {
     }
   });
 
+  it("tolerates an undefined Initial value without feeding it through the matcher", () => {
+    // trainConfig on the demo page: matchValue set, initialValue omitted.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onWindowError = vi.fn();
+    window.addEventListener("error", onWindowError);
+    try {
+      render(
+        <FieldHarness
+          overrides={{ ...trainOverrides(), matchValue: matchById }}
+        />,
+      );
+
+      expect(
+        within(selectTrigger("Release train")).getByText("Choose a train"),
+      ).toBeInTheDocument();
+      expect(onWindowError).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+      expect(warnSpy.mock.calls.filter((call) => typeof call[0] === "string"))
+        .toHaveLength(0);
+    } finally {
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+      window.removeEventListener("error", onWindowError);
+    }
+  });
+
   it("drives checkbox states, chip membership, toggling, and removal on the multi-select", () => {    const received: Train[][] = [];
     render(
       <FieldHarness

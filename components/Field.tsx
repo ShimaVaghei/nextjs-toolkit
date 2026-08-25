@@ -456,6 +456,13 @@ type OptionLoadStatus = "pending" | "resolved" | "rejected";
  * Initial value.
  */
 function sameInitial(a: unknown, b: unknown, matches: MatchFn): boolean {
+  // Absent Initial values are not values — they seed nothing, so they never
+  // reach the matcher, whose contract assumes its domain shape (an
+  // object-keyed override would throw on undefined). No-seed vs no-seed is
+  // quiet; no-seed vs a seed counts as a changed Initial.
+  if (a === undefined || b === undefined) {
+    return a === b;
+  }
   if (matches(a, b)) {
     return true;
   }
