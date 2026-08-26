@@ -1,6 +1,8 @@
 Type: task
-Status: open
+Status: closed
 Blocked by: 08, 09
+
+> Closed out of scope 2026-08-26: the map's destination was redrawn to plan-only — implementation left wayfinder. This slice's content is preserved in [`../spec.md`](../spec.md) (Work breakdown, step 5). (Its `Blocked by: 08, 09` edge referenced tickets that never existed — stale from an earlier charting pass; moot at closure.)
 
 ## Question
 

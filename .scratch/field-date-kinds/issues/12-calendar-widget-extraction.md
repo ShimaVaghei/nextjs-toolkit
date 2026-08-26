@@ -1,6 +1,8 @@
 Type: task
-Status: open
+Status: closed
 Blocked by: 07
+
+> Closed out of scope 2026-08-26: the map's destination was redrawn to plan-only — implementation left wayfinder. This slice's content is preserved in [`../spec.md`](../spec.md) (Work breakdown, step 2).
 
 ## Question
 

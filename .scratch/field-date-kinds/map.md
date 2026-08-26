@@ -4,7 +4,7 @@ Labels: wayfinder:map
 
 ## Destination
 
-All four Field kinds shipped end-to-end in `components/Field.tsx` — DateField, DateTimeField, DateRangeField, DateTimeRangeField — with config types and wrappers following the existing kindless-config pattern, a custom calendar popup, ISO-string values per the settled contracts below, validation and Empty semantics defined, tests, demo-page usage, and `CONTEXT.md` updated.
+A handoff spec at [`spec.md`](spec.md) capturing every settled decision for the four date Field kinds plus their ordered implementation slices — ready for an `/implement` run outside wayfinder. Redrawn 2026-08-26 from "shipped end-to-end" to plan-only; **the spec is written and the map is done**.
 
 ## Notes
 
@@ -15,7 +15,7 @@ All four Field kinds shipped end-to-end in `components/Field.tsx` — DateField,
   - Controls render as a custom calendar popup in the spirit of the select Options popup — deliberately not native `<input type="date">`.
   - Validator: dates get `min`/`max` (ISO strings) in addition to `required`; textual rules stay non-fitting.
 - Standing preference: **no new runtime dependencies** — if a library ever seems required, stop and ask the human before adding it.
-- Execution is carried into this map (override of plan-only): once decisions clear, task tickets slice the implementation — the destination is a shipped change, not a spec.
+- ~~Execution is carried into this map (override of plan-only)~~ — rescinded 2026-08-26: destination redrawn to plan-only, implementation slices moved into `spec.md` (Work breakdown) and task tickets closed out of scope.
 - Skills per ticket type: `/grilling` + `/domain-modeling` for decisions; `/prototype` for popup UX; `/research` for external knowledge.
 
 ## Decisions so far
@@ -30,6 +30,14 @@ All four Field kinds shipped end-to-end in `components/Field.tsx` — DateField,
 
 ## Not yet specified
 
-_None — the way is charted. Remaining work lives in the task tickets._
+_None — the way is charted. The destination (spec.md) is written; implementation lives outside this effort._
 
 ## Out of scope
+
+Implementation of the four kinds — ruled beyond a planning destination when the effort redrew to plan-only 2026-08-26; each slice's content lives on in [`spec.md`](spec.md) Work breakdown, and returns only as fresh work outside this effort:
+
+- [Engine value model](issues/11-engine-value-model.md) — engine-level kind literals, value shapes, Empty/normalization/validator wiring; execution left wayfinder with the redraw.
+- [Calendar widget extraction](issues/12-calendar-widget-extraction.md) — reusable internal calendar widget styled against Field tokens; same.
+- [Date & datetime fields](issues/13-date-and-datetime-fields.md) — DateField/DateTimeField shipped end-to-end; same.
+- [Range fields](issues/14-range-fields.md) — DateRangeField/DateTimeRangeField shipped end-to-end; same.
+- [Demo page and glossary](issues/15-demo-page-and-glossary.md) — demo usage plus remaining CONTEXT.md entries; same.
