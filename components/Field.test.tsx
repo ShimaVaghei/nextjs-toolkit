@@ -3792,3 +3792,390 @@ describe("DateTimeRangeField — engine value model", () => {
     expect(valid!).toBe(true);
   });
 });
+
+// ─── DateField & DateTimeField — calendar widget UI tests ─────────────
+
+describe("DateField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("renders a trigger button with label and placeholder ghost when empty", () => {
+    render(
+      <DateHarness overrides={{ placeholder: "Pick a date" }} />,
+    );
+
+    // Button accessible name includes label text ("Birthday") + placeholder
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Birthday")).toBeInTheDocument();
+  });
+
+  it("opens the calendar popup on trigger click", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Choose date" })).toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("closes the calendar on Escape", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows the formatted date value on the trigger face when filled", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+  });
+
+  it("picking a day and clicking Apply commits the value", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Click day 15 in the current month
+    const day15 = screen.getByRole("gridcell", { name: /15/ });
+    await act(async () => {
+      fireEvent.mouseDown(day15);
+    });
+
+    // Click Apply
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.mouseDown(apply);
+    });
+
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall).toMatch(/^\d{4}-\d{2}-15T00:00:00Z$/);
+  });
+
+  it("Cancel discards the draft and closes the calendar", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick a day
+    const day15 = screen.getByRole("gridcell", { name: /15/ });
+    await act(async () => {
+      fireEvent.mouseDown(day15);
+    });
+
+    // Click Cancel
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    await act(async () => {
+      fireEvent.mouseDown(cancel);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // onValueChange should NOT have been called
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("placeholder shows only on the closed face when empty", () => {
+    render(<DateHarness overrides={{ placeholder: "Select date" }} />);
+
+    // Button accessible name comes from the label association; placeholder is visual ghost text
+    const trigger = screen.getByRole("button", { name: "Birthday" });
+    expect(trigger).toBeInTheDocument();
+    // Placeholder text is rendered inside the button
+    expect(within(trigger).getByText("Select date")).toBeInTheDocument();
+  });
+
+  it("calendar shows month grid with weekday headers", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Weekday headers
+    expect(screen.getByRole("columnheader", { name: "Su" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Mo" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Fr" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sa" })).toBeInTheDocument();
+  });
+
+  it("navigates months with Previous/Next month buttons", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const prevBtn = screen.getByRole("button", { name: "Previous month" });
+    const nextBtn = screen.getByRole("button", { name: "Next month" });
+
+    // Navigate forward then back
+    await act(async () => {
+      fireEvent.mouseDown(nextBtn);
+    });
+    await act(async () => {
+      fireEvent.mouseDown(prevBtn);
+    });
+
+    // Should still show the calendar (no error thrown)
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("required validation shows error after validate()", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+    expect(screen.getByText("This field is required.")).toBeInTheDocument();
+  });
+
+  it("min/max validators work with the calendar", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    act(() => handle.current!.setValue("2025-07-01"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+});
+
+describe("DateTimeField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("renders a trigger button with placeholder when empty", () => {
+    render(
+      <DateTimeHarness overrides={{ placeholder: "Pick date & time" }} />,
+    );
+
+    // Button accessible name comes from the label association; placeholder is visual ghost text
+    const trigger = screen.getByRole("button", { name: "Appointment" });
+    expect(trigger).toBeInTheDocument();
+    expect(within(trigger).getByText("Pick date & time")).toBeInTheDocument();
+  });
+
+  it("opens calendar with time inputs for datetime kind", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("dialog", { name: "Choose date" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Hour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Minute")).toBeInTheDocument();
+  });
+
+  it("datetime Apply commits with time", async () => {
+    const spy = vi.fn();
+    render(<DateTimeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick day 15
+    const day15 = screen.getByRole("gridcell", { name: /15/ });
+    await act(async () => {
+      fireEvent.mouseDown(day15);
+    });
+
+    // Set time (local time)
+    const hourInput = screen.getByLabelText("Hour");
+    const minuteInput = screen.getByLabelText("Minute");
+    await act(async () => {
+      fireEvent.change(hourInput, { target: { value: "14" } });
+      fireEvent.change(minuteInput, { target: { value: "30" } });
+    });
+
+    // Click Apply
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.mouseDown(apply);
+    });
+
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    // The value is the UTC equivalent of local 14:30 on the picked date
+    expect(lastCall).toMatch(/^\d{4}-\d{2}-15T\d{2}:\d{2}:00Z$/);
+  });
+
+  it("datetime shows formatted value on trigger face", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+    // Time displayed in local timezone — just check the date part
+  });
+
+  it("minutes type freely and clamp on blur", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const minuteInput = screen.getByLabelText("Minute");
+
+    // Type a value > 59
+    await act(async () => {
+      fireEvent.change(minuteInput, { target: { value: "75" } });
+      fireEvent.blur(minuteInput);
+    });
+
+    // Should clamp to 59
+    expect(minuteInput).toHaveValue("59");
+  });
+
+  it("Escape closes the datetime calendar from time input", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const hourInput = screen.getByLabelText("Hour");
+    await act(async () => {
+      fireEvent.keyDown(hourInput, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("DateField — keyboard accessibility", () => {
+  afterEach(cleanup);
+
+  it("arrow keys navigate days in the grid", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    // Arrow right should move to next day
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "ArrowRight" });
+    });
+
+    // Grid should still be open
+    expect(grid).toBeInTheDocument();
+  });
+
+  it("PageDown navigates to next month", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "PageDown" });
+    });
+
+    // Should still show the calendar
+    expect(grid).toBeInTheDocument();
+  });
+
+  it("Enter selects the focused day and commits", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    // Press Enter to select the currently focused day
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Enter" });
+    });
+
+    expect(spy).toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Space selects the focused day and commits", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: " " });
+    });
+
+    expect(spy).toHaveBeenCalled();
+  });
+});

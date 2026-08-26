@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
 import { normalizeDateInput, type DateInputKind, type FieldDateRangeValue } from "@/lib/date-normalize";
+import { DATE_DISPLAY_FORMAT, DATETIME_DISPLAY_FORMAT } from "@/lib/date-display";
 
 type FieldKind =
   | "input"
@@ -311,6 +312,60 @@ const ROW_BUTTON_CLASS =
   "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent " +
   "dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 " +
   "dark:disabled:hover:bg-transparent";
+
+// ─── Calendar widget tokens ────────────────────────────────────────────
+
+const CALENDAR_PANEL_CLASS =
+  "absolute left-0 right-0 top-full z-10 mt-1.5 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
+  "dark:border-neutral-700 dark:bg-neutral-900";
+
+const CALENDAR_HEADER_CLASS = "flex items-center justify-between mb-2";
+
+const CALENDAR_MONTH_CLASS =
+  "text-sm font-medium text-neutral-900 dark:text-neutral-100";
+
+const CALENDAR_NAV_BUTTON_CLASS =
+  "flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30";
+
+const CALENDAR_WEEKDAY_CLASS =
+  "flex h-8 w-8 items-center justify-center text-xs font-medium text-neutral-500 dark:text-neutral-400";
+
+const CALENDAR_DAY_CLASS =
+  "flex h-8 w-8 items-center justify-center rounded-md text-sm text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30";
+
+const CALENDAR_DAY_SELECTED_CLASS =
+  "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200";
+
+const CALENDAR_DAY_TODAY_CLASS =
+  "ring-1 ring-neutral-400 dark:ring-neutral-500";
+
+const CALENDAR_DAY_OUT_OF_MONTH_CLASS =
+  "text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-400";
+
+const CALENDAR_DAY_DISABLED_CLASS =
+  "cursor-not-allowed opacity-50";
+
+const CALENDAR_TIME_CLASS = "flex items-center gap-2 mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700";
+
+const CALENDAR_TIME_INPUT_CLASS =
+  "w-12 rounded-md border border-neutral-300 bg-white px-2 py-1 text-center text-sm text-neutral-900 " +
+  "focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+  "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 " +
+  "dark:focus:border-neutral-400 dark:focus:ring-neutral-400/30";
+
+const CALENDAR_TIME_COLON_CLASS = "text-sm text-neutral-500 dark:text-neutral-400";
+
+const CALENDAR_ACTIONS_CLASS = "flex justify-end gap-2 mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700";
+
+const CALENDAR_ACTION_BUTTON_CLASS =
+  "rounded-md px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-neutral-500/30 dark:focus:ring-neutral-400/30";
+
+const CALENDAR_APPLY_CLASS =
+  `${CALENDAR_ACTION_BUTTON_CLASS} bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200`;
+
+const CALENDAR_CANCEL_CLASS =
+  CALENDAR_ACTION_BUTTON_CLASS +
+  " text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800";
 
 type Constraint<T> = T | { value: T; message: string };
 
@@ -836,6 +891,413 @@ function OptionsPopup({
   );
 }
 
+// ─── Calendar helpers ──────────────────────────────────────────────────
+
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+function utcDateParts(iso: string): { year: number; month: number; day: number } | null {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return { year: +match[1], month: +match[2], day: +match[3] };
+}
+
+function utcTimeParts(iso: string): { hour: number; minute: number } | null {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return { hour: +match[4], minute: +match[5] };
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function formatCellLabel(year: number, month: number, day: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function formatMonthYear(year: number, month: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+const CELL_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+
+const MONTH_YEAR_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "long",
+});
+
+// ─── CalendarPopup ─────────────────────────────────────────────────────
+
+function CalendarPopup({
+  panelId,
+  gridId,
+  open,
+  kind,
+  draft,
+  onDraftChange,
+  timeHour,
+  timeMinute,
+  onTimeChange,
+  onCommit,
+  onCancel,
+  onCancelRef,
+  triggerRef,
+  widgetRef,
+  min,
+  max,
+  draftDay,
+  draftMonth,
+  draftYear,
+}: {
+  panelId: string;
+  gridId: string;
+  open: boolean;
+  kind: "date" | "datetime";
+  draft: string;
+  onDraftChange: (d: string) => void;
+  timeHour: string;
+  timeMinute: string;
+  onTimeChange: (h: string, m: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+  onCancelRef?: React.Ref<HTMLButtonElement>;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+  widgetRef: React.RefObject<HTMLDivElement | null>;
+  min?: string;
+  max?: string;
+  draftDay: number;
+  draftMonth: number;
+  draftYear: number;
+}) {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // Focus management: focus the selected-day button, or today, on open.
+  useEffect(() => {
+    if (!open || !gridRef.current) return;
+    // Find the selected day button, or today's button, or the first day button.
+    const selectedBtn = gridRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (selectedBtn) {
+      selectedBtn.focus();
+      return;
+    }
+    const todayBtn = gridRef.current.querySelector<HTMLElement>('[data-day]');
+    if (todayBtn) todayBtn.focus();
+  }, [open]);
+
+  const headerLabel = formatMonthYear(draftYear, draftMonth);
+  const today = new Date();
+  const todayYear = today.getUTCFullYear();
+  const todayMonth = today.getUTCMonth() + 1;
+  const todayDay = today.getUTCDate();
+  const isToday = draftYear === todayYear && draftMonth === todayMonth && draftDay === todayDay;
+  const days = daysInMonth(draftYear, draftMonth);
+  const firstDayOfWeek = new Date(Date.UTC(draftYear, draftMonth - 1, 1)).getUTCDay();
+  const outOfMonthDays = daysInMonth(draftYear, draftMonth === 1 ? 12 : draftMonth - 1);
+
+  const prevMonth = () => {
+    const nm = draftMonth === 1 ? 12 : draftMonth - 1;
+    const ny = draftMonth === 1 ? draftYear - 1 : draftYear;
+    onDraftChange(`${ny}-${pad2(nm)}-${pad2(draftDay)}`);
+  };
+
+  const nextMonth = () => {
+    const nm = draftMonth === 12 ? 1 : draftMonth + 1;
+    const ny = draftMonth === 12 ? draftYear + 1 : draftYear;
+    onDraftChange(`${ny}-${pad2(nm)}-${pad2(draftDay)}`);
+  };
+
+  const prevMonthMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    prevMonth();
+  };
+
+  const nextMonthMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    nextMonth();
+  };
+
+  const prevMonthKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") { e.preventDefault(); prevMonth(); }
+  };
+
+  const nextMonthKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowRight") { e.preventDefault(); nextMonth(); }
+  };
+
+  const handleGridKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      onCancel();
+      return;
+    }
+
+    const d = utcDateParts(draft);
+    if (!d) return;
+    let { year, month, day } = d;
+    const dim = daysInMonth(year, month);
+
+    const nav = (delta: number) => {
+      let nd = day + delta;
+      if (nd < 1) {
+        month = month === 1 ? 12 : month - 1;
+        if (month === 12) year--;
+        nd = daysInMonth(year, month);
+      } else if (nd > dim) {
+        month = month === 12 ? 1 : month + 1;
+        if (month === 1) year++;
+        nd = 1;
+      }
+      onDraftChange(`${year}-${pad2(month)}-${pad2(nd)}`);
+    };
+
+    switch (e.key) {
+      case "ArrowRight": e.preventDefault(); nav(1); break;
+      case "ArrowLeft": e.preventDefault(); nav(-1); break;
+      case "ArrowDown": e.preventDefault(); nav(7); break;
+      case "ArrowUp": e.preventDefault(); nav(-7); break;
+      case "PageUp": {
+        e.preventDefault();
+        const pm = month === 1 ? 12 : month - 1;
+        const py = month === 1 ? year - 1 : year;
+        const pd = Math.min(day, daysInMonth(py, pm));
+        onDraftChange(`${py}-${pad2(pm)}-${pad2(pd)}`);
+        break;
+      }
+      case "PageDown": {
+        e.preventDefault();
+        const nm = month === 12 ? 1 : month + 1;
+        const ny = month === 12 ? year + 1 : year;
+        const nd = Math.min(day, daysInMonth(ny, nm));
+        onDraftChange(`${ny}-${pad2(nm)}-${pad2(nd)}`);
+        break;
+      }
+      case "Home": {
+        e.preventDefault();
+        const wd = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+        const homeDay = Math.max(1, day - wd);
+        onDraftChange(`${year}-${pad2(month)}-${pad2(homeDay)}`);
+        break;
+      }
+      case "End": {
+        e.preventDefault();
+        const wd = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+        const endDay = Math.min(dim, day + (6 - wd));
+        onDraftChange(`${year}-${pad2(month)}-${pad2(endDay)}`);
+        break;
+      }
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        onCommit();
+        break;
+    }
+  };
+
+  const focusDayRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      if (node) node.focus();
+    },
+    [draftDay, draftMonth, draftYear],
+  );
+
+  const renderDay = (day: number, isCurrentMonth: boolean, cellYear: number, cellMonth: number) => {
+    const dateStr = `${cellYear}-${pad2(cellMonth)}-${pad2(day)}`;
+    const isSelected = dateStr === draft;
+    const isTodayCell = cellYear === todayYear && cellMonth === todayMonth && day === todayDay;
+
+    let outOfMonth = false;
+    if (!isCurrentMonth) {
+      outOfMonth = true;
+    } else if (min || max) {
+      if (min && dateStr < min) outOfMonth = true;
+      if (max && dateStr > max) outOfMonth = true;
+    }
+
+    const label = formatCellLabel(cellYear, cellMonth, day);
+
+    let cls = CALENDAR_DAY_CLASS;
+    if (isSelected) cls += " " + CALENDAR_DAY_SELECTED_CLASS;
+    else if (isTodayCell) cls += " " + CALENDAR_DAY_TODAY_CLASS;
+    if (outOfMonth) cls += " " + CALENDAR_DAY_OUT_OF_MONTH_CLASS;
+    if (isSelected && isTodayCell) cls += " " + CALENDAR_DAY_TODAY_CLASS;
+
+    return (
+      <button
+        key={dateStr}
+        type="button"
+        role="gridcell"
+        tabIndex={isSelected ? 0 : -1}
+        aria-label={label}
+        aria-selected={isSelected || undefined}
+        aria-disabled={outOfMonth || undefined}
+        data-day={day}
+        data-month={cellMonth}
+        data-year={cellYear}
+        className={cls}
+        ref={isSelected ? focusDayRef : undefined}
+        onMouseDown={(e) => { e.preventDefault(); onDraftChange(dateStr); }}
+      >
+        {day}
+      </button>
+    );
+  };
+
+  const buildCells = () => {
+    const cells: React.ReactNode[] = [];
+    let dayCounter = outOfMonthDays - firstDayOfWeek + 1;
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      const om = draftMonth === 1 ? 12 : draftMonth - 1;
+      const oy = draftMonth === 1 ? draftYear - 1 : draftYear;
+      cells.push(renderDay(dayCounter, false, oy, om));
+      dayCounter++;
+    }
+    for (let d = 1; d <= days; d++) {
+      cells.push(renderDay(d, true, draftYear, draftMonth));
+    }
+    const remaining = 42 - cells.length;
+    for (let d = 1; d <= remaining; d++) {
+      const nm = draftMonth === 12 ? 1 : draftMonth + 1;
+      const ny = draftMonth === 12 ? draftYear + 1 : draftYear;
+      cells.push(renderDay(d, false, ny, nm));
+    }
+    return cells;
+  };
+
+  const handleHourBlur = () => {
+    const h = Math.max(0, Math.min(23, parseInt(timeHour, 10) || 0));
+    onTimeChange(pad2(h), timeMinute);
+  };
+
+  const handleMinuteBlur = () => {
+    const m = Math.max(0, Math.min(59, parseInt(timeMinute, 10) || 0));
+    onTimeChange(timeHour, pad2(m));
+  };
+
+  const handleTimeKeyDown = (e: React.KeyboardEvent, isMinute: boolean) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (isMinute) handleMinuteBlur();
+      else handleHourBlur();
+    }
+  };
+
+  return (
+    <div
+      id={panelId}
+      hidden={!open}
+      className={CALENDAR_PANEL_CLASS}
+      role="dialog"
+      aria-modal="false"
+      aria-label="Choose date"
+    >
+      <div className={CALENDAR_HEADER_CLASS}>
+        <button
+          type="button"
+          aria-label="Previous month"
+          className={CALENDAR_NAV_BUTTON_CLASS}
+          onMouseDown={prevMonthMouseDown}
+          onKeyDown={prevMonthKeyDown}
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+            <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <span className={CALENDAR_MONTH_CLASS}>{headerLabel}</span>
+        <button
+          type="button"
+          aria-label="Next month"
+          className={CALENDAR_NAV_BUTTON_CLASS}
+          onMouseDown={nextMonthMouseDown}
+          onKeyDown={nextMonthKeyDown}
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      <div
+        ref={gridRef}
+        id={gridId}
+        role="grid"
+        aria-label={headerLabel}
+        className="grid grid-cols-7 gap-0.5"
+        onKeyDown={handleGridKeyDown}
+      >
+        {WEEKDAY_LABELS.map((d) => (
+          <div key={d} role="columnheader" aria-label={d} className={CALENDAR_WEEKDAY_CLASS}>{d}</div>
+        ))}
+        {buildCells()}
+      </div>
+
+      {kind === "datetime" && (
+        <div className={CALENDAR_TIME_CLASS}>
+          <label className="text-sm text-neutral-500 dark:text-neutral-400">Time</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={timeHour}
+            aria-label="Hour"
+            className={CALENDAR_TIME_INPUT_CLASS}
+            onChange={(e) => onTimeChange(e.target.value, timeMinute)}
+            onBlur={handleHourBlur}
+            onKeyDown={(e) => handleTimeKeyDown(e, false)}
+          />
+          <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={timeMinute}
+            aria-label="Minute"
+            className={CALENDAR_TIME_INPUT_CLASS}
+            onChange={(e) => onTimeChange(timeHour, e.target.value)}
+            onBlur={handleMinuteBlur}
+            onKeyDown={(e) => handleTimeKeyDown(e, true)}
+          />
+        </div>
+      )}
+
+      <div className={CALENDAR_ACTIONS_CLASS}>
+        <button
+          type="button"
+          ref={onCancelRef}
+          className={CALENDAR_CANCEL_CLASS}
+          onMouseDown={(e) => { e.preventDefault(); onCancel(); }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={CALENDAR_APPLY_CLASS}
+          onMouseDown={(e) => { e.preventDefault(); onCommit(); }}
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The shared engine behind the five public Field components: renders exactly
  * one labeled control for the stamped kind and owns the value lifecycle.
@@ -875,6 +1337,8 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const labelId = `${baseId}-label`;
   const panelId = `${baseId}-panel`;
   const searchId = `${baseId}-search`;
+  const calendarId = `${baseId}-calendar`;
+  const calendarGridId = `${baseId}-calendar-grid`;
 
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -920,6 +1384,86 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const searchRef = useRef<HTMLInputElement>(null);
   const chipRemoveRefs = useRef(new Map<string, HTMLButtonElement>());
 
+  // ─── Calendar state (date kinds only) ──────────────────────────────
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [draftYear, setDraftYear] = useState(0);
+  const [draftMonth, setDraftMonth] = useState(0);
+  const [draftDay, setDraftDay] = useState(0);
+  const [timeHour, setTimeHour] = useState("00");
+  const [timeMinute, setTimeMinute] = useState("00");
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  const isCalendarKind = kind === "date" || kind === "datetime";
+
+  const openCalendar = useCallback(() => {
+    const current = valueRef.current;
+    const now = new Date();
+    let dateStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    let h = "00";
+    let m = "00";
+
+    if (typeof current === "string" && current) {
+      const parts = utcDateParts(current);
+      if (parts) {
+        dateStr = `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`;
+        if (kind === "datetime") {
+          // Extract local time for display in inputs
+          const d = new Date(current);
+          if (!isNaN(d.getTime())) {
+            h = pad2(d.getHours());
+            m = pad2(d.getMinutes());
+          }
+        }
+      }
+    }
+
+    const dp = utcDateParts(dateStr);
+    if (dp) {
+      setDraftYear(dp.year);
+      setDraftMonth(dp.month);
+      setDraftDay(dp.day);
+    }
+    setDraft(dateStr);
+    setTimeHour(h);
+    setTimeMinute(m);
+    setCalendarOpen(true);
+  }, [kind]);
+
+  const closeCalendar = useCallback(() => {
+    setCalendarOpen(false);
+    requestAnimationFrame(() => {
+      triggerRef.current?.focus();
+    });
+  }, []);
+
+  const cancelCalendar = useCallback(() => {
+    closeCalendar();
+  }, [closeCalendar]);
+
+  const handleDraftChange = useCallback((d: string) => {
+    const parts = utcDateParts(d);
+    if (parts) {
+      setDraftYear(parts.year);
+      setDraftMonth(parts.month);
+      setDraftDay(parts.day);
+      setDraft(d);
+    }
+  }, []);
+
+  const handleTimeChange = useCallback((h: string, m: string) => {
+    setTimeHour(h);
+    setTimeMinute(m);
+  }, []);
+
+  const toggleCalendar = useCallback(() => {
+    if (calendarOpen) {
+      closeCalendar();
+    } else {
+      openCalendar();
+    }
+  }, [calendarOpen, openCalendar, closeCalendar]);
+
   // Async Option load lifecycle (loader-form configs only): Pending until the
   // mount-fired loader settles, then Resolved with the Options or Rejected.
   const optionsIsLoader = isOptionsLoader(options);
@@ -964,6 +1508,17 @@ function Field<K extends FieldKind = "input", T = unknown>({
       );
     }
   }, [kind, inputType]);
+
+  // Calendar commit: delegates to commitValue with kind-appropriate serialization.
+  const commitCalendar = useCallback(() => {
+    if (kind === "date") {
+      commitValue(draft);
+    } else {
+      // Pass as local datetime string — commitValue's normalizer converts to UTC.
+      commitValue(`${draft}T${timeHour}:${timeMinute}:00`);
+    }
+    closeCalendar();
+  }, [draft, timeHour, timeMinute, kind, commitValue, closeCalendar]);
 
   // Retry always re-fires the newest loader the parent passed.
   const loaderRef = useRef(options);
@@ -1196,9 +1751,13 @@ function Field<K extends FieldKind = "input", T = unknown>({
   // Escape anywhere in the widget closes the popup and returns focus to
   // whichever trigger opened it.
   const handleWidgetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (open && event.key === "Escape") {
-      closePanel();
-      triggerRef.current?.focus();
+    if (event.key === "Escape") {
+      if (calendarOpen) {
+        closeCalendar();
+      } else if (open) {
+        closePanel();
+        triggerRef.current?.focus();
+      }
     }
   };
 
@@ -1248,6 +1807,9 @@ function Field<K extends FieldKind = "input", T = unknown>({
     }
     if (open) {
       closePanel();
+    }
+    if (calendarOpen) {
+      setCalendarOpen(false);
     }
     setTouched(true);
     setError(evaluate(kind, inputType, config.validator, value));
@@ -1566,20 +2128,81 @@ function Field<K extends FieldKind = "input", T = unknown>({
               className={`${CONTROL_CLASS} resize-y`}
             />
           ) : (
-            /* Date kinds: engine-only slice — no UI yet; placeholder rendered
-               by the future calendar widget. For now, show the value as text. */
-            <div
-              {...controlProps}
-              role="textbox"
-              aria-readonly="true"
-              className={CONTROL_CLASS}
-            >
-              {displayValue || (
-                <span className="text-neutral-400 dark:text-neutral-500">
-                  {placeholder}
-                </span>
-              )}
-            </div>
+            /* Date kinds: calendar widget with draft-with-commit interaction. */
+            <>
+              <div
+                ref={widgetRef}
+                className="relative mt-1.5"
+                onBlur={handleWidgetBlur}
+                onKeyDown={handleWidgetKeyDown}
+              >
+                <button
+                  type="button"
+                  id={controlId}
+                  ref={triggerRef}
+                  disabled={disabled || undefined}
+                  aria-required={isRequired || undefined}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={`${hintId} ${errorId}`}
+                  aria-expanded={calendarOpen}
+                  aria-controls={calendarId}
+                  onClick={toggleCalendar}
+                  className={SELECT_TRIGGER_CLASS}
+                >
+                  <span
+                    className={
+                      !displayValue ? SELECT_FACE_GHOST_CLASS : undefined
+                    }
+                  >
+                    {displayValue ? (
+                      kind === "date" ? (
+                        DATE_DISPLAY_FORMAT.format(new Date(String(displayValue)))
+                      ) : (
+                        DATETIME_DISPLAY_FORMAT.format(new Date(String(displayValue)))
+                      )
+                    ) : (
+                      placeholder
+                    )}
+                  </span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
+                  >
+                    <path
+                      d="M4 6l4 4 4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+
+                <CalendarPopup
+                  panelId={calendarId}
+                  gridId={calendarGridId}
+                  open={calendarOpen}
+                  kind={kind as "date" | "datetime"}
+                  draft={draft}
+                  onDraftChange={handleDraftChange}
+                  timeHour={timeHour}
+                  timeMinute={timeMinute}
+                  onTimeChange={handleTimeChange}
+                  onCommit={commitCalendar}
+                  onCancel={cancelCalendar}
+                  onCancelRef={cancelRef}
+                  triggerRef={triggerRef}
+                  widgetRef={widgetRef}
+                  min={typeof config.validator?.min === "string" ? config.validator.min : typeof config.validator?.min === "object" && config.validator?.min && "value" in config.validator.min ? String(config.validator.min.value) : undefined}
+                  max={typeof config.validator?.max === "string" ? config.validator.max : typeof config.validator?.max === "object" && config.validator?.max && "value" in config.validator.max ? String(config.validator.max.value) : undefined}
+                  draftDay={draftDay}
+                  draftMonth={draftMonth}
+                  draftYear={draftYear}
+                />
+              </div>
+            </>
           )}
         </>
       )}
