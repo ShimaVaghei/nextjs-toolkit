@@ -12,6 +12,12 @@ import {
   type Ref,
 } from "react";
 
+import {
+  DATE_DISPLAY_FORMAT,
+  DATE_ONLY_PATTERN,
+  DATETIME_DISPLAY_FORMAT,
+} from "@/lib/date-display";
+
 export type TableColumnType =
   | "text"
   | "date"
@@ -83,20 +89,6 @@ const PAGER_BUTTON_BASE_CLASS =
 const PAGER_BUTTON_CLASS = `${PAGER_BUTTON_BASE_CLASS} border-neutral-300 dark:border-neutral-700`;
 const PAGER_CURRENT_BUTTON_CLASS = `${PAGER_BUTTON_BASE_CLASS} border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900`;
 const PAGER_EDGE_BUTTON_CLASS = `${PAGER_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`;
-
-const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-});
-
-const DATETIME_FORMAT = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-});
 
 const IMAGE_CLASS = "h-10 w-10 rounded-lg shadow-sm";
 
@@ -212,7 +204,7 @@ function toMatchDate(value: unknown): Date | null {
     return value;
   }
   if (typeof value === "string") {
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(value);
+    const dateOnly = DATE_ONLY_PATTERN.exec(value);
     if (dateOnly) {
       const [year, month, day] = value.split("-").map(Number);
       return new Date(year, month - 1, day);
@@ -307,7 +299,7 @@ function renderTimeCell(value: unknown, includeTime: boolean): ReactNode {
   }
   return (
     <time dateTime={buildDateTimeAttribute(date, includeTime)}>
-      {(includeTime ? DATETIME_FORMAT : DATE_FORMAT).format(date)}
+      {(includeTime ? DATETIME_DISPLAY_FORMAT : DATE_DISPLAY_FORMAT).format(date)}
     </time>
   );
 }
