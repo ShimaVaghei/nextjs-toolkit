@@ -31,14 +31,12 @@ const emailConfig: FieldInputConfig = {
   inputType: "text",
   label: "Email",
   placeholder: "jane@example.com",
-  hint: "Format checking is the declarative email rule — no hand-written regex.",
   validator: { required: true, email: true },
 };
 
 const passwordConfig: FieldInputConfig = {
   inputType: "password",
   label: "Password",
-  hint: "Never shared.",
   validator: { minLength: 8 },
 };
 
@@ -56,7 +54,6 @@ const bioConfig: FieldTextareaConfig = {
 const ageConfig: FieldInputConfig = {
   inputType: "number",
   label: "Age",
-  hint: "Whole years; empty or unparseable counts as not filled in.",
   validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
 };
 
@@ -100,28 +97,12 @@ const tagsConfig: FieldMultiSelectConfig<string> = {
   ],
 };
 
-const tagChipsConfig: FieldMultiSelectConfig<string> = {
-  label: "Tags (chips)",
-  placeholder: "Pick some tags",
-  hint: 'selectionDisplay: "chips" opts into removable chips instead; the strip grows to about three rows, then scrolls internally.',
-  initialValue: ["research", "design"],
-  validator: { required: { value: true, message: "Pick at least one tag." } },
-  options: [
-    { label: "Design", value: "design" },
-    { label: "Research", value: "research" },
-    { label: "Engineering", value: "engineering" },
-    { label: "Documentation", value: "docs" },
-    { label: "Accessibility", value: "a11y" },
-  ],
-};
-
 const legacyPlanConfig: FieldSelectConfig<string> = {
   label: "Plan",
-  hint: "Holds the retired Starter plan selected by default (keepDisabledSelection); pick another to move off it.",
   initialValue: "starter",
   placeholder: "Choose a plan",
   options: [
-    { label: "Starter (retired)", value: "starter", disabled: true },
+    { label: "Starter", value: "starter" },
     { label: "Growth", value: "growth" },
     { label: "Scale", value: "scale" },
   ],
@@ -169,8 +150,6 @@ const REF_BUTTON_CLASS =
   "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800";
 
 export default function FieldDemoPage() {
-  const [simulateRejection, setSimulateRejection] = useState(false);
-
   // Kept out of render state so mounted loaders are never re-fired by a
   // toggle; each attempt reads the ref when it settles, and Retry always sees
   // the latest position. One shared flag drives both async demo Fields.
@@ -182,11 +161,6 @@ export default function FieldDemoPage() {
   const [readValue, setReadValue] = useState("(never read)");
 
   const readNickname = () => setReadValue(String(nicknameRef.current?.getValue()));
-
-  const toggleSimulateRejection = (checked: boolean) => {
-    loadRejectionRef.current = checked;
-    setSimulateRejection(checked);
-  };
 
   // One simulated API shape behind both async demo Fields; each call gets its
   // own loader closure, and the shared flag is read only when a load settles.
@@ -208,7 +182,7 @@ export default function FieldDemoPage() {
 
   const regionConfig: FieldSelectConfig<string> = {
     label: "Region",
-    hint: "Options come from a simulated API; flip the toggle, then hit Retry to walk the failure path.",
+    hint: "Options come from a simulated API;",
     validator: { required: { value: true, message: "Choose a region." } },
     placeholder: "Choose a region",
     options: simulateOptionLoad(800, "Simulated region load rejection.", [
@@ -223,7 +197,6 @@ export default function FieldDemoPage() {
   const teamsConfig: FieldMultiSelectConfig<string> = {
     label: "Teams",
     hint: "The same async contract on the multi-select kind: the joined selection stays visible while Pending, and the popup only opens once options resolve.",
-    className: "max-w-md",
     initialValue: ["platform"],
     validator: { required: { value: true, message: "Pick at least one team." } },
     options: simulateOptionLoad(1100, "Simulated teams load rejection.", [
@@ -236,7 +209,7 @@ export default function FieldDemoPage() {
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 max-w-4xl mx-auto">
       <header>
         <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
           Field demo
@@ -245,9 +218,6 @@ export default function FieldDemoPage() {
 
       <section className="space-y-6">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-            Uncontrolled
-          </h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             A fully working field with no change callback at all: the config
             carries no state wiring, edits live inside the Field, and the
@@ -258,7 +228,6 @@ export default function FieldDemoPage() {
         <InputField
           config={{
             label: "Nickname",
-            hint: "No onValueChange anywhere; the Initial value seeds once at mount.",
             initialValue: "Ace",
             validator: { required: true },
           }}
@@ -330,9 +299,6 @@ export default function FieldDemoPage() {
             while empty, then the chosen Option&rsquo;s label. Clicking it
             opens the same searchable popup the multi-select uses, where
             clicking anywhere in a row picks that Option and closes again.
-            Antarctica is disabled — inert everywhere — yet stays legally
-            selected if your state holds it; a value no option matches
-            renders as an inert fallback instead.
           </p>
         </div>
         <SelectField config={countryConfig} />
@@ -350,12 +316,7 @@ export default function FieldDemoPage() {
             no string mapping layer. Users only ever see labels. Matching is
             reference identity by default; these Fields configure
             matchValue to compare train ids, so a re-created copy of a
-            domain object still Matches its Option. A held value that
-            Matches nothing stays visible but inert: primitives render their
-            string form, anything else renders the generic &ldquo;(unknown
-            option)&rdquo; marker — never{" "}
-            <code className="font-mono">[object Object]</code> — with a
-            dev-only warning naming the Field.
+            domain object still Matches its Option.
           </p>
         </div>
         <SelectField config={trainConfig} />
@@ -382,7 +343,6 @@ export default function FieldDemoPage() {
           </p>
         </div>
         <MultiSelectField config={tagsConfig} />
-        <MultiSelectField config={tagChipsConfig} />
       </section>
 
       <section className="space-y-6">
@@ -390,29 +350,7 @@ export default function FieldDemoPage() {
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
             Async options
           </h2>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-            <input
-              type="checkbox"
-              checked={simulateRejection}
-              onChange={(event) =>
-                toggleSimulateRejection(event.target.checked)
-              }
-              className="h-4 w-4 accent-neutral-900 dark:accent-neutral-100"
-            />
-            Simulate load rejection
-          </label>
         </div>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Both choice kinds load their options from a simulated API and open
-          the same searchable popup. The loader fires once on mount: each
-          control stays disabled with a muted &ldquo;Loading
-          options…&rdquo; status until its options arrive, the popup refuses
-          to open until then, and any held selection stays visible the whole
-          time — for the multi-select as its joined selection. Turn on the
-          simulation, then
-          hit Retry to see the rejection; turn it off and hit Retry to
-          recover.
-        </p>
         <SelectField config={regionConfig} />
         <MultiSelectField config={teamsConfig} />
       </section>
