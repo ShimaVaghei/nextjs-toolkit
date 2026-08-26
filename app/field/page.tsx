@@ -163,6 +163,7 @@ const birthdayConfig: FieldDateConfig = {
     required: { value: true, message: "Choose your birthday." },
     max: { value: "2010-01-01", message: "Must be born before 2010." },
   },
+  onValueChange: (value) => console.log("Birthday changed:", value),
 };
 
 const meetingConfig: FieldDateTimeConfig = {
@@ -174,6 +175,7 @@ const meetingConfig: FieldDateTimeConfig = {
     required: { value: true, message: "Set a meeting time." },
     min: { value: "2025-01-01T00:00:00Z", message: "Must be in 2025 or later." },
   },
+  onValueChange: (value) => console.log("Meeting time changed:", value),
 };
 
 const vacationConfig: FieldDateRangeConfig = {
@@ -184,6 +186,7 @@ const vacationConfig: FieldDateRangeConfig = {
   validator: {
     required: { value: true, message: "Choose a vacation range." },
   },
+  onValueChange: (value) => console.log("Vacation changed:", value),
 };
 
 const sprintConfig: FieldDateTimeRangeConfig = {
@@ -194,6 +197,7 @@ const sprintConfig: FieldDateTimeRangeConfig = {
   validator: {
     required: { value: true, message: "Set a sprint window." },
   },
+  onValueChange: (value) => console.log("Sprint window changed:", value),
 };
 
 const REF_BUTTON_CLASS =
