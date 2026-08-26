@@ -268,9 +268,17 @@ const PANEL_CLASS =
   "absolute left-0 right-0 top-full z-10 mt-1.5 space-y-3 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
   "dark:border-neutral-700 dark:bg-neutral-900";
 
+/** Shared layout of one toggleable multi-select row inside the Options popup; styled for parity with the select kind's rows. */
 const ROW_LABEL_CLASS =
-  "flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-100";
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-neutral-900 dark:text-neutral-100";
 
+/** Interactive affordances for an enabled row. */
+const ROW_LABEL_ENABLED_CLASS = " cursor-pointer hover:bg-neutral-100 focus-within:bg-neutral-100 dark:hover:bg-neutral-800 dark:focus-within:bg-neutral-800";
+
+/**
+ * Inert affordances for a disabled row — composed exclusively rather than
+ * overridden, since a label never matches :disabled.
+ */
 const ROW_LABEL_DISABLED_CLASS = " cursor-not-allowed opacity-60";
 
 /** Closed-face trigger of the select disclosure; the whole face opens the shared Options popup. */
@@ -832,6 +840,9 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const widgetRef = useRef<HTMLDivElement>(null);
+  // Set while a row press is being absorbed: its dissolved focus must not
+  // read as leaving the widget (see handleWidgetBlur).
+  const absorbedPressRef = useRef(false);
   // Whichever control opens the popup: the multi-select's chevron button or
   // the select's closed face. Escape and focus hops return here.
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -1141,10 +1152,17 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   // Focus leaving the whole widget (Tab-out or otherwise) closes the panel
   // naturally — no trap — and counts as leaving the field for the Touched
-  // lifecycle. Internal focus moves are ignored.
+  // lifecycle. Internal focus moves are ignored. One null-relatedTarget blur
+  // is exempt: a row press absorbed its own mousedown, so focus dissolves
+  // before the click can reach the checkbox — closing there would unmount
+  // the panel and eat the toggle.
   const handleWidgetBlur = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;
     if (next instanceof Node && widgetRef.current?.contains(next)) {
+      return;
+    }
+    if (open && next === null && absorbedPressRef.current) {
+      absorbedPressRef.current = false;
       return;
     }
     if (open) {
@@ -1322,8 +1340,17 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   key={index}
                   className={
                     ROW_LABEL_CLASS +
-                    (option.disabled ? ROW_LABEL_DISABLED_CLASS : "")
+                    (option.disabled
+                      ? ROW_LABEL_DISABLED_CLASS
+                      : ROW_LABEL_ENABLED_CLASS)
                   }
+                  // Absorb the press: a row is not focusable, so letting the
+                  // mousedown through would dissolve the search input's
+                  // focus mid-press instead of landing it on the checkbox.
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    absorbedPressRef.current = true;
+                  }}
                 >
                   <input
                     type="checkbox"

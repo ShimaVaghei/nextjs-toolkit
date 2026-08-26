@@ -2259,6 +2259,92 @@ describe("Field multi-select panel", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the popup open and still toggles when a row press dissolves focus", () => {
+    const received: FieldValue[] = [];
+    render(
+      <MultiSelectHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    fireEvent.click(openButton);
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search).toHaveFocus();
+
+    // Real browsers dissolve focus when a press starts on a non-focusable
+    // row: the search input blurs with nowhere for focus to go before the
+    // click can reach the row's checkbox. That must not read as leaving.
+    const rowText = screen.getByText("Research");
+    fireEvent.mouseDown(rowText);
+    fireEvent.blur(search, { relatedTarget: null });
+
+    expect(openButton).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(rowText);
+    expect(received).toEqual([["research"]]);
+    expect(screen.getByRole("checkbox", { name: "Research" })).toBeChecked();
+  });
+
+  it("absorbs the mousedown on a row so focus never leaves the search input mid-press", () => {
+    render(<MultiSelectHarness overrides={tagOverrides()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search).toHaveFocus();
+
+    // fireEvent dispatches cancelable events and reports whether the default
+    // action survived — a false return means the row prevented it.
+    expect(fireEvent.mouseDown(screen.getByText("Research"))).toBe(false);
+    expect(search).toHaveFocus();
+  });
+
+  it("still reads a dissolved focus that no row press explains as leaving", () => {
+    render(<MultiSelectHarness overrides={tagOverrides()} />);
+
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    fireEvent.click(openButton);
+    const search = screen.getByRole("textbox", { name: "Search options" });
+    expect(search).toHaveFocus();
+
+    // Tab with nowhere to go (or an app switch) also dissolves focus to a
+    // null relatedTarget — without an absorbed row press that is a leave.
+    fireEvent.blur(search, { relatedTarget: null });
+
+    expect(openButton).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("lays rows out full-width with the same hover affordance as the select kind's rows", () => {
+    render(
+      <MultiSelectHarness
+        overrides={{
+          ...tagOverrides(),
+          options: [
+            ...TAG_OPTIONS,
+            { label: "Archived", value: "archived", disabled: true },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+
+    const row = screen.getByText("Research").closest("label")!;
+    expect(row).toHaveClass(
+      "w-full",
+      "rounded-md",
+      "px-2",
+      "py-1.5",
+      "hover:bg-neutral-100",
+      "dark:hover:bg-neutral-800",
+    );
+
+    // Disabled rows stay visibly inert — no hover highlight.
+    const disabledRow = screen.getByText("Archived").closest("label")!;
+    expect(disabledRow).toHaveClass("cursor-not-allowed", "opacity-60");
+    expect(disabledRow).not.toHaveClass("hover:bg-neutral-100");
+  });
+
   it("wraps native checkbox rows in a fieldset/legend group with the search input outside it", () => {
     render(<MultiSelectHarness overrides={tagOverrides()} />);
 

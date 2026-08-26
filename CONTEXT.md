@@ -115,7 +115,7 @@ A single-choice Field kind rendered as a custom disclosure: a closed face showin
 _Avoid_: dropdown control, native select, combobox
 
 **Options popup**:
-The disclosure panel shared by select and multi-select: a search box filtering rows above a clickable row list. Opening moves focus to the search box; Escape, outside click, or focus leaving the widget closes it and resets the query. In select, a row click picks and closes; in multi-select, a row click toggles membership and the popup stays open.
+The disclosure panel shared by select and multi-select: a search box filtering rows above a clickable row list. Opening moves focus to the search box; Escape, outside click, or focus genuinely leaving the widget closes it and resets the query — a row press that dissolves focus does not. In select, a row click picks and closes; in multi-select, a row click toggles membership and the popup stays open.
 _Avoid_: dropdown list, options menu, picker
 
 **Selection display**:
