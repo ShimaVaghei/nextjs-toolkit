@@ -342,6 +342,9 @@ const CALENDAR_DAY_TODAY_CLASS =
 const CALENDAR_DAY_OUT_OF_MONTH_CLASS =
   "text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-400";
 
+const CALENDAR_DAY_IN_RANGE_CLASS =
+  "bg-neutral-100 dark:bg-neutral-800";
+
 const CALENDAR_DAY_DISABLED_CLASS =
   "cursor-not-allowed opacity-50";
 
@@ -965,6 +968,17 @@ function CalendarPopup({
   draftDay,
   draftMonth,
   draftYear,
+  range,
+  anchor,
+  hoverDate,
+  onDayHover,
+  onDayRangeSelect,
+  startTimeHour,
+  startTimeMinute,
+  endTimeHour,
+  endTimeMinute,
+  onStartTimeChange,
+  onEndTimeChange,
 }: {
   panelId: string;
   gridId: string;
@@ -985,6 +999,17 @@ function CalendarPopup({
   draftDay: number;
   draftMonth: number;
   draftYear: number;
+  range?: boolean;
+  anchor?: string;
+  hoverDate?: string;
+  onDayHover?: (date: string) => void;
+  onDayRangeSelect?: (date: string) => void;
+  startTimeHour?: string;
+  startTimeMinute?: string;
+  endTimeHour?: string;
+  endTimeMinute?: string;
+  onStartTimeChange?: (h: string, m: string) => void;
+  onEndTimeChange?: (h: string, m: string) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -1133,11 +1158,50 @@ function CalendarPopup({
 
     const label = formatCellLabel(cellYear, cellMonth, day);
 
+    // Range highlighting
+    let isAnchor = false;
+    let inRange = false;
+    let isRangeStart = false;
+    let isRangeEnd = false;
+    if (range && anchor) {
+      const compareDate = hoverDate || anchor;
+      const minDate = anchor < compareDate ? anchor : compareDate;
+      const maxDate = anchor < compareDate ? compareDate : anchor;
+      isAnchor = dateStr === anchor;
+      inRange = isCurrentMonth && dateStr > minDate && dateStr < maxDate;
+      isRangeStart = dateStr === minDate;
+      isRangeEnd = dateStr === maxDate;
+    }
+
     let cls = CALENDAR_DAY_CLASS;
     if (isSelected) cls += " " + CALENDAR_DAY_SELECTED_CLASS;
     else if (isTodayCell) cls += " " + CALENDAR_DAY_TODAY_CLASS;
     if (outOfMonth) cls += " " + CALENDAR_DAY_OUT_OF_MONTH_CLASS;
     if (isSelected && isTodayCell) cls += " " + CALENDAR_DAY_TODAY_CLASS;
+    
+    // Range styling
+    if (range) {
+      if (isAnchor || isRangeStart || isRangeEnd) {
+        cls += " " + CALENDAR_DAY_SELECTED_CLASS;
+      } else if (inRange) {
+        cls += " " + CALENDAR_DAY_IN_RANGE_CLASS;
+      }
+    }
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (range && onDayRangeSelect) {
+        onDayRangeSelect(dateStr);
+      } else {
+        onDraftChange(dateStr);
+      }
+    };
+
+    const handleMouseEnter = () => {
+      if (range && onDayHover && anchor) {
+        onDayHover(dateStr);
+      }
+    };
 
     return (
       <button
@@ -1146,14 +1210,15 @@ function CalendarPopup({
         role="gridcell"
         tabIndex={isSelected ? 0 : -1}
         aria-label={label}
-        aria-selected={isSelected || undefined}
+        aria-selected={isSelected || isAnchor || isRangeStart || isRangeEnd || undefined}
         aria-disabled={outOfMonth || undefined}
         data-day={day}
         data-month={cellMonth}
         data-year={cellYear}
         className={cls}
         ref={isSelected ? focusDayRef : undefined}
-        onMouseDown={(e) => { e.preventDefault(); onDraftChange(dateStr); }}
+        onMouseDown={handleMouseDown}
+        onMouseEnter={handleMouseEnter}
       >
         {day}
       </button>
@@ -1206,8 +1271,14 @@ function CalendarPopup({
       className={CALENDAR_PANEL_CLASS}
       role="dialog"
       aria-modal="false"
-      aria-label="Choose date"
+      aria-label={range ? "Choose date range" : "Choose date"}
     >
+      {range && (
+        <div aria-live="polite" className="sr-only">
+          {anchor && !hoverDate && `Start date selected: ${formatCellLabel(utcDateParts(anchor)!.year, utcDateParts(anchor)!.month, utcDateParts(anchor)!.day)}. Select end date.`}
+          {anchor && hoverDate && `Range: ${formatCellLabel(utcDateParts(anchor)!.year, utcDateParts(anchor)!.month, utcDateParts(anchor)!.day)} to ${formatCellLabel(utcDateParts(hoverDate)!.year, utcDateParts(hoverDate)!.month, utcDateParts(hoverDate)!.day)}`}
+        </div>
+      )}
       <div className={CALENDAR_HEADER_CLASS}>
         <button
           type="button"
@@ -1248,7 +1319,7 @@ function CalendarPopup({
         {buildCells()}
       </div>
 
-      {kind === "datetime" && (
+      {kind === "datetime" && !range && (
         <div className={CALENDAR_TIME_CLASS}>
           <label className="text-sm text-neutral-500 dark:text-neutral-400">Time</label>
           <input
@@ -1274,6 +1345,99 @@ function CalendarPopup({
             onBlur={handleMinuteBlur}
             onKeyDown={(e) => handleTimeKeyDown(e, true)}
           />
+        </div>
+      )}
+
+      {kind === "datetime" && range && (
+        <div className={CALENDAR_TIME_CLASS}>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-neutral-500 dark:text-neutral-400">Start time</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              value={startTimeHour || "00"}
+              aria-label="Start hour"
+              className={CALENDAR_TIME_INPUT_CLASS}
+              onChange={(e) => onStartTimeChange?.(e.target.value, startTimeMinute || "00")}
+              onBlur={() => {
+                const h = Math.max(0, Math.min(23, parseInt(startTimeHour || "00", 10) || 0));
+                onStartTimeChange?.(pad2(h), startTimeMinute || "00");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const h = Math.max(0, Math.min(23, parseInt(startTimeHour || "00", 10) || 0));
+                  onStartTimeChange?.(pad2(h), startTimeMinute || "00");
+                }
+              }}
+            />
+            <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              value={startTimeMinute || "00"}
+              aria-label="Start minute"
+              className={CALENDAR_TIME_INPUT_CLASS}
+              onChange={(e) => onStartTimeChange?.(startTimeHour || "00", e.target.value)}
+              onBlur={() => {
+                const m = Math.max(0, Math.min(59, parseInt(startTimeMinute || "00", 10) || 0));
+                onStartTimeChange?.(startTimeHour || "00", pad2(m));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const m = Math.max(0, Math.min(59, parseInt(startTimeMinute || "00", 10) || 0));
+                  onStartTimeChange?.(startTimeHour || "00", pad2(m));
+                }
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-neutral-500 dark:text-neutral-400">End time</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              value={endTimeHour || "00"}
+              aria-label="End hour"
+              className={CALENDAR_TIME_INPUT_CLASS}
+              onChange={(e) => onEndTimeChange?.(e.target.value, endTimeMinute || "00")}
+              onBlur={() => {
+                const h = Math.max(0, Math.min(23, parseInt(endTimeHour || "00", 10) || 0));
+                onEndTimeChange?.(pad2(h), endTimeMinute || "00");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const h = Math.max(0, Math.min(23, parseInt(endTimeHour || "00", 10) || 0));
+                  onEndTimeChange?.(pad2(h), endTimeMinute || "00");
+                }
+              }}
+            />
+            <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              value={endTimeMinute || "00"}
+              aria-label="End minute"
+              className={CALENDAR_TIME_INPUT_CLASS}
+              onChange={(e) => onEndTimeChange?.(endTimeHour || "00", e.target.value)}
+              onBlur={() => {
+                const m = Math.max(0, Math.min(59, parseInt(endTimeMinute || "00", 10) || 0));
+                onEndTimeChange?.(endTimeHour || "00", pad2(m));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const m = Math.max(0, Math.min(59, parseInt(endTimeMinute || "00", 10) || 0));
+                  onEndTimeChange?.(endTimeHour || "00", pad2(m));
+                }
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -1394,7 +1558,16 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const [timeMinute, setTimeMinute] = useState("00");
   const cancelRef = useRef<HTMLButtonElement>(null);
 
+  // Range state for date-range and datetime-range
+  const [rangeAnchor, setRangeAnchor] = useState<string | undefined>(undefined);
+  const [hoverDate, setHoverDate] = useState<string | undefined>(undefined);
+  const [startTimeHour, setStartTimeHour] = useState("00");
+  const [startTimeMinute, setStartTimeMinute] = useState("00");
+  const [endTimeHour, setEndTimeHour] = useState("00");
+  const [endTimeMinute, setEndTimeMinute] = useState("00");
+
   const isCalendarKind = kind === "date" || kind === "datetime";
+  const isRangeKind = kind === "date-range" || kind === "datetime-range";
 
   const openCalendar = useCallback(() => {
     const current = valueRef.current;
@@ -1427,8 +1600,45 @@ function Field<K extends FieldKind = "input", T = unknown>({
     setDraft(dateStr);
     setTimeHour(h);
     setTimeMinute(m);
+    
+    // Initialize range state
+    if (isRangeKind) {
+      const rangeValue = current as FieldDateRangeValue | undefined;
+      if (rangeValue?.from) {
+        const fromParts = utcDateParts(rangeValue.from);
+        if (fromParts) {
+          setDraftYear(fromParts.year);
+          setDraftMonth(fromParts.month);
+          setDraftDay(fromParts.day);
+          setDraft(`${fromParts.year}-${pad2(fromParts.month)}-${pad2(fromParts.day)}`);
+        }
+        setRangeAnchor(rangeValue.from);
+      } else {
+        setRangeAnchor(undefined);
+      }
+      setHoverDate(undefined);
+      
+      // Initialize time controls for datetime-range
+      if (kind === "datetime-range" && rangeValue) {
+        if (rangeValue.from) {
+          const fromTimeParts = utcTimeParts(rangeValue.from);
+          if (fromTimeParts) {
+            setStartTimeHour(pad2(fromTimeParts.hour));
+            setStartTimeMinute(pad2(fromTimeParts.minute));
+          }
+        }
+        if (rangeValue.to) {
+          const toTimeParts = utcTimeParts(rangeValue.to);
+          if (toTimeParts) {
+            setEndTimeHour(pad2(toTimeParts.hour));
+            setEndTimeMinute(pad2(toTimeParts.minute));
+          }
+        }
+      }
+    }
+    
     setCalendarOpen(true);
-  }, [kind]);
+  }, [kind, isRangeKind]);
 
   const closeCalendar = useCallback(() => {
     setCalendarOpen(false);
@@ -1454,6 +1664,16 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const handleTimeChange = useCallback((h: string, m: string) => {
     setTimeHour(h);
     setTimeMinute(m);
+  }, []);
+
+  const handleStartTimeChange = useCallback((h: string, m: string) => {
+    setStartTimeHour(h);
+    setStartTimeMinute(m);
+  }, []);
+
+  const handleEndTimeChange = useCallback((h: string, m: string) => {
+    setEndTimeHour(h);
+    setEndTimeMinute(m);
   }, []);
 
   const toggleCalendar = useCallback(() => {
@@ -1513,12 +1733,80 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const commitCalendar = useCallback(() => {
     if (kind === "date") {
       commitValue(draft);
-    } else {
+    } else if (kind === "datetime") {
       // Pass as local datetime string — commitValue's normalizer converts to UTC.
       commitValue(`${draft}T${timeHour}:${timeMinute}:00`);
+    } else if (isRangeKind && rangeAnchor) {
+      // Range commit with both ends
+      const from = rangeAnchor < draft ? rangeAnchor : draft;
+      const to = rangeAnchor < draft ? draft : rangeAnchor;
+      
+      let fromValue: string | undefined = from;
+      let toValue: string | undefined = to;
+      
+      if (kind === "datetime-range") {
+        fromValue = `${from}T${startTimeHour}:${startTimeMinute}:00`;
+        toValue = `${to}T${endTimeHour}:${endTimeMinute}:00`;
+      }
+      
+      commitValue({ from: fromValue, to: toValue });
+      setRangeAnchor(undefined);
+      setHoverDate(undefined);
     }
     closeCalendar();
-  }, [draft, timeHour, timeMinute, kind, commitValue, closeCalendar]);
+  }, [draft, timeHour, timeMinute, kind, isRangeKind, rangeAnchor, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue, closeCalendar]);
+
+  const handleDayRangeSelect = useCallback((dateStr: string) => {
+    if (!rangeAnchor) {
+      // First click: set anchor and stream half-pick
+      setRangeAnchor(dateStr);
+      setDraft(dateStr);
+      const dp = utcDateParts(dateStr);
+      if (dp) {
+        setDraftYear(dp.year);
+        setDraftMonth(dp.month);
+        setDraftDay(dp.day);
+      }
+      // For datetime-range, seed the start time to midnight
+      if (kind === "datetime-range") {
+        setStartTimeHour("00");
+        setStartTimeMinute("00");
+        // Emit half-pick with datetime
+        commitValue({ from: `${dateStr}T00:00:00`, to: undefined });
+      } else {
+        // Emit half-pick with date
+        commitValue({ from: dateStr, to: undefined });
+      }
+    } else {
+      // Second click: complete the range
+      const from = rangeAnchor < dateStr ? rangeAnchor : dateStr;
+      const to = rangeAnchor < dateStr ? dateStr : rangeAnchor;
+      
+      // Build the range value
+      let fromValue: string | undefined = from;
+      let toValue: string | undefined = to;
+      
+      // For datetime-range, append time
+      if (kind === "datetime-range") {
+        fromValue = `${from}T${startTimeHour}:${startTimeMinute}:00`;
+        toValue = `${to}T${endTimeHour}:${endTimeMinute}:00`;
+      }
+      
+      // Commit the range value
+      commitValue({ from: fromValue, to: toValue });
+      
+      // Reset range state
+      setRangeAnchor(undefined);
+      setHoverDate(undefined);
+      closeCalendar();
+    }
+  }, [rangeAnchor, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue, closeCalendar]);
+
+  const handleDayHover = useCallback((dateStr: string) => {
+    if (rangeAnchor) {
+      setHoverDate(dateStr);
+    }
+  }, [rangeAnchor]);
 
   // Retry always re-fires the newest loader the parent passed.
   const loaderRef = useRef(options);
@@ -2151,18 +2439,35 @@ function Field<K extends FieldKind = "input", T = unknown>({
                 >
                   <span
                     className={
-                      !displayValue ? SELECT_FACE_GHOST_CLASS : undefined
+                      !(isRangeKind ? value : displayValue) ? SELECT_FACE_GHOST_CLASS : undefined
                     }
                   >
-                    {displayValue ? (
+                    {isRangeKind ? (
+                      typeof value === "object" && value !== null && "from" in value ? (
+                        (() => {
+                          const rangeVal = value as FieldDateRangeValue;
+                          const formatSingle = (iso: string | undefined) => {
+                            if (!iso) return "";
+                            return kind === "date-range" 
+                              ? DATE_DISPLAY_FORMAT.format(new Date(iso))
+                              : DATETIME_DISPLAY_FORMAT.format(new Date(iso));
+                          };
+                          const fromStr = formatSingle(rangeVal.from);
+                          const toStr = formatSingle(rangeVal.to);
+                          if (fromStr && toStr) return `${fromStr} – ${toStr}`;
+                          if (fromStr) return `${fromStr} –`;
+                          if (toStr) return `– ${toStr}`;
+                          return "";
+                        })()
+                      ) : null
+                    ) : displayValue ? (
                       kind === "date" ? (
                         DATE_DISPLAY_FORMAT.format(new Date(String(displayValue)))
                       ) : (
                         DATETIME_DISPLAY_FORMAT.format(new Date(String(displayValue)))
                       )
-                    ) : (
-                      placeholder
-                    )}
+                    ) : null}
+                    {!isRangeKind && !displayValue && placeholder}
                   </span>
                   <svg
                     aria-hidden="true"
@@ -2184,7 +2489,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   panelId={calendarId}
                   gridId={calendarGridId}
                   open={calendarOpen}
-                  kind={kind as "date" | "datetime"}
+                  kind={kind === "date-range" ? "date" : kind === "datetime-range" ? "datetime" : kind as "date" | "datetime"}
                   draft={draft}
                   onDraftChange={handleDraftChange}
                   timeHour={timeHour}
@@ -2200,6 +2505,17 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   draftDay={draftDay}
                   draftMonth={draftMonth}
                   draftYear={draftYear}
+                  range={isRangeKind}
+                  anchor={rangeAnchor}
+                  hoverDate={hoverDate}
+                  onDayHover={handleDayHover}
+                  onDayRangeSelect={handleDayRangeSelect}
+                  startTimeHour={startTimeHour}
+                  startTimeMinute={startTimeMinute}
+                  endTimeHour={endTimeHour}
+                  endTimeMinute={endTimeMinute}
+                  onStartTimeChange={handleStartTimeChange}
+                  onEndTimeChange={handleEndTimeChange}
                 />
               </div>
             </>

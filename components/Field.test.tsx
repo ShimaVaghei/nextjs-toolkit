@@ -4179,3 +4179,333 @@ describe("DateField — keyboard accessibility", () => {
     expect(spy).toHaveBeenCalled();
   });
 });
+
+// ─── DateRangeField & DateTimeRangeField — calendar widget UI tests ───
+
+describe("DateRangeField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("renders a trigger button with label and placeholder ghost when empty", () => {
+    render(
+      <DateRangeHarness overrides={{ placeholder: "Pick dates" }} />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Booking")).toBeInTheDocument();
+  });
+
+  it("opens the calendar popup on trigger click", async () => {
+    render(<DateRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Choose date range" })).toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("two-step picking: first click sets anchor, second click completes range", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Calendar should still be open
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    // Second click: complete range (day 20 of current month)
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day20);
+    });
+
+    // Should commit and close
+    expect(spy).toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("out-of-order picking swaps ends so from <= to", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 20 of current month)
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day20);
+    });
+
+    // Second click: complete range before anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Should commit with from <= to
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.from).toBeDefined();
+    expect(lastCall.to).toBeDefined();
+    expect(lastCall.from <= lastCall.to).toBe(true);
+  });
+
+  it("half-picks stream live with undefined ends", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // The value should stream with only from set
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.from).toBeDefined();
+    expect(lastCall.to).toBeUndefined();
+  });
+
+  it("required rejects a half-pick", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    // Set a half-pick
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("closed face joins with ' – ' for complete ranges", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T00:00:00Z",
+        to: "2025-03-20T00:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+
+  it("closed face shows set end plus trailing dash for half-picks", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-03-15" }));
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+
+  it("min/max validators work with the calendar", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{
+          validator: {
+            min: "2025-06-01T00:00:00Z" as any,
+            max: "2025-12-31T00:00:00Z" as any,
+          },
+        }}
+      />,
+    );
+
+    // from < min → invalid
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-15", to: "2025-09-01" }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    // Both within bounds → valid
+    act(() =>
+      handle.current!.setValue({ from: "2025-07-01", to: "2025-11-01" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+
+  it("Escape closes the calendar without committing", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Press Escape
+    const grid = screen.getByRole("grid");
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("DateTimeRangeField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("opens calendar with independent start/end time controls", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("dialog", { name: "Choose date range" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Start hour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Start minute")).toBeInTheDocument();
+    expect(screen.getByLabelText("End hour")).toBeInTheDocument();
+    expect(screen.getByLabelText("End minute")).toBeInTheDocument();
+  });
+
+  it("two-step picking with datetime-range commits both ends with time", async () => {
+    const spy = vi.fn();
+    render(<DateTimeRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Set start time using change events (no blur to avoid closing calendar)
+    const startHourInput = screen.getByLabelText("Start hour");
+    await act(async () => {
+      fireEvent.change(startHourInput, { target: { value: "09" } });
+    });
+    const startMinuteInput = screen.getByLabelText("Start minute");
+    await act(async () => {
+      fireEvent.change(startMinuteInput, { target: { value: "30" } });
+    });
+
+    // Set end time
+    const endHourInput = screen.getByLabelText("End hour");
+    await act(async () => {
+      fireEvent.change(endHourInput, { target: { value: "17" } });
+    });
+    const endMinuteInput = screen.getByLabelText("End minute");
+    await act(async () => {
+      fireEvent.change(endMinuteInput, { target: { value: "00" } });
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Second click: complete range (day 20 of current month)
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day20);
+    });
+
+    // Should commit with time (may be UTC-converted)
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    // Verify time was included (may be UTC-converted from local)
+    expect(lastCall.from).toMatch(/T\d{2}:\d{2}:00Z$/);
+    expect(lastCall.to).toMatch(/T\d{2}:\d{2}:00Z$/);
+    // Verify the times are different (start vs end)
+    const fromTime = lastCall.from.match(/T(\d{2}:\d{2}):00Z$/)[1];
+    const toTime = lastCall.to.match(/T(\d{2}:\d{2}):00Z$/)[1];
+    expect(fromTime).not.toBe(toTime);
+  });
+
+  it("fresh date pick seeds midnight in start time control", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Start time should be 00:00
+    const startHourInput = screen.getByLabelText("Start hour");
+    const startMinuteInput = screen.getByLabelText("Start minute");
+    expect(startHourInput).toHaveValue("00");
+    expect(startMinuteInput).toHaveValue("00");
+  });
+
+  it("closed face joins datetime range with ' – '", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T09:00:00Z",
+        to: "2025-03-15T17:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+
+  it("half-pick shows set end plus trailing dash", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-03-15T09:00:00Z" }));
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+});
