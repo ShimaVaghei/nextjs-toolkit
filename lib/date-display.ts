@@ -10,6 +10,7 @@ export const DATETIME_DISPLAY_FORMAT = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   hour: "numeric",
   minute: "numeric",
+  hour12: false,
 });
 
 export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;

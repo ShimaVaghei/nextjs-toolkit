@@ -1246,6 +1246,35 @@ function CalendarPopup({
     return cells;
   };
 
+  const sanitizeDigits = (v: string): string => v.replace(/\D/g, "").slice(0, 2);
+
+  const makeTimeFieldHandler = (
+    max: number,
+    onChange: (h: string, m: string) => void,
+    fixed: string,
+    isMinute: boolean,
+  ) => (raw: string) => {
+    const digits = sanitizeDigits(raw);
+    if (isMinute) onChange(fixed, digits);
+    else onChange(digits, fixed);
+    if (digits.length === 2) {
+      const n = parseInt(digits, 10);
+      if (!isNaN(n)) {
+        const clamped = pad2(Math.max(0, Math.min(max, n)));
+        if (isMinute) onChange(fixed, clamped);
+        else onChange(clamped, fixed);
+      }
+    }
+  };
+
+  const handleHourChange = makeTimeFieldHandler(23, onTimeChange, timeMinute, false);
+  const handleMinuteChange = makeTimeFieldHandler(59, onTimeChange, timeHour, true);
+
+  const handleStartTimeHourChange = makeTimeFieldHandler(23, (h, m) => onStartTimeChange?.(h, m), startTimeMinute || "00", false);
+  const handleStartTimeMinuteChange = makeTimeFieldHandler(59, (h, m) => onStartTimeChange?.(h, m), startTimeHour || "00", true);
+  const handleEndTimeHourChange = makeTimeFieldHandler(23, (h, m) => onEndTimeChange?.(h, m), endTimeMinute || "00", false);
+  const handleEndTimeMinuteChange = makeTimeFieldHandler(59, (h, m) => onEndTimeChange?.(h, m), endTimeHour || "00", true);
+
   const handleHourBlur = () => {
     const h = Math.max(0, Math.min(23, parseInt(timeHour, 10) || 0));
     onTimeChange(pad2(h), timeMinute);
@@ -1329,7 +1358,7 @@ function CalendarPopup({
             value={timeHour}
             aria-label="Hour"
             className={CALENDAR_TIME_INPUT_CLASS}
-            onChange={(e) => onTimeChange(e.target.value, timeMinute)}
+            onChange={(e) => handleHourChange(e.target.value)}
             onBlur={handleHourBlur}
             onKeyDown={(e) => handleTimeKeyDown(e, false)}
           />
@@ -1341,7 +1370,7 @@ function CalendarPopup({
             value={timeMinute}
             aria-label="Minute"
             className={CALENDAR_TIME_INPUT_CLASS}
-            onChange={(e) => onTimeChange(timeHour, e.target.value)}
+            onChange={(e) => handleMinuteChange(e.target.value)}
             onBlur={handleMinuteBlur}
             onKeyDown={(e) => handleTimeKeyDown(e, true)}
           />
@@ -1359,7 +1388,7 @@ function CalendarPopup({
               value={startTimeHour || "00"}
               aria-label="Start hour"
               className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => onStartTimeChange?.(e.target.value, startTimeMinute || "00")}
+              onChange={(e) => handleStartTimeHourChange(e.target.value)}
               onBlur={() => {
                 const h = Math.max(0, Math.min(23, parseInt(startTimeHour || "00", 10) || 0));
                 onStartTimeChange?.(pad2(h), startTimeMinute || "00");
@@ -1380,7 +1409,7 @@ function CalendarPopup({
               value={startTimeMinute || "00"}
               aria-label="Start minute"
               className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => onStartTimeChange?.(startTimeHour || "00", e.target.value)}
+              onChange={(e) => handleStartTimeMinuteChange(e.target.value)}
               onBlur={() => {
                 const m = Math.max(0, Math.min(59, parseInt(startTimeMinute || "00", 10) || 0));
                 onStartTimeChange?.(startTimeHour || "00", pad2(m));
@@ -1403,7 +1432,7 @@ function CalendarPopup({
               value={endTimeHour || "00"}
               aria-label="End hour"
               className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => onEndTimeChange?.(e.target.value, endTimeMinute || "00")}
+              onChange={(e) => handleEndTimeHourChange(e.target.value)}
               onBlur={() => {
                 const h = Math.max(0, Math.min(23, parseInt(endTimeHour || "00", 10) || 0));
                 onEndTimeChange?.(pad2(h), endTimeMinute || "00");
@@ -1424,7 +1453,7 @@ function CalendarPopup({
               value={endTimeMinute || "00"}
               aria-label="End minute"
               className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => onEndTimeChange?.(endTimeHour || "00", e.target.value)}
+              onChange={(e) => handleEndTimeMinuteChange(e.target.value)}
               onBlur={() => {
                 const m = Math.max(0, Math.min(59, parseInt(endTimeMinute || "00", 10) || 0));
                 onEndTimeChange?.(endTimeHour || "00", pad2(m));
@@ -2087,6 +2116,17 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const handleWidgetBlur = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;
     if (next instanceof Node && widgetRef.current?.contains(next)) {
+      return;
+    }
+    // When clicking a non-focusable area inside the calendar popup (e.g.
+    // empty space between cells), relatedTarget is null but the blur
+    // originates from the widget div itself — not from a child element
+    // losing focus. Only suppress closing in that specific case.
+    if (
+      calendarOpen &&
+      next === null &&
+      event.target === event.currentTarget
+    ) {
       return;
     }
     if (open && next === null && absorbedPressRef.current) {
