@@ -93,11 +93,11 @@ _Avoid_: refreshProp, onRefresh
 ## Form terms
 
 **Field**:
-A reusable client-side component that renders exactly one labeled form control, driven by a config object. The public API is five components — InputField, TextareaField, CheckboxField, SelectField, MultiSelectField — one per Field kind; there is no generic `Field` export. A Field owns its value internally: the optional Initial value seeds it once at mount, every change is handled inside, and the parent observes changes via `onValueChange` and controls the value imperatively through `FieldHandle`. Validation feedback is managed inside the Field.
+A reusable client-side component that renders exactly one labeled form control, driven by a config object. The public API is nine components — InputField, TextareaField, CheckboxField, SelectField, MultiSelectField, DateField, DateTimeField, DateRangeField, DateTimeRangeField — one per Field kind; there is no generic `Field` export. A Field owns its value internally: the optional Initial value seeds it once at mount, every change is handled inside, and the parent observes changes via `onValueChange` and controls the value imperatively through `FieldHandle`. Validation feedback is managed inside the Field.
 _Avoid_: FormControl, FormField, Input
 
 **Field kind**:
-The control variant a Field renders: `input`, `textarea`, `select`, `multi-select`, or `checkbox`. Expressed by which of the five Field components is used — never declared in a config. An input Field narrows further by Input type.
+The control variant a Field renders: `input`, `textarea`, `select`, `multi-select`, `checkbox`, `date`, `datetime`, `date-range`, or `datetime-range`. Expressed by which of the nine Field components is used — never declared in a config. An input Field narrows further by Input type. Where a kind's name coincides with a `TableColumnType` renderer name (`date`, `datetime`), they are different vocabularies: a kind fixes which labeled form control a Field renders; a column renderer only formats cell text in a Table.
 _Avoid_: type, control type, variant
 
 **Input type**:
@@ -155,7 +155,7 @@ The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/
 _Avoid_: rules, schema, validation config, Validator
 
 **Placeholder**:
-Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select; checkbox has none. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
+Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select, the empty trigger-face text on the date kinds; checkbox has none. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
 _Avoid_: ghost, hint
 
 **Empty**:
