@@ -22,6 +22,7 @@ All four Field kinds shipped end-to-end in `components/Field.tsx` — DateField,
 
 - [Calendar popup a11y research](issues/01-calendar-popup-a11y-research.md) — Follow APG Date Picker Dialog: dialog+grid with roving tabindex, full arrow/PageUp/Home/End/Esc keyboard map, focus on selected day/today on open and back to trigger on close, aria-disabled for out-of-bounds days; range two-step picking follows React Aria/USWDS conventions (live-region announcements, composed cell names, selected-state band) since no W3C pattern exists.
 - [Serialization contract](issues/02-serialization-contract.md) — Outputs always `…Z`, fixed-width with `:ss`: date kinds `YYYY-MM-DDT00:00:00Z` fixed-zero; datetime kinds `YYYY-MM-DDThh:mm:ssZ` real UTC instants (native ECMAScript DST resolution). Inputs: ISO strings only — no-Z means local and converts; bare dates into date kinds append `T00:00:00Z` verbatim; invalid input warns dev-only and is ignored. Control face: en-US Intl matching Table.
+- [Range semantics](issues/03-range-semantics.md) — A range is Empty unless both ends hold values (`required` rejects half-picks; unset end reads as `undefined` in streamed values). `min` tests `from`, `max` tests `to` via plain string compare; out-of-order picks swap (React Aria convention) and `setValue` normalizes identically, so `from <= to` always holds.
 
 ## Not yet specified
 
