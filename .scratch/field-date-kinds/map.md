@@ -21,10 +21,10 @@ All four Field kinds shipped end-to-end in `components/Field.tsx` — DateField,
 ## Decisions so far
 
 - [Calendar popup a11y research](issues/01-calendar-popup-a11y-research.md) — Follow APG Date Picker Dialog: dialog+grid with roving tabindex, full arrow/PageUp/Home/End/Esc keyboard map, focus on selected day/today on open and back to trigger on close, aria-disabled for out-of-bounds days; range two-step picking follows React Aria/USWDS conventions (live-region announcements, composed cell names, selected-state band) since no W3C pattern exists.
+- [Serialization contract](issues/02-serialization-contract.md) — Outputs always `…Z`, fixed-width with `:ss`: date kinds `YYYY-MM-DDT00:00:00Z` fixed-zero; datetime kinds `YYYY-MM-DDThh:mm:ssZ` real UTC instants (native ECMAScript DST resolution). Inputs: ISO strings only — no-Z means local and converts; bare dates into date kinds append `T00:00:00Z` verbatim; invalid input warns dev-only and is ignored. Control face: en-US Intl matching Table.
 
 ## Not yet specified
 
 - Implementation slicing into task tickets (engine value-model extension for object-shaped values, calendar widget extraction, per-kind slices, test plan, demo page, glossary updates) — graduates once the decision tickets close.
-- Possible reuse of date formatting/parsing helpers between Table column rendering (`components/Table.tsx`) and the new Fields — suspected consolidation; revisit when the serialization contract lands.
 
 ## Out of scope
