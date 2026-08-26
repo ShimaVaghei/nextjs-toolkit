@@ -93,11 +93,11 @@ _Avoid_: refreshProp, onRefresh
 ## Form terms
 
 **Field**:
-A reusable client-side component that renders exactly one labeled form control, chosen from the five Field kinds, driven by a `FieldConfig`. The Field owns its value internally: the optional Initial value seeds it once at mount, every change is handled inside, and the parent observes changes via `onValueChange` and controls the value imperatively through `FieldHandle`. Validation feedback is managed inside the Field.
+A reusable client-side component that renders exactly one labeled form control, driven by a config object. The public API is five components — InputField, TextareaField, CheckboxField, SelectField, MultiSelectField — one per Field kind; there is no generic `Field` export. A Field owns its value internally: the optional Initial value seeds it once at mount, every change is handled inside, and the parent observes changes via `onValueChange` and controls the value imperatively through `FieldHandle`. Validation feedback is managed inside the Field.
 _Avoid_: FormControl, FormField, Input
 
 **Field kind**:
-The control variant a Field renders: `input`, `textarea`, `select`, `multi-select`, or `checkbox`. Declared as `kind` in the `FieldConfig`. An input Field narrows further by Input type.
+The control variant a Field renders: `input`, `textarea`, `select`, `multi-select`, or `checkbox`. Expressed by which of the five Field components is used — never declared in a config. An input Field narrows further by Input type.
 _Avoid_: type, control type, variant
 
 **Input type**:
@@ -139,7 +139,7 @@ The state of a select or multi-select Field whose async Option load failed. Choo
 _Avoid_: error state, failure, crashed
 
 **FieldConfig**:
-The configuration object passed to `Field`, generic over the Field kind: an optional `kind` (defaulting to `input`) narrows `initialValue`, `onValueChange`, and Options to that kind's value shape. Declares the Input type for inputs, the optional Initial value, an optional `onValueChange` observer, optional Options for choice kinds (a static array or an async load), an optional FieldValidator, a `matchValue` override for Matching, a `keepDisabledSelection` flag, and presentation props (label, placeholder — select-only — hint, disabled, className).
+The configuration object passed to a Field component. One kindless type per component — `FieldInputConfig`, `FieldTextareaConfig`, `FieldCheckboxConfig`, `FieldSelectConfig<T>`, `FieldMultiSelectConfig<T>` — with no `kind` property: the component fixes the kind, and the type narrows Initial, `onValueChange`, and Options to that kind's value shape (choice kinds carry T, the Option value type). Declares the Input type for inputs, the optional Initial value, an optional `onValueChange` observer, optional Options for choice kinds (a static array or an async load), an optional FieldValidator, a `matchValue` override for Matching, a `keepDisabledSelection` flag, and presentation props (label, placeholder — select-only — hint, disabled, className).
 _Avoid_: FieldProps
 
 **Initial value**:

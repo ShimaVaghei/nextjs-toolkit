@@ -2,41 +2,45 @@
 
 import { useRef, useState } from "react";
 import {
-  Field,
-  type FieldConfig,
+  CheckboxField,
+  InputField,
+  MultiSelectField,
+  SelectField,
+  TextareaField,
+  type FieldCheckboxConfig,
   type FieldHandle,
+  type FieldInputConfig,
+  type FieldMultiSelectConfig,
   type FieldOption,
+  type FieldSelectConfig,
+  type FieldTextareaConfig,
 } from "@/components/Field";
 
 // Configs are plain data: each Field owns its value internally, so none of
-// these carry live state or change callbacks. The generic parameters pin each
-// Field kind's value shape; choice kinds take theirs from the Options' T.
-const nameConfig: FieldConfig<"input"> = {
-  kind: "input",
+// these carry live state or change callbacks. The per-kind config types pin
+// each Field's value shape; choice kinds take theirs from the Options' T.
+const nameConfig: FieldInputConfig = {
   inputType: "text",
   label: "Name",
   hint: "Shown publicly on your profile.",
   validator: { required: true },
 };
 
-const emailConfig: FieldConfig<"input"> = {
-  kind: "input",
+const emailConfig: FieldInputConfig = {
   inputType: "text",
   label: "Email",
   hint: "Format checking is the declarative email rule — no hand-written regex.",
   validator: { required: true, email: true },
 };
 
-const passwordConfig: FieldConfig<"input"> = {
-  kind: "input",
+const passwordConfig: FieldInputConfig = {
   inputType: "password",
   label: "Password",
   hint: "Never shared.",
   validator: { minLength: 8 },
 };
 
-const bioConfig: FieldConfig<"textarea"> = {
-  kind: "textarea",
+const bioConfig: FieldTextareaConfig = {
   label: "Bio",
   hint: "A short introduction.",
   className: "max-w-md",
@@ -46,16 +50,14 @@ const bioConfig: FieldConfig<"textarea"> = {
   },
 };
 
-const ageConfig: FieldConfig<"input"> = {
-  kind: "input",
+const ageConfig: FieldInputConfig = {
   inputType: "number",
   label: "Age",
   hint: "Whole years; empty or unparseable counts as not filled in.",
   validator: { min: { value: 0, message: "Age cannot be negative." }, max: 120 },
 };
 
-const consentConfig: FieldConfig<"checkbox"> = {
-  kind: "checkbox",
+const consentConfig: FieldCheckboxConfig = {
   label: "I agree to the terms of service.",
   hint: "Required to continue — an unticked box counts as not filled in.",
   validator: {
@@ -63,8 +65,7 @@ const consentConfig: FieldConfig<"checkbox"> = {
   },
 };
 
-const countryConfig: FieldConfig<"select", string> = {
-  kind: "select",
+const countryConfig: FieldSelectConfig<string> = {
   label: "Country",
   hint: "Static options behind the shared popup; the placeholder labels the closed control until you choose.",
   validator: { required: { value: true, message: "Choose a country." } },
@@ -81,8 +82,7 @@ const countryConfig: FieldConfig<"select", string> = {
   ],
 };
 
-const tagsConfig: FieldConfig<"multi-select", string> = {
-  kind: "multi-select",
+const tagsConfig: FieldMultiSelectConfig<string> = {
   label: "Tags",
   hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
   initialValue: ["research"],
@@ -96,8 +96,7 @@ const tagsConfig: FieldConfig<"multi-select", string> = {
   ],
 };
 
-const legacyPlanConfig: FieldConfig<"select", string> = {
-  kind: "select",
+const legacyPlanConfig: FieldSelectConfig<string> = {
   label: "Plan",
   hint: "Holds the retired Starter plan selected by default (keepDisabledSelection); pick another to move off it.",
   initialValue: "starter",
@@ -127,8 +126,7 @@ const RELEASE_TRAINS: FieldOption<ReleaseTrain>[] = [
 const matchTrainById = (a: ReleaseTrain, b: ReleaseTrain) =>
   a.id === b.id;
 
-const trainConfig: FieldConfig<"select", ReleaseTrain> = {
-  kind: "select",
+const trainConfig: FieldSelectConfig<ReleaseTrain> = {
   label: "Release train",
   hint: "Options carry whole domain objects; matchValue Matches by id instead of reference, and only labels ever render.",
   placeholder: "Choose a train",
@@ -137,8 +135,7 @@ const trainConfig: FieldConfig<"select", ReleaseTrain> = {
   options: RELEASE_TRAINS,
 };
 
-const retiredTrainConfig: FieldConfig<"select", ReleaseTrain> = {
-  kind: "select",
+const retiredTrainConfig: FieldSelectConfig<ReleaseTrain> = {
   label: "Retired train hold",
   hint: "The Initial value Matches no Option any more: a non-primitive Fallback renders the honest \"(unknown option)\" marker instead of leaking the object.",
   placeholder: "Choose a train",
@@ -190,8 +187,7 @@ export default function FieldDemoPage() {
         }, delayMs);
       });
 
-  const regionConfig: FieldConfig<"select", string> = {
-    kind: "select",
+  const regionConfig: FieldSelectConfig<string> = {
     label: "Region",
     hint: "Options come from a simulated API; flip the toggle, then hit Retry to walk the failure path.",
     validator: { required: { value: true, message: "Choose a region." } },
@@ -205,8 +201,7 @@ export default function FieldDemoPage() {
     ]),
   };
 
-  const teamsConfig: FieldConfig<"multi-select", string> = {
-    kind: "multi-select",
+  const teamsConfig: FieldMultiSelectConfig<string> = {
     label: "Teams",
     hint: "The same async contract on the multi-select kind: chips stay visible while Pending, and the popup only opens once options resolve.",
     className: "max-w-md",
@@ -241,9 +236,8 @@ export default function FieldDemoPage() {
             install a new one, exactly as if the user had typed it.
           </p>
         </div>
-        <Field
+        <InputField
           config={{
-            kind: "input",
             label: "Nickname",
             hint: "No onValueChange anywhere; the Initial value seeds once at mount.",
             initialValue: "Ace",
@@ -288,10 +282,10 @@ export default function FieldDemoPage() {
             number Field coerces edits before storing them.
           </p>
         </div>
-        <Field config={nameConfig} />
-        <Field config={emailConfig} />
-        <Field config={passwordConfig} />
-        <Field config={ageConfig} />
+        <InputField config={nameConfig} />
+        <InputField config={emailConfig} />
+        <InputField config={passwordConfig} />
+        <InputField config={ageConfig} />
       </section>
 
       <section className="space-y-6">
@@ -304,7 +298,7 @@ export default function FieldDemoPage() {
             required message comes straight from the Validator.
           </p>
         </div>
-        <Field config={bioConfig} />
+        <TextareaField config={bioConfig} />
       </section>
 
       <section className="space-y-6">
@@ -322,8 +316,8 @@ export default function FieldDemoPage() {
             renders as an inert fallback instead.
           </p>
         </div>
-        <Field config={countryConfig} />
-        <Field config={legacyPlanConfig} />
+        <SelectField config={countryConfig} />
+        <SelectField config={legacyPlanConfig} />
       </section>
 
       <section className="space-y-6">
@@ -345,8 +339,8 @@ export default function FieldDemoPage() {
             dev-only warning naming the Field.
           </p>
         </div>
-        <Field config={trainConfig} />
-        <Field config={retiredTrainConfig} />
+        <SelectField config={trainConfig} />
+        <SelectField config={retiredTrainConfig} />
       </section>
 
       <section className="space-y-6">
@@ -363,7 +357,7 @@ export default function FieldDemoPage() {
             removing the focused chip hops focus to its neighbour.
           </p>
         </div>
-        <Field config={tagsConfig} />
+        <MultiSelectField config={tagsConfig} />
       </section>
 
       <section className="space-y-6">
@@ -393,8 +387,8 @@ export default function FieldDemoPage() {
           hit Retry to see the rejection; turn it off and hit Retry to
           recover.
         </p>
-        <Field config={regionConfig} />
-        <Field config={teamsConfig} />
+        <SelectField config={regionConfig} />
+        <MultiSelectField config={teamsConfig} />
       </section>
 
       <section className="space-y-6">
@@ -408,7 +402,7 @@ export default function FieldDemoPage() {
             away to see the error, then tick it to clear instantly.
           </p>
         </div>
-        <Field config={consentConfig} />
+        <CheckboxField config={consentConfig} />
       </section>
     </div>
   );

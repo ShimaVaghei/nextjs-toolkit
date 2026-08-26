@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
 
-export type FieldKind =
+type FieldKind =
   | "input"
   | "textarea"
   | "checkbox"
@@ -29,7 +29,7 @@ export type FieldValue = string | number | boolean | string[];
  * emits, and the Handle reads and installs. Choice kinds take it from the
  * config's T; the rest is fixed.
  */
-export type FieldValueOf<K extends FieldKind, T> = [K] extends ["select"]
+type FieldValueOf<K extends FieldKind, T> = [K] extends ["select"]
   ? T
   : [K] extends ["multi-select"]
     ? T[]
@@ -58,14 +58,16 @@ export type FieldValidator = {
 };
 
 /**
- * The configuration object passed to Field, generic over the Field kind: K
- * picks the value shape (input → string | number, textarea → string,
+ * Internal base for the public per-kind config types, generic over the Field
+ * kind: K picks the value shape (input → string | number, textarea → string,
  * checkbox → boolean) and T is the Option value type the choice kinds
  * (select → T, multi-select → T[]) carry through Initial, the observer, and
- * the Handle. Inference flows from the literal, so an inline config narrows
- * without annotations.
+ * the Handle. Each wrapper component stamps its own literal kind and exposes
+ * a kindless alias (FieldInputConfig, FieldSelectConfig<T>, …), so no config
+ * a caller writes ever carries a `kind`.
  */
-export type FieldConfig<K extends FieldKind = "input", T = unknown> = {
+type FieldConfig<K extends FieldKind = "input", T = unknown> = {
+  /** Stamped by the per-kind wrapper components; never set by callers. */
   kind?: K;
   inputType?: FieldInputType;
   label: string;
@@ -703,7 +705,13 @@ function OptionsPopup({
   );
 }
 
-export function Field<K extends FieldKind = "input", T = unknown>({
+/**
+ * The shared engine behind the five public Field components: renders exactly
+ * one labeled control for the stamped kind and owns the value lifecycle.
+ * Not exported — callers pick a wrapper (InputField, SelectField, …), which
+ * fixes the kind.
+ */
+function Field<K extends FieldKind = "input", T = unknown>({
   config,
   ref,
 }: {
@@ -1411,5 +1419,93 @@ export function Field<K extends FieldKind = "input", T = unknown>({
         )}
       </p>
     </div>
+  );
+}
+
+/** The config for an InputField: value shape fixed at `string | number`. */
+export type FieldInputConfig = Omit<FieldConfig<"input">, "kind">;
+
+/** The config for a TextareaField: value shape fixed at `string`. */
+export type FieldTextareaConfig = Omit<FieldConfig<"textarea">, "kind">;
+
+/** The config for a CheckboxField: value shape fixed at `boolean`. */
+export type FieldCheckboxConfig = Omit<FieldConfig<"checkbox">, "kind">;
+
+/**
+ * The config for a SelectField: `initialValue`, `onValueChange`, Options,
+ * and `matchValue` narrow to T, the Option value type.
+ */
+export type FieldSelectConfig<T = unknown> = Omit<
+  FieldConfig<"select", T>,
+  "kind"
+>;
+
+/**
+ * The config for a MultiSelectField: `initialValue`, `onValueChange`,
+ * Options, and `matchValue` narrow to T, the Option value type; the Field
+ * holds a `T[]`.
+ */
+export type FieldMultiSelectConfig<T = unknown> = Omit<
+  FieldConfig<"multi-select", T>,
+  "kind"
+>;
+
+/** An input Field: one labeled single-line control, narrowed by Input type. */
+export function InputField({
+  config,
+  ref,
+}: {
+  config: FieldInputConfig;
+  ref?: Ref<FieldHandle<string | number>>;
+}) {
+  return <Field config={{ ...config, kind: "input" }} ref={ref} />;
+}
+
+/** A textarea Field: one labeled multi-line text control. */
+export function TextareaField({
+  config,
+  ref,
+}: {
+  config: FieldTextareaConfig;
+  ref?: Ref<FieldHandle<string>>;
+}) {
+  return <Field config={{ ...config, kind: "textarea" }} ref={ref} />;
+}
+
+/** A checkbox Field: one labeled tick box (required = must-tick). */
+export function CheckboxField({
+  config,
+  ref,
+}: {
+  config: FieldCheckboxConfig;
+  ref?: Ref<FieldHandle<boolean>>;
+}) {
+  return <Field config={{ ...config, kind: "checkbox" }} ref={ref} />;
+}
+
+/** A select Field: single choice from searchable Options in a disclosure. */
+export function SelectField<T>({
+  config,
+  ref,
+}: {
+  config: FieldSelectConfig<T>;
+  ref?: Ref<FieldHandle<T>>;
+}) {
+  return <Field<"select", T> config={{ ...config, kind: "select" }} ref={ref} />;
+}
+
+/** A multi-select Field: chip-based multiple choice from searchable Options. */
+export function MultiSelectField<T>({
+  config,
+  ref,
+}: {
+  config: FieldMultiSelectConfig<T>;
+  ref?: Ref<FieldHandle<T[]>>;
+}) {
+  return (
+    <Field<"multi-select", T>
+      config={{ ...config, kind: "multi-select" }}
+      ref={ref}
+    />
   );
 }
