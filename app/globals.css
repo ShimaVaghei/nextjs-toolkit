@@ -25,3 +25,32 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Multi-select chip strip: slim rounded thumb on a transparent track. */
+.field-chip-strip {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
+
+.field-chip-strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.field-chip-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.field-chip-strip::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: var(--color-neutral-300);
+}
+
+@media (prefers-color-scheme: dark) {
+  .field-chip-strip {
+    scrollbar-color: var(--color-neutral-600) transparent;
+  }
+
+  .field-chip-strip::-webkit-scrollbar-thumb {
+    background: var(--color-neutral-600);
+  }
+}
