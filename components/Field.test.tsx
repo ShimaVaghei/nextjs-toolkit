@@ -14,7 +14,16 @@ import {
   MultiSelectField,
   SelectField,
   TextareaField,
+  DateField,
+  DateTimeField,
+  DateRangeField,
+  DateTimeRangeField,
   type FieldCheckboxConfig,
+  type FieldDateConfig,
+  type FieldDateTimeConfig,
+  type FieldDateRangeConfig,
+  type FieldDateTimeRangeConfig,
+  type FieldDateRangeValue,
   type FieldHandle,
   type FieldInputConfig,
   type FieldMultiSelectConfig,
@@ -3242,5 +3251,544 @@ describe("Field generic value typing", () => {
     // A bare kindless config is already a plain input Field config.
     const loose: FieldInputConfig = { label: "Name" };
     expect(loose.label).toBe("Name");
+  });
+});
+
+// ─── Date kinds — engine value model tests ───────────────────────────
+
+const DEFAULT_DATE_REQUIRED = "This field is required.";
+
+function DateHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateConfig>;
+  onChangeSpy?: (value: string) => void;
+  handleRef?: React.Ref<FieldHandle<string>>;
+}) {
+  return (
+    <DateField
+      ref={handleRef}
+      config={{
+        label: "Birthday",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+function DateTimeHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateTimeConfig>;
+  onChangeSpy?: (value: string) => void;
+  handleRef?: React.Ref<FieldHandle<string>>;
+}) {
+  return (
+    <DateTimeField
+      ref={handleRef}
+      config={{
+        label: "Appointment",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+function DateRangeHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateRangeConfig>;
+  onChangeSpy?: (value: FieldDateRangeValue) => void;
+  handleRef?: React.Ref<FieldHandle<FieldDateRangeValue>>;
+}) {
+  return (
+    <DateRangeField
+      ref={handleRef}
+      config={{
+        label: "Booking",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+function DateTimeRangeHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateTimeRangeConfig>;
+  onChangeSpy?: (value: FieldDateRangeValue) => void;
+  handleRef?: React.Ref<FieldHandle<FieldDateRangeValue>>;
+}) {
+  return (
+    <DateTimeRangeField
+      ref={handleRef}
+      config={{
+        label: "Window",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+describe("DateField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("accepts a bare YYYY-MM-DD and stores with fixed-zero UTC midnight", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+  });
+
+  it("accepts a full Z-terminated ISO string and extracts the UTC calendar date", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+  });
+
+  it("accepts a no-Z ISO string and normalizes to UTC calendar date", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-06-15T14:30:00"));
+    const value = handle.current!.getValue();
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00Z$/);
+  });
+
+  it("rejects an invalid string (no-op setValue, seed-less Initial)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("not-a-date"));
+    expect(handle.current!.getValue()).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("rejects an empty string with a dev warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue(""));
+    expect(handle.current!.getValue()).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("streams the normalized value through onValueChange", () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    expect(spy).toHaveBeenCalledWith("2025-03-15T00:00:00Z");
+  });
+
+  it("required validates a date field", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    act(() => {
+      handle.current!.validate();
+    });
+    expect(handle.current!.getValue()).toBeUndefined();
+    // validate returns false when value is empty
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("min validates the date string via lexicographic comparison", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    act(() => handle.current!.setValue("2025-07-01"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+
+  it("max validates the date string via lexicographic comparison", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2025-12-31T00:00:00Z" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-12-15"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+
+    act(() => handle.current!.setValue("2026-01-01"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("textual rules (minLength, maxLength, regex, email) draw a dev-only rule-fit warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    render(
+      <DateHarness
+        overrides={{
+          validator: {
+            minLength: 5,
+            maxLength: 10,
+            regex: /abc/,
+            email: true,
+          },
+        }}
+      />,
+    );
+
+    // The dev warning fires for each non-fitting rule
+    const fieldWarnings = warnSpy.mock.calls.filter(
+      (call) =>
+        typeof call[0] === "string" && call[0].startsWith("[Field]"),
+    );
+    expect(fieldWarnings.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("DateTimeField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("accepts a full Z-terminated ISO string as-is", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
+    expect(handle.current!.getValue()).toBe("2025-03-15T14:30:00Z");
+  });
+
+  it("accepts a no-Z string and converts from local to UTC", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00"));
+    const value = handle.current!.getValue();
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$/);
+  });
+
+  it("accepts a bare YYYY-MM-DD and treats as local midnight", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    const value = handle.current!.getValue();
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$/);
+  });
+
+  it("rejects an invalid string with a dev warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("garbage"));
+    expect(handle.current!.getValue()).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("streams the normalized value through onValueChange", () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T09:00:00Z"));
+    expect(spy).toHaveBeenCalledWith("2025-03-15T09:00:00Z");
+  });
+
+  it("min validates the datetime string via lexicographic comparison", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateTimeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-03-15T10:00:00Z"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    act(() => handle.current!.setValue("2025-07-01T10:00:00Z"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+});
+
+describe("DateRangeField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("stores both ends as fixed-zero UTC midnight strings", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-01-10", to: "2025-03-20" }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-01-10T00:00:00Z",
+      to: "2025-03-20T00:00:00Z",
+    });
+  });
+
+  it("preserves undefined ends for half-picks", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-01-10T00:00:00Z",
+      to: undefined,
+    });
+  });
+
+  it("swaps out-of-order ends so from <= to", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-20", to: "2025-01-10" }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-01-10T00:00:00Z",
+      to: "2025-03-20T00:00:00Z",
+    });
+  });
+
+  it("a range is Empty unless both ends hold values", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    // Half-pick: required should reject
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    // Both ends: required should pass
+    act(() =>
+      handle.current!.setValue({ from: "2025-01-10", to: "2025-03-20" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+
+  it("min tests from and max tests to via string comparison", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{
+          validator: {
+            min: "2025-06-01T00:00:00Z" as any,
+            max: "2025-12-31T00:00:00Z" as any,
+          },
+        }}
+      />,
+    );
+
+    // from < min → invalid
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-15", to: "2025-09-01" }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    // Both within bounds → valid
+    act(() =>
+      handle.current!.setValue({ from: "2025-07-01", to: "2025-11-01" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+
+    // to > max → invalid
+    act(() =>
+      handle.current!.setValue({ from: "2025-07-01", to: "2026-01-01" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("streams range progress live with undefined ends", () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    expect(spy).toHaveBeenCalledWith({
+      from: "2025-01-10T00:00:00Z",
+      to: undefined,
+    });
+  });
+
+  it("rejects invalid range input with a dev warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "bad", to: "also-bad" } as any),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: undefined,
+      to: undefined,
+    });
+    expect(warnSpy).toHaveBeenCalled();
+  });
+});
+
+describe("DateTimeRangeField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("stores both ends as fixed-width UTC datetime strings", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T09:00:00Z",
+        to: "2025-03-15T17:00:00Z",
+      }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-15T09:00:00Z",
+      to: "2025-03-15T17:00:00Z",
+    });
+  });
+
+  it("swaps out-of-order datetime ends", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T17:00:00Z",
+        to: "2025-03-15T09:00:00Z",
+      }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-15T09:00:00Z",
+      to: "2025-03-15T17:00:00Z",
+    });
+  });
+
+  it("required rejects a datetime range half-pick", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-15T09:00:00Z" }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("min tests from and max tests to for datetime ranges", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{
+          validator: {
+            min: "2025-06-01T00:00:00Z" as any,
+            max: "2025-12-31T23:59:59Z" as any,
+          },
+        }}
+      />,
+    );
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T09:00:00Z",
+        to: "2025-09-01T17:00:00Z",
+      }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false); // from < min
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-07-01T09:00:00Z",
+        to: "2025-11-01T17:00:00Z",
+      }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
   });
 });

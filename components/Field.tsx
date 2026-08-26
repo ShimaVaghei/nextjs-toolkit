@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
+import { normalizeDateInput, type DateInputKind, type FieldDateRangeValue } from "@/lib/date-normalize";
 
 type FieldKind =
   | "input"
   | "textarea"
   | "checkbox"
   | "select"
-  | "multi-select";
+  | "multi-select"
+  | "date"
+  | "datetime"
+  | "date-range"
+  | "datetime-range";
 export type FieldInputType = "text" | "password" | "number";
 
 /**
@@ -43,13 +48,17 @@ type FieldValueOf<K extends FieldKind, T> = [K] extends ["select"]
     ? T[]
     : [K] extends ["checkbox"]
       ? boolean
-      : [K] extends ["textarea"]
+      : [K] extends ["textarea" | "date" | "datetime"]
         ? string
-        : string | number;
+          : [K] extends ["date-range" | "datetime-range"]
+          ? FieldDateRangeValue
+          : string | number;
+
+export type { FieldDateRangeValue };
 
 export type FieldRequiredRule = boolean | { value: boolean; message: string };
-export type FieldMinRule = number | { value: number; message: string };
-export type FieldMaxRule = number | { value: number; message: string };
+export type FieldMinRule = number | string | { value: number | string; message: string };
+export type FieldMaxRule = number | string | { value: number | string; message: string };
 export type FieldMinLengthRule = number | { value: number; message: string };
 export type FieldMaxLengthRule = number | { value: number; message: string };
 export type FieldEmailRule = boolean | { value: boolean; message: string };
@@ -154,6 +163,8 @@ export type FieldHandle<V = FieldValue> = {
 const DEFAULT_REQUIRED_MESSAGE = "This field is required.";
 const DEFAULT_MIN_MESSAGE = (min: number) => `Must be ${min} or greater.`;
 const DEFAULT_MAX_MESSAGE = (max: number) => `Must be ${max} or less.`;
+const DEFAULT_DATE_MIN_MESSAGE = (min: string) => `Must be on or after ${min}.`;
+const DEFAULT_DATE_MAX_MESSAGE = (max: string) => `Must be on or before ${max}.`;
 const DEFAULT_MIN_LENGTH_MESSAGE = (minLength: number) =>
   `Must be at least ${minLength} characters.`;
 const DEFAULT_MAX_LENGTH_MESSAGE = (maxLength: number) =>
@@ -542,20 +553,30 @@ function isOptionsLoader(
   return typeof options === "function";
 }
 
-/** Textual rules fit textarea and non-number inputs — never a checkbox. */
+/** Textual rules fit textarea and non-number inputs — never a checkbox or date kind. */
 function fitsTextualRules(
   kind: FieldKind,
   inputType: FieldInputType | undefined,
 ): boolean {
-  return kind === "textarea" || (kind === "input" && !isNumberInput(kind, inputType));
+  return (kind === "textarea" || (kind === "input" && !isNumberInput(kind, inputType))) && !isDateKind(kind);
 }
 
-/** The email rule fits non-number inputs only — never a number input or textarea. */
+/** The email rule fits non-number inputs only — never a number input, textarea, or date kind. */
 function fitsEmailRule(
   kind: FieldKind,
   inputType: FieldInputType | undefined,
 ): boolean {
-  return kind === "input" && !isNumberInput(kind, inputType);
+  return kind === "input" && !isNumberInput(kind, inputType) && !isDateKind(kind);
+}
+
+/** Whether the kind is one of the four date kinds. */
+function isDateKind(kind: FieldKind): boolean {
+  return (
+    kind === "date" ||
+    kind === "datetime" ||
+    kind === "date-range" ||
+    kind === "datetime-range"
+  );
 }
 
 type RuleName = keyof FieldValidator;
@@ -580,7 +601,7 @@ function ruleFits(
       return true;
     case "min":
     case "max":
-      return isNumberInput(kind, inputType);
+      return isNumberInput(kind, inputType) || isDateKind(kind);
     case "minLength":
     case "maxLength":
       return fitsTextualRules(kind, inputType);
@@ -596,7 +617,7 @@ function ruleFits(
  * kinds (trimmed for testing only), NaN on number inputs at runtime, and
  * `false` for checkbox — required means must-tick (the consent pattern).
  * Anything else a choice kind can hold (objects, non-empty arrays) is never
- * Empty.
+ * Empty. A date-range value is Empty unless both ends hold strings.
  */
 function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined) {
@@ -613,6 +634,15 @@ function isEmpty(value: unknown): boolean {
   }
   if (Array.isArray(value)) {
     return value.length === 0;
+  }
+  // Date-range objects: Empty unless both ends hold values
+  if (
+    typeof value === "object" &&
+    "from" in value &&
+    "to" in value
+  ) {
+    const range = value as { from?: string; to?: string };
+    return !range.from || !range.to;
   }
   return false;
 }
@@ -643,8 +673,29 @@ function evaluate(
     isNumberInput(kind, inputType) &&
     numericValue !== null
   ) {
-    const { value: min, message } = unpack(validator.min, DEFAULT_MIN_MESSAGE);
-    if (numericValue < min) {
+    const raw = validator.min;
+    const min = typeof raw === "object" ? raw.value : raw;
+    const message = typeof raw === "object" ? raw.message : DEFAULT_MIN_MESSAGE(min as number);
+    if (typeof min === "number" && numericValue < min) {
+      return message;
+    }
+  }
+
+  // Date-kind min: tests `from` on ranges, the value itself on singles.
+  // Lexicographic string comparison is safe because output width is fixed.
+  if (validator.min !== undefined && isDateKind(kind)) {
+    const raw = validator.min;
+    const min = typeof raw === "object" ? raw.value : raw;
+    const message = typeof raw === "object"
+      ? raw.message
+      : DEFAULT_DATE_MIN_MESSAGE(String(min));
+    const testValue =
+      typeof value === "object" && value !== null && "from" in value
+        ? (value as { from?: string }).from
+        : typeof value === "string"
+          ? value
+          : undefined;
+    if (testValue !== undefined && typeof min === "string" && testValue < min) {
       return message;
     }
   }
@@ -654,8 +705,28 @@ function evaluate(
     isNumberInput(kind, inputType) &&
     numericValue !== null
   ) {
-    const { value: max, message } = unpack(validator.max, DEFAULT_MAX_MESSAGE);
-    if (numericValue > max) {
+    const raw = validator.max;
+    const max = typeof raw === "object" ? raw.value : raw;
+    const message = typeof raw === "object" ? raw.message : DEFAULT_MAX_MESSAGE(max as number);
+    if (typeof max === "number" && numericValue > max) {
+      return message;
+    }
+  }
+
+  // Date-kind max: tests `to` on ranges, the value itself on singles.
+  if (validator.max !== undefined && isDateKind(kind)) {
+    const raw = validator.max;
+    const max = typeof raw === "object" ? raw.value : raw;
+    const message = typeof raw === "object"
+      ? raw.message
+      : DEFAULT_DATE_MAX_MESSAGE(String(max));
+    const testValue =
+      typeof value === "object" && value !== null && "to" in value
+        ? (value as { to?: string }).to
+        : typeof value === "string"
+          ? value
+          : undefined;
+    if (testValue !== undefined && typeof max === "string" && testValue > max) {
       return message;
     }
   }
@@ -872,14 +943,24 @@ function Field<K extends FieldKind = "input", T = unknown>({
    * widened here once: only kind-appropriate values ever reach this pipeline.
    */
   const commitValue = useCallback((next: unknown) => {
-    valueRef.current = next;
-    setValueState(next);
+    // Date kinds: normalize input through the serialization pipeline.
+    // This handles input normalization, output serialization, and range swap.
+    const normalized = isDateKind(kind)
+      ? normalizeDateInput(kind as DateInputKind, next as string | FieldDateRangeValue, configRef.current.label)
+      : next;
+    // If normalization returned undefined (invalid input), ignore the change.
+    if (isDateKind(kind) && normalized === undefined) {
+      return;
+    }
+    const finalValue = isDateKind(kind) ? normalized : next;
+    valueRef.current = finalValue;
+    setValueState(finalValue);
     (
       configRef.current.onValueChange as ((value: unknown) => void) | undefined
-    )?.(next);
+    )?.(finalValue);
     if (touchedRef.current) {
       setError(
-        evaluate(kind, inputType, configRef.current.validator, next),
+        evaluate(kind, inputType, configRef.current.validator, finalValue),
       );
     }
   }, [kind, inputType]);
@@ -1474,7 +1555,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
               onBlur={handleBlur}
               className={CONTROL_CLASS}
             />
-          ) : (
+          ) : kind === "textarea" ? (
             <textarea
               {...controlProps}
               value={displayValue}
@@ -1484,6 +1565,21 @@ function Field<K extends FieldKind = "input", T = unknown>({
               rows={4}
               className={`${CONTROL_CLASS} resize-y`}
             />
+          ) : (
+            /* Date kinds: engine-only slice — no UI yet; placeholder rendered
+               by the future calendar widget. For now, show the value as text. */
+            <div
+              {...controlProps}
+              role="textbox"
+              aria-readonly="true"
+              className={CONTROL_CLASS}
+            >
+              {displayValue || (
+                <span className="text-neutral-400 dark:text-neutral-500">
+                  {placeholder}
+                </span>
+              )}
+            </div>
           )}
         </>
       )}
@@ -1568,6 +1664,28 @@ export type FieldMultiSelectConfig<T = unknown> = FieldCommonConfig<T[]> &
     selectionDisplay?: FieldSelectionDisplay;
   };
 
+/** The config for a DateField: value shape fixed at `string` (ISO date). */
+export type FieldDateConfig = FieldCommonConfig<string> &
+  FieldPlaceholderConfig;
+
+/** The config for a DateTimeField: value shape fixed at `string` (ISO datetime). */
+export type FieldDateTimeConfig = FieldCommonConfig<string> &
+  FieldPlaceholderConfig;
+
+/**
+ * The config for a DateRangeField: value shape fixed at `FieldDateRangeValue`.
+ * Both ends are optional so half-picks are representable.
+ */
+export type FieldDateRangeConfig = FieldCommonConfig<FieldDateRangeValue> &
+  FieldPlaceholderConfig;
+
+/**
+ * The config for a DateTimeRangeField: value shape fixed at `FieldDateRangeValue`.
+ * Both ends are optional so half-picks are representable.
+ */
+export type FieldDateTimeRangeConfig = FieldCommonConfig<FieldDateRangeValue> &
+  FieldPlaceholderConfig;
+
 /** An input Field: one labeled single-line control, narrowed by Input type. */
 export function InputField({
   config,
@@ -1627,6 +1745,62 @@ export function MultiSelectField<T>({
   return (
     <Field<"multi-select", T>
       config={{ ...config, kind: "multi-select" }}
+      ref={ref}
+    />
+  );
+}
+
+/** A date Field: one labeled control for a calendar date. */
+export function DateField({
+  config,
+  ref,
+}: {
+  config: FieldDateConfig;
+  ref?: Ref<FieldHandle<string>>;
+}) {
+  return <Field<"date"> config={{ ...config, kind: "date" }} ref={ref} />;
+}
+
+/** A datetime Field: one labeled control for a date + time. */
+export function DateTimeField({
+  config,
+  ref,
+}: {
+  config: FieldDateTimeConfig;
+  ref?: Ref<FieldHandle<string>>;
+}) {
+  return <Field<"datetime"> config={{ ...config, kind: "datetime" }} ref={ref} />;
+}
+
+/** A date-range Field: one labeled control for a start and end date. */
+export function DateRangeField({
+  config,
+  ref,
+}: {
+  config: FieldDateRangeConfig;
+  ref?: Ref<FieldHandle<FieldDateRangeValue>>;
+}) {
+  return (
+    <Field<"date-range">
+      config={{ ...config, kind: "date-range" }}
+      ref={ref}
+    />
+  );
+}
+
+/**
+ * A datetime-range Field: one labeled control for a start and end datetime.
+ */
+export function DateTimeRangeField({
+  config,
+  ref,
+}: {
+  config: FieldDateTimeRangeConfig;
+  ref?: Ref<FieldHandle<FieldDateRangeValue>>;
+}) {
+  return (
+    <Field<"datetime-range">
+      config={{ ...config, kind: "datetime-range" }}
       ref={ref}
     />
   );
