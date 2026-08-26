@@ -139,7 +139,7 @@ The state of a select or multi-select Field whose async Option load failed. Choo
 _Avoid_: error state, failure, crashed
 
 **FieldConfig**:
-The configuration object passed to a Field component. One kindless type per component — `FieldInputConfig`, `FieldTextareaConfig`, `FieldCheckboxConfig`, `FieldSelectConfig<T>`, `FieldMultiSelectConfig<T>` — with no `kind` property: the component fixes the kind, and the type narrows Initial, `onValueChange`, and Options to that kind's value shape (choice kinds carry T, the Option value type). Every config declares label, the optional Initial value, an optional `onValueChange` observer, an optional FieldValidator, and presentation props (hint, disabled, className). Only the input config adds `inputType`; choice kinds add Options (static array or async load) plus a `matchValue` override and `keepDisabledSelection`; `placeholder` exists on select alone. A prop a kind does not consume is absent from its type — rejected by the compiler, never silently ignored at runtime.
+The configuration object passed to a Field component. One kindless type per component — `FieldInputConfig`, `FieldTextareaConfig`, `FieldCheckboxConfig`, `FieldSelectConfig<T>`, `FieldMultiSelectConfig<T>` — with no `kind` property: the component fixes the kind, and the type narrows Initial, `onValueChange`, and Options to that kind's value shape (choice kinds carry T, the Option value type). Every config declares label, the optional Initial value, an optional `onValueChange` observer, an optional FieldValidator, and presentation props (hint, disabled, className). Only the input config adds `inputType`; choice kinds add Options (static array or async load) plus a `matchValue` override and `keepDisabledSelection`; every kind except checkbox adds `placeholder`. A prop a kind does not consume is absent from its type — rejected by the compiler, never silently ignored at runtime.
 _Avoid_: FieldProps
 
 **Initial value**:
@@ -149,6 +149,10 @@ _Avoid_: value, defaultValue, controlled value
 **FieldValidator**:
 The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/`max`, textual `minLength`/`maxLength`/`regex`, and input-only `email`. Each rule is either a bare constraint (built-in default message) or a `{ value, message }` pair (custom text). Rules apply by kind: `required` covers Empty values on every kind; `min`/`max` apply only to number inputs; `minLength`/`maxLength` apply to textarea and non-number inputs; `email` applies to non-number inputs only; `regex` applies to textarea and non-number inputs. A rule configured on a kind it does not fit is ignored, with a dev-only console warning naming the Field.
 _Avoid_: rules, schema, validation config, Validator
+
+**Placeholder**:
+Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select; checkbox has none. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
+_Avoid_: ghost, hint
 
 **Empty**:
 The value state `required` rejects, per Field kind: `""`, `null`, or `undefined` everywhere; plus `[]` for multi-select and `false` for checkbox (required = must-tick). Textual kinds test trimmed emptiness, so whitespace-only counts as Empty; the stored value itself is never altered.

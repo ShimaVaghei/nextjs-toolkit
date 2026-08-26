@@ -22,6 +22,7 @@ import {
 const nameConfig: FieldInputConfig = {
   inputType: "text",
   label: "Name",
+  placeholder: "Jane Doe",
   hint: "Shown publicly on your profile.",
   validator: { required: true },
 };
@@ -29,6 +30,7 @@ const nameConfig: FieldInputConfig = {
 const emailConfig: FieldInputConfig = {
   inputType: "text",
   label: "Email",
+  placeholder: "jane@example.com",
   hint: "Format checking is the declarative email rule — no hand-written regex.",
   validator: { required: true, email: true },
 };
@@ -42,6 +44,7 @@ const passwordConfig: FieldInputConfig = {
 
 const bioConfig: FieldTextareaConfig = {
   label: "Bio",
+  placeholder: "A sentence or two about you",
   hint: "A short introduction.",
   className: "max-w-md",
   validator: {
@@ -84,6 +87,7 @@ const countryConfig: FieldSelectConfig<string> = {
 
 const tagsConfig: FieldMultiSelectConfig<string> = {
   label: "Tags",
+  placeholder: "Pick some tags",
   hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
   initialValue: ["research"],
   validator: { required: { value: true, message: "Pick at least one tag." } },

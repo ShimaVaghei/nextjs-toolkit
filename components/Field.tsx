@@ -101,6 +101,16 @@ type FieldChoiceConfig<T> = {
 };
 
 /**
+ * Muted hint text a Field shows while it holds nothing: the native attribute
+ * on input and textarea kinds, the closed-face text on select, the empty
+ * chip strip's text on multi-select. Checkbox has none. Purely visual —
+ * inert, aria-hidden, never part of the value pipeline.
+ */
+type FieldPlaceholderConfig = {
+  placeholder?: string;
+};
+
+/**
  * Internal superset the shared Field component reads from, generic over the
  * Field kind: K picks the value shape (input → string | number,
  * textarea → string, checkbox → boolean) and T is the Option value type the
@@ -113,11 +123,11 @@ type FieldChoiceConfig<T> = {
  */
 type FieldConfig<K extends FieldKind = "input", T = unknown> =
   FieldCommonConfig<FieldValueOf<K, T>> &
-    FieldChoiceConfig<T> & {
+    FieldChoiceConfig<T> &
+    FieldPlaceholderConfig & {
       /** Stamped by the per-kind wrapper components; never set by callers. */
       kind?: K;
       inputType?: FieldInputType;
-      placeholder?: string;
     };
 
 /**
@@ -1185,6 +1195,15 @@ function Field<K extends FieldKind = "input", T = unknown>({
               className="flex items-stretch gap-1.5"
             >
               <div className={CHIP_STRIP_CLASS}>
+                {/* Empty-state text: purely visual, gone once any Chip exists. */}
+                {chips.length === 0 && placeholder && (
+                  <span
+                    aria-hidden="true"
+                    className={SELECT_FACE_GHOST_CLASS}
+                  >
+                    {placeholder}
+                  </span>
+                )}
                 {chips.map((chip, index) => (
                   <span key={chip.key} className={CHIP_CLASS}>
                     <span className="max-w-40 truncate">{chip.label}</span>
@@ -1380,6 +1399,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
               {...controlProps}
               type={inputType}
               value={displayValue}
+              placeholder={placeholder}
               onChange={handleChange}
               onBlur={handleBlur}
               className={CONTROL_CLASS}
@@ -1388,6 +1408,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
             <textarea
               {...controlProps}
               value={displayValue}
+              placeholder={placeholder}
               onChange={handleChange}
               onBlur={handleBlur}
               rows={4}
@@ -1442,28 +1463,27 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
 /**
  * The config for an InputField: value shape fixed at `string | number`,
- * plus the Input type. Declares exactly the props the input kind consumes.
+ * plus the Input type and the native placeholder attribute.
  */
-export type FieldInputConfig = FieldCommonConfig<string | number> & {
-  inputType?: FieldInputType;
-};
+export type FieldInputConfig = FieldCommonConfig<string | number> &
+  FieldPlaceholderConfig & {
+    inputType?: FieldInputType;
+  };
 
 /** The config for a TextareaField: value shape fixed at `string`. */
-export type FieldTextareaConfig = FieldCommonConfig<string>;
+export type FieldTextareaConfig = FieldCommonConfig<string> &
+  FieldPlaceholderConfig;
 
 /** The config for a CheckboxField: value shape fixed at `boolean`. */
 export type FieldCheckboxConfig = FieldCommonConfig<boolean>;
 
 /**
  * The config for a SelectField: `initialValue`, `onValueChange`, Options,
- * and `matchValue` narrow to T, the Option value type; `placeholder` exists
- * on select alone.
+ * and `matchValue` narrow to T, the Option value type.
  */
 export type FieldSelectConfig<T = unknown> = FieldCommonConfig<T> &
-  FieldChoiceConfig<T> & {
-    /** Labels the closed control while empty. */
-    placeholder?: string;
-  };
+  FieldChoiceConfig<T> &
+  FieldPlaceholderConfig;
 
 /**
  * The config for a MultiSelectField: `initialValue`, `onValueChange`,
@@ -1471,7 +1491,8 @@ export type FieldSelectConfig<T = unknown> = FieldCommonConfig<T> &
  * holds a `T[]`.
  */
 export type FieldMultiSelectConfig<T = unknown> = FieldCommonConfig<T[]> &
-  FieldChoiceConfig<T>;
+  FieldChoiceConfig<T> &
+  FieldPlaceholderConfig;
 
 /** An input Field: one labeled single-line control, narrowed by Input type. */
 export function InputField({

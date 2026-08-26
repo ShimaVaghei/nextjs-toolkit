@@ -251,6 +251,45 @@ describe("Field rendering", () => {
     expect(onValueChange).toHaveBeenCalledWith("Hello");
   });
 
+  describe("Field placeholder", () => {
+    it("passes the placeholder through as the native attribute on input and textarea", () => {
+      const input = render(
+        <InputField config={makeConfig({ placeholder: "Jane Doe" })} />,
+      );
+      expect(
+        input.getByRole("textbox", { name: "Name (required)" }),
+      ).toHaveAttribute("placeholder", "Jane Doe");
+      input.unmount();
+
+      render(
+        <TextareaField
+          config={{ label: "Bio", placeholder: "Tell us about yourself" }}
+        />,
+      );
+      expect(screen.getByRole("textbox", { name: "Bio" })).toHaveAttribute(
+        "placeholder",
+        "Tell us about yourself",
+      );
+    });
+
+    it("rejects a placeholder on the checkbox kind at compile time — there is no surface to show one", () => {
+      render(
+        <CheckboxField
+          config={{
+            label: "Consent",
+            // @ts-expect-error — checkbox has no placeholder surface
+            placeholder: "Not used",
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByRole("checkbox", { name: "Consent" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Not used")).toBeNull();
+    });
+  });
+
   it("disables the control when configured and omits the attribute entirely when enabled", () => {
     const disabled = render(<InputField config={makeConfig({ disabled: true })} />);
     expect(disabled.getByRole("textbox")).toBeDisabled();
@@ -2330,6 +2369,26 @@ describe("Field multi-select removal announcements", () => {
 });
 
 describe("Field multi-select Empty, placeholder, and stale chips", () => {
+  it("shows the placeholder inside the empty chip strip and drops it while a Chip exists", () => {
+    render(
+      <MultiSelectHarness
+        overrides={{ ...tagOverrides(), placeholder: "Pick some tags" }}
+      />,
+    );
+
+    expect(screen.getByText("Pick some tags")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    expect(screen.queryByText("Pick some tags")).toBeNull();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    expect(screen.getByText("Pick some tags")).toBeInTheDocument();
+  });
+
   it("counts [] as Empty so required reveals on leaving the widget and clears once something is selected", () => {
     render(
       <MultiSelectHarness
