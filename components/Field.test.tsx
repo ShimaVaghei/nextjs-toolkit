@@ -1279,15 +1279,6 @@ describe("Field select closed face", () => {
     expect(trigger).toHaveTextContent("Japan");
     expect(screen.queryByText("Choose a country")).toBeNull();
   });
-
-  it("ignores placeholder on non-select kinds", () => {
-    render(<InputField config={makeConfig({ placeholder: "Not used" })} />);
-
-    expect(screen.queryByText("Not used")).toBeNull();
-    expect(
-      screen.getByRole("textbox", { name: "Name (required)" }),
-    ).not.toHaveAttribute("placeholder");
-  });
 });
 
 describe("Field select stale value", () => {
@@ -2374,20 +2365,6 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
     expect(politeRegion()).toHaveTextContent("");
     expect(group).not.toHaveAttribute("aria-invalid");
-  });
-
-  it("ignores placeholder entirely", () => {
-    render(
-      <MultiSelectHarness
-        overrides={{ ...tagOverrides(), placeholder: "Pick some tags" }}
-      />,
-    );
-
-    expect(screen.queryByText("Pick some tags")).toBeNull();
-    expect(screen.queryByRole("combobox")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
-    expect(screen.queryByText("Pick some tags")).toBeNull();
   });
 
   it("renders unknown values as removable raw-value fallback chips with a dev-only warn", () => {

@@ -58,18 +58,11 @@ export type FieldValidator = {
 };
 
 /**
- * Internal base for the public per-kind config types, generic over the Field
- * kind: K picks the value shape (input → string | number, textarea → string,
- * checkbox → boolean) and T is the Option value type the choice kinds
- * (select → T, multi-select → T[]) carry through Initial, the observer, and
- * the Handle. Each wrapper component stamps its own literal kind and exposes
- * a kindless alias (FieldInputConfig, FieldSelectConfig<T>, …), so no config
- * a caller writes ever carries a `kind`.
+ * The config props every Field kind shares: identity, the value pipeline
+ * (Initial seed plus observer), validation, and presentation. V is the
+ * kind's value shape.
  */
-type FieldConfig<K extends FieldKind = "input", T = unknown> = {
-  /** Stamped by the per-kind wrapper components; never set by callers. */
-  kind?: K;
-  inputType?: FieldInputType;
+type FieldCommonConfig<V> = {
   label: string;
   /**
    * Optional mount-time seed: read exactly once when the Field mounts, then
@@ -77,11 +70,21 @@ type FieldConfig<K extends FieldKind = "input", T = unknown> = {
    * dev-only warning; live control flows only through user edits, setValue,
    * and onValueChange observation.
    */
-  initialValue?: NoInfer<FieldValueOf<K, T>>;
+  initialValue?: NoInfer<V>;
   /** Optional observer: fired for every committed change, however caused. */
-  onValueChange?: (value: NoInfer<FieldValueOf<K, T>>) => void;
+  onValueChange?: (value: NoInfer<V>) => void;
   validator?: FieldValidator;
-  /** Choice kinds only: a static array or an async loader fired once on mount and re-fired only by Retry. */
+  hint?: string;
+  disabled?: boolean;
+  className?: string;
+};
+
+/**
+ * The config props only the choice kinds (select, multi-select) consume:
+ * where Options come from and how values Match against them.
+ */
+type FieldChoiceConfig<T> = {
+  /** A static array or an async loader fired once on mount and re-fired only by Retry. */
   options?: FieldOption<T>[] | (() => Promise<FieldOption<T>[]>);
   /**
    * Matching override: replaces Object.is reference identity everywhere
@@ -90,17 +93,32 @@ type FieldConfig<K extends FieldKind = "input", T = unknown> = {
    * held value.
    */
   matchValue?: (a: T, b: T) => boolean;
-  /** Select-only: labels the closed control while empty. Multi-select ignores it. */
-  placeholder?: string;
   /**
    * Whether a held currently-selected-but-disabled Option stays legally
    * selected (default true); false demotes it to the raw-value fallback.
    */
   keepDisabledSelection?: boolean;
-  hint?: string;
-  disabled?: boolean;
-  className?: string;
 };
+
+/**
+ * Internal superset the shared Field component reads from, generic over the
+ * Field kind: K picks the value shape (input → string | number,
+ * textarea → string, checkbox → boolean) and T is the Option value type the
+ * choice kinds (select → T, multi-select → T[]) carry through Initial, the
+ * observer, and the Handle. Composed from the same building blocks as the
+ * public per-kind configs, plus the props individual kinds add; each wrapper
+ * component stamps its own literal kind and exposes a kindless alias
+ * (FieldInputConfig, FieldSelectConfig<T>, …), so no config a caller writes
+ * ever carries a `kind`.
+ */
+type FieldConfig<K extends FieldKind = "input", T = unknown> =
+  FieldCommonConfig<FieldValueOf<K, T>> &
+    FieldChoiceConfig<T> & {
+      /** Stamped by the per-kind wrapper components; never set by callers. */
+      kind?: K;
+      inputType?: FieldInputType;
+      placeholder?: string;
+    };
 
 /**
  * The imperative handle a parent obtains from Field via the ref prop,
@@ -1422,33 +1440,38 @@ function Field<K extends FieldKind = "input", T = unknown>({
   );
 }
 
-/** The config for an InputField: value shape fixed at `string | number`. */
-export type FieldInputConfig = Omit<FieldConfig<"input">, "kind">;
+/**
+ * The config for an InputField: value shape fixed at `string | number`,
+ * plus the Input type. Declares exactly the props the input kind consumes.
+ */
+export type FieldInputConfig = FieldCommonConfig<string | number> & {
+  inputType?: FieldInputType;
+};
 
 /** The config for a TextareaField: value shape fixed at `string`. */
-export type FieldTextareaConfig = Omit<FieldConfig<"textarea">, "kind">;
+export type FieldTextareaConfig = FieldCommonConfig<string>;
 
 /** The config for a CheckboxField: value shape fixed at `boolean`. */
-export type FieldCheckboxConfig = Omit<FieldConfig<"checkbox">, "kind">;
+export type FieldCheckboxConfig = FieldCommonConfig<boolean>;
 
 /**
  * The config for a SelectField: `initialValue`, `onValueChange`, Options,
- * and `matchValue` narrow to T, the Option value type.
+ * and `matchValue` narrow to T, the Option value type; `placeholder` exists
+ * on select alone.
  */
-export type FieldSelectConfig<T = unknown> = Omit<
-  FieldConfig<"select", T>,
-  "kind"
->;
+export type FieldSelectConfig<T = unknown> = FieldCommonConfig<T> &
+  FieldChoiceConfig<T> & {
+    /** Labels the closed control while empty. */
+    placeholder?: string;
+  };
 
 /**
  * The config for a MultiSelectField: `initialValue`, `onValueChange`,
  * Options, and `matchValue` narrow to T, the Option value type; the Field
  * holds a `T[]`.
  */
-export type FieldMultiSelectConfig<T = unknown> = Omit<
-  FieldConfig<"multi-select", T>,
-  "kind"
->;
+export type FieldMultiSelectConfig<T = unknown> = FieldCommonConfig<T[]> &
+  FieldChoiceConfig<T>;
 
 /** An input Field: one labeled single-line control, narrowed by Input type. */
 export function InputField({
