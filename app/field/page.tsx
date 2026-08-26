@@ -88,8 +88,23 @@ const countryConfig: FieldSelectConfig<string> = {
 const tagsConfig: FieldMultiSelectConfig<string> = {
   label: "Tags",
   placeholder: "Pick some tags",
-  hint: "Chips scroll horizontally inside a fixed-height control; removing one announces the change politely.",
+  hint: "Default text Selection display: the labels join into one comma-separated line that truncates with an ellipsis — hover it for the whole string.",
   initialValue: ["research"],
+  validator: { required: { value: true, message: "Pick at least one tag." } },
+  options: [
+    { label: "Design", value: "design" },
+    { label: "Research", value: "research" },
+    { label: "Engineering", value: "engineering" },
+    { label: "Documentation", value: "docs" },
+    { label: "Accessibility", value: "a11y" },
+  ],
+};
+
+const tagChipsConfig: FieldMultiSelectConfig<string> = {
+  label: "Tags (chips)",
+  placeholder: "Pick some tags",
+  hint: 'selectionDisplay: "chips" opts into removable chips instead; the strip grows to about three rows, then scrolls internally.',
+  initialValue: ["research", "design"],
   validator: { required: { value: true, message: "Pick at least one tag." } },
   options: [
     { label: "Design", value: "design" },
@@ -207,7 +222,7 @@ export default function FieldDemoPage() {
 
   const teamsConfig: FieldMultiSelectConfig<string> = {
     label: "Teams",
-    hint: "The same async contract on the multi-select kind: chips stay visible while Pending, and the popup only opens once options resolve.",
+    hint: "The same async contract on the multi-select kind: the joined selection stays visible while Pending, and the popup only opens once options resolve.",
     className: "max-w-md",
     initialValue: ["platform"],
     validator: { required: { value: true, message: "Pick at least one team." } },
@@ -353,15 +368,21 @@ export default function FieldDemoPage() {
             Multi-select
           </h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Selections render as removable chips in a fixed-height strip that
-            scrolls horizontally. &ldquo;Show options&rdquo; opens a plain
-            disclosure popup: a search box filters the rows above a group of
-            native checkboxes. Opening lands focus on the search box, Escape
-            returns it to the button, clicking outside closes quietly, and
-            removing the focused chip hops focus to its neighbour.
+            The Selection display picks the closed face. By default the labels
+            join into one comma-separated line that truncates with an
+            ellipsis — hover it for the whole string; removal happens inside
+            the popup. Opting into{" "}
+            <code className="font-mono">selectionDisplay: &quot;chips&quot;</code>{" "}
+            renders removable chips instead, in a strip that grows to about
+            three rows and scrolls past that. &ldquo;Show options&rdquo; opens
+            a plain disclosure popup: a search box filters the rows above a
+            group of native checkboxes. Opening lands focus on the search box,
+            Escape returns it to the button, clicking outside closes quietly,
+            and removing the focused chip hops focus to its neighbour.
           </p>
         </div>
         <MultiSelectField config={tagsConfig} />
+        <MultiSelectField config={tagChipsConfig} />
       </section>
 
       <section className="space-y-6">
@@ -387,7 +408,8 @@ export default function FieldDemoPage() {
           control stays disabled with a muted &ldquo;Loading
           options…&rdquo; status until its options arrive, the popup refuses
           to open until then, and any held selection stays visible the whole
-          time — for the multi-select as chips. Turn on the simulation, then
+          time — for the multi-select as its joined selection. Turn on the
+          simulation, then
           hit Retry to see the rejection; turn it off and hit Retry to
           recover.
         </p>

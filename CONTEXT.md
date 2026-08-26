@@ -118,6 +118,10 @@ _Avoid_: dropdown control, native select, combobox
 The disclosure panel shared by select and multi-select: a search box filtering rows above a clickable row list. Opening moves focus to the search box; Escape, outside click, or focus leaving the widget closes it and resets the query. In select, a row click picks and closes; in multi-select, a row click toggles membership and the popup stays open.
 _Avoid_: dropdown list, options menu, picker
 
+**Selection display**:
+How a multi-select Field renders its selected Options inside the control, declared as `selectionDisplay`: `chips` or `text`, defaulting to `text`. `chips` lays out one removable Chip per selected Option; `text` joins the labels into one comma-separated line that truncates with an ellipsis, the full string exposed via the native tooltip. Only exists on the multi-select kind.
+_Avoid_: view mode, display mode, appearance
+
 **Matching**:
 The equality rule tying a value to an Option: reference identity (`Object.is`) by default, overridable per Field via `matchValue`. Matching drives the closed-face label, popup checkbox states, chip membership, and staleness detection.
 _Avoid_: comparison, deep equal, lookup
@@ -127,7 +131,7 @@ The rendering of a value that Matches no Option once Options are authoritative: 
 _Avoid_: raw-value fallback, stale entry
 
 **Chip**:
-The removable pill a multi-select Field shows for each selected Option, rendered inside the control and scrolling horizontally when they overflow — the control never grows. Each Chip removes its Option from the selection.
+The removable pill a multi-select Field shows per selected Option when its Selection display is `chips`, laid out in a strip inside the control. The strip grows with the selection up to about three rows, scrolling internally past that. Each Chip removes its Option from the selection.
 _Avoid_: tag, token, pill badge
 
 **Pending**:

@@ -12,6 +12,14 @@ type FieldKind =
 export type FieldInputType = "text" | "password" | "number";
 
 /**
+ * How a multi-select Field renders its selected Options inside the control:
+ * `chips` lays out one removable Chip per selection in a wrapping strip;
+ * `text` joins the labels into one comma-separated line that truncates with
+ * an ellipsis, the whole string riding the native tooltip.
+ */
+export type FieldSelectionDisplay = "chips" | "text";
+
+/**
  * One choice offered by a choice kind: a display label, an unbounded value
  * handed over when chosen, and an optional unselectable flag. Labels are the
  * only rendered surface; values participate only in Matching.
@@ -128,6 +136,7 @@ type FieldConfig<K extends FieldKind = "input", T = unknown> =
       /** Stamped by the per-kind wrapper components; never set by callers. */
       kind?: K;
       inputType?: FieldInputType;
+      selectionDisplay?: FieldSelectionDisplay;
     };
 
 /**
@@ -217,10 +226,25 @@ const CHECKBOX_CLASS =
 const CHECKBOX_LABEL_CLASS =
   "ml-2 text-sm font-medium text-neutral-900 dark:text-neutral-100";
 
-/** Fixed-height chip strip: scrolls horizontally under a slim styled scrollbar, never grows. */
+/**
+ * Wrapping chip strip (Selection display `chips`): grows with the selection up
+ * to about three rows, scrolling internally past that — no horizontal scrollbar.
+ */
 const CHIP_STRIP_CLASS =
-  "field-chip-strip flex h-11 min-w-0 flex-1 items-center gap-1.5 overflow-x-auto rounded-md border border-neutral-300 bg-white px-2 py-1 " +
+  "field-chip-strip flex max-h-24 min-h-11 min-w-0 flex-1 flex-wrap content-start items-center gap-1.5 overflow-y-auto rounded-md border border-neutral-300 bg-white px-2 py-1 " +
   "dark:border-neutral-700 dark:bg-neutral-900";
+
+/**
+ * Text Selection display strip: one line of comma-joined labels inside the
+ * same bordered control, clipped to a single row with an ellipsis.
+ */
+const SELECTION_TEXT_STRIP_CLASS =
+  "field-selection-text flex min-h-11 min-w-0 flex-1 items-center overflow-hidden rounded-md border border-neutral-300 bg-white px-2 py-1 " +
+  "dark:border-neutral-700 dark:bg-neutral-900";
+
+/** The truncating text face itself; the full string rides the native title. */
+const SELECTION_TEXT_CLASS =
+  "block w-full truncate text-sm text-neutral-900 dark:text-neutral-100";
 
 const CHIP_CLASS =
   "inline-flex shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-neutral-100 py-0.5 pl-2.5 pr-0.5 " +
@@ -755,6 +779,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
     options = [],
     placeholder,
     keepDisabledSelection = true,
+    selectionDisplay = "text",
     hint,
     disabled,
     className,
@@ -972,10 +997,21 @@ function Field<K extends FieldKind = "input", T = unknown>({
   useEffect(() => {
     if (process.env.NODE_ENV !== "production" && staleDescriptions !== "") {
       console.warn(
-        `[Field] Value(s) ${staleDescriptions} of multi-select "${label}" do not match any Option and are shown as fallback chips.`,
+        `[Field] Value(s) ${staleDescriptions} of multi-select "${label}" do not match any Option and are shown as fallbacks.`,
       );
     }
   }, [staleDescriptions, label]);
+
+  // Closed-face pieces shared by both Selection displays: the ghost while
+  // empty, and the comma-joined label string for the text display (matched
+  // Options in Options order, then Fallback labels).
+  const emptySelectionFace =
+    chips.length === 0 && placeholder ? (
+      <span aria-hidden="true" className={SELECT_FACE_GHOST_CLASS}>
+        {placeholder}
+      </span>
+    ) : null;
+  const joinedSelection = chips.map((chip) => chip.label).join(", ");
 
   const rule = validator?.required;
   const isRequired = rule !== undefined && requiredConstraint(rule).isRequired;
@@ -1194,50 +1230,57 @@ function Field<K extends FieldKind = "input", T = unknown>({
               {...groupStatusAttributes}
               className="flex items-stretch gap-1.5"
             >
-              <div className={CHIP_STRIP_CLASS}>
-                {/* Empty-state text: purely visual, gone once any Chip exists. */}
-                {chips.length === 0 && placeholder && (
-                  <span
-                    aria-hidden="true"
-                    className={SELECT_FACE_GHOST_CLASS}
-                  >
-                    {placeholder}
-                  </span>
-                )}
-                {chips.map((chip, index) => (
-                  <span key={chip.key} className={CHIP_CLASS}>
-                    <span className="max-w-40 truncate">{chip.label}</span>
-                    <button
-                      type="button"
-                      ref={(element) => {
-                        if (element) {
-                          chipRemoveRefs.current.set(chip.key, element);
-                        } else {
-                          chipRemoveRefs.current.delete(chip.key);
-                        }
-                      }}
-                      aria-label={`Remove ${chip.label}`}
-                      disabled={multiDisabled || undefined}
-                      onClick={() => removeChip(chip, index)}
-                      className={CHIP_REMOVE_CLASS}
-                    >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        className="size-3"
+              {selectionDisplay === "chips" ? (
+                <div className={CHIP_STRIP_CLASS}>
+                  {emptySelectionFace}
+                  {chips.map((chip, index) => (
+                    <span key={chip.key} className={CHIP_CLASS}>
+                      <span className="max-w-40 truncate">{chip.label}</span>
+                      <button
+                        type="button"
+                        ref={(element) => {
+                          if (element) {
+                            chipRemoveRefs.current.set(chip.key, element);
+                          } else {
+                            chipRemoveRefs.current.delete(chip.key);
+                          }
+                        }}
+                        aria-label={`Remove ${chip.label}`}
+                        disabled={multiDisabled || undefined}
+                        onClick={() => removeChip(chip, index)}
+                        className={CHIP_REMOVE_CLASS}
                       >
-                        <path
-                          d="M3 3l6 6M9 3l-6 6"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-              </div>
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                          className="size-3"
+                        >
+                          <path
+                            d="M3 3l6 6M9 3l-6 6"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className={SELECTION_TEXT_STRIP_CLASS}>
+                  {chips.length === 0 ? (
+                    emptySelectionFace
+                  ) : (
+                    <span
+                      className={SELECTION_TEXT_CLASS}
+                      title={joinedSelection}
+                    >
+                      {joinedSelection}
+                    </span>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 ref={triggerRef}
@@ -1488,11 +1531,15 @@ export type FieldSelectConfig<T = unknown> = FieldCommonConfig<T> &
 /**
  * The config for a MultiSelectField: `initialValue`, `onValueChange`,
  * Options, and `matchValue` narrow to T, the Option value type; the Field
- * holds a `T[]`.
+ * holds a `T[]`. `selectionDisplay` chooses how the selection renders inside
+ * the control — `chips` or `text`, defaulting to `text`.
  */
 export type FieldMultiSelectConfig<T = unknown> = FieldCommonConfig<T[]> &
   FieldChoiceConfig<T> &
-  FieldPlaceholderConfig;
+  FieldPlaceholderConfig & {
+    /** Applied live per render like the other presentation props. */
+    selectionDisplay?: FieldSelectionDisplay;
+  };
 
 /** An input Field: one labeled single-line control, narrowed by Input type. */
 export function InputField({
@@ -1538,7 +1585,11 @@ export function SelectField<T>({
   return <Field<"select", T> config={{ ...config, kind: "select" }} ref={ref} />;
 }
 
-/** A multi-select Field: chip-based multiple choice from searchable Options. */
+/**
+ * A multi-select Field: multiple choice from searchable Options. The
+ * Selection display picks the closed face — a comma-joined text line by
+ * default, or removable Chips via `selectionDisplay: "chips"`.
+ */
 export function MultiSelectField<T>({
   config,
   ref,

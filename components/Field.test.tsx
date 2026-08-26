@@ -2023,6 +2023,11 @@ function tagOverrides(): Partial<FieldMultiSelectConfig<string>> {
   };
 }
 
+/** Opts back into removable Chips for closed-face chip-behavior suites. */
+function chipTagOverrides(): Partial<FieldMultiSelectConfig<string>> {
+  return { ...tagOverrides(), selectionDisplay: "chips" };
+}
+
 function politeRegion(): HTMLElement {
   return document.querySelector('[aria-live="polite"]') as HTMLElement;
 }
@@ -2060,17 +2065,119 @@ describe("Field multi-select closed face", () => {
     expect(container.querySelector("[aria-haspopup]")).toBeNull();
   });
 
-  it("keeps the chip strip fixed-height and horizontally scrolling", () => {
+  it("defaults to the text Selection display: one comma-joined line carrying the whole string as its native tooltip", () => {
+    const received: FieldValue[] = [];
     const { container } = render(
       <MultiSelectHarness
+        onChangeSpy={(value) => received.push(value)}
         overrides={{ ...tagOverrides(), initialValue: ["design", "research"] }}
+      />,
+    );
+
+    // No remove buttons on the text face — removal happens inside the popup.
+    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
+
+    const face = container.querySelector<HTMLElement>(".field-selection-text");
+    expect(face).not.toBeNull();
+    const line = within(face!).getByText("Design, Research");
+    expect(line).toHaveAttribute("title", "Design, Research");
+    expect(line).toHaveClass("truncate");
+
+    // Toggling inside the popup updates the joined line live.
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Engineering" }));
+    expect(
+      within(face!).getByText("Design, Research, Engineering"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    expect(received).toEqual([
+      ["design", "research", "engineering"],
+      ["research", "engineering"],
+    ]);
+  });
+
+  it("renders fallback labels into the joined text face exactly as chips would show them", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { container } = render(
+        <MultiSelectHarness
+          overrides={{
+            label: "Tags",
+            validator: undefined,
+            options: [
+              { label: "Small", value: 1 },
+              { label: "Large", value: 4 },
+            ],
+            initialValue: [1, 9],
+          }}
+        />,
+      );
+
+      const face = container.querySelector<HTMLElement>(
+        ".field-selection-text",
+      )!;
+      expect(within(face).getByText("Small, 9")).toHaveAttribute(
+        "title",
+        "Small, 9",
+      );
+      const [message] = warnSpy.mock.calls.find(
+        (call) => typeof call[0] === "string",
+      )!;
+      expect(message).toContain('"Tags"');
+      expect(message).toContain('"9"');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("applies a changed selectionDisplay prop live: the same Field swaps its face without remounting", () => {
+    const { container, rerender } = render(
+      <MultiSelectHarness
+        overrides={{
+          ...tagOverrides(),
+          initialValue: ["design"],
+          selectionDisplay: "text",
+        }}
+      />,
+    );
+    expect(container.querySelector(".field-selection-text")).not.toBeNull();
+    expect(container.querySelector(".field-chip-strip")).toBeNull();
+
+    rerender(
+      <MultiSelectHarness
+        overrides={{
+          ...tagOverrides(),
+          initialValue: ["design"],
+          selectionDisplay: "chips",
+        }}
+      />,
+    );
+    expect(container.querySelector(".field-chip-strip")).not.toBeNull();
+    expect(container.querySelector(".field-selection-text")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Remove Design" }),
+    ).toBeInTheDocument();
+  });
+
+  it("grows the chips strip vertically instead of scrolling horizontally, capping at about three rows", () => {
+    const { container } = render(
+      <MultiSelectHarness
+        overrides={{
+          ...tagOverrides(),
+          selectionDisplay: "chips",
+          initialValue: ["design", "research"],
+        }}
       />,
     );
 
     const strip = container.querySelector<HTMLElement>(".field-chip-strip");
     expect(strip).not.toBeNull();
-    expect(strip).toHaveClass("overflow-x-auto");
-    expect(strip).toHaveClass("h-11");
+    expect(strip).toHaveClass("flex-wrap");
+    expect(strip).toHaveClass("min-h-11");
+    expect(strip).toHaveClass("max-h-24");
+    expect(strip).toHaveClass("overflow-y-auto");
+    expect(strip).not.toHaveClass("overflow-x-auto");
+    expect(strip).not.toHaveClass("h-11");
   });
 });
 
@@ -2080,7 +2187,7 @@ describe("Field multi-select toggle semantics", () => {
     render(
       <MultiSelectHarness
         onChangeSpy={(value) => received.push(value)}
-        overrides={tagOverrides()}
+        overrides={chipTagOverrides()}
       />,
     );
 
@@ -2111,7 +2218,7 @@ describe("Field multi-select toggle semantics", () => {
       <MultiSelectHarness
         onChangeSpy={(value) => received.push(value)}
         overrides={{
-          ...tagOverrides(),
+          ...chipTagOverrides(),
           initialValue: ["design", "research"],
         }}
       />,
@@ -2288,7 +2395,7 @@ describe("Field multi-select focus choreography", () => {
     render(
       <MultiSelectHarness
         overrides={{
-          ...tagOverrides(),
+          ...chipTagOverrides(),
           initialValue: ["design", "research", "engineering"],
         }}
       />,
@@ -2308,7 +2415,7 @@ describe("Field multi-select focus choreography", () => {
   it("hops focus to the last remaining chip when the focused last-positioned chip is removed", () => {
     render(
       <MultiSelectHarness
-        overrides={{ ...tagOverrides(), initialValue: ["design", "research"] }}
+        overrides={{ ...chipTagOverrides(), initialValue: ["design", "research"] }}
       />,
     );
 
@@ -2324,7 +2431,7 @@ describe("Field multi-select focus choreography", () => {
   it("returns focus to the open button when the final focused chip is removed", () => {
     render(
       <MultiSelectHarness
-        overrides={{ ...tagOverrides(), initialValue: ["design"] }}
+        overrides={{ ...chipTagOverrides(), initialValue: ["design"] }}
       />,
     );
 
@@ -2343,7 +2450,7 @@ describe("Field multi-select removal announcements", () => {
   it("writes 'Removed X. N selected.' into the shared polite region with the last message winning", () => {
     render(
       <MultiSelectHarness
-        overrides={{ ...tagOverrides(), initialValue: ["design", "research"] }}
+        overrides={{ ...chipTagOverrides(), initialValue: ["design", "research"] }}
       />,
     );
 
@@ -2433,7 +2540,7 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
       render(
         <MultiSelectHarness
           onChangeSpy={(value) => received.push(value)}
-          overrides={{ ...tagOverrides(), initialValue: ["design", "zz"] }}
+          overrides={{ ...chipTagOverrides(), initialValue: ["design", "zz"] }}
         />,
       );
 
@@ -2460,7 +2567,7 @@ describe("Field multi-select Empty, placeholder, and stale chips", () => {
       render(
         <MultiSelectHarness
           overrides={{
-            ...tagOverrides(),
+            ...chipTagOverrides(),
             options: () => d.promise,
             initialValue: ["eu"],
           }}
@@ -2509,7 +2616,11 @@ describe("Field multi-select async options", () => {
     const loader = vi.fn(() => d.promise);
     render(
       <MultiSelectHarness
-        overrides={{ ...asyncTagOverrides(loader), initialValue: ["design"] }}
+        overrides={{
+          ...asyncTagOverrides(loader),
+          selectionDisplay: "chips",
+          initialValue: ["design"],
+        }}
       />,
     );
 
@@ -2549,7 +2660,11 @@ describe("Field multi-select async options", () => {
       .fn<() => Promise<FieldOption[]>>()
       .mockReturnValueOnce(d1.promise)
       .mockReturnValueOnce(d2.promise);
-    render(<MultiSelectHarness overrides={asyncTagOverrides(loader)} />);
+    render(
+      <MultiSelectHarness
+        overrides={{ ...asyncTagOverrides(loader), selectionDisplay: "chips" }}
+      />,
+    );
 
     const openButton = screen.getByRole("button", { name: "Show options" });
     const panelId = openButton.getAttribute("aria-controls")!;
@@ -2599,7 +2714,11 @@ describe("Field multi-select async options", () => {
       .mockReturnValueOnce(d2.promise);
     render(
       <MultiSelectHarness
-        overrides={{ ...asyncTagOverrides(loader), initialValue: ["eu"] }}
+        overrides={{
+          ...asyncTagOverrides(loader),
+          selectionDisplay: "chips",
+          initialValue: ["eu"],
+        }}
       />,
     );
 
@@ -2802,13 +2921,14 @@ describe("Field matchValue override", () => {
     render(
       <MultiSelectHarness
         onChangeSpy={(value) => received.push(value)}
-        overrides={{
-          label: "Trains",
-          validator: undefined,
-          options: TRAIN_OPTIONS,
-          matchValue: matchById,
-          initialValue: [{ id: 1, codename: "kepler-copy" }],
-        }}
+          overrides={{
+            label: "Trains",
+            validator: undefined,
+            options: TRAIN_OPTIONS,
+            matchValue: matchById,
+            selectionDisplay: "chips",
+            initialValue: [{ id: 1, codename: "kepler-copy" }],
+          }}
       />,
     );
 
@@ -2919,6 +3039,7 @@ describe("Field Fallback", () => {
           overrides={{
             label: "Capacities",
             validator: undefined,
+            selectionDisplay: "chips",
             options: [
               { label: "Small", value: 1 },
               { label: "Large", value: 4 },
@@ -2956,6 +3077,7 @@ describe("Field Fallback", () => {
           overrides={{
             label: "Trains",
             validator: undefined,
+            selectionDisplay: "chips",
             options: TRAIN_OPTIONS,
             initialValue: [KEPLER, { id: 99, codename: "ghost-train" }],
           }}
@@ -2989,6 +3111,7 @@ describe("Field Fallback", () => {
         overrides={{
           label: "Tags",
           validator: undefined,
+          selectionDisplay: "chips",
           options: [
             ...TAG_OPTIONS,
             { label: "Archived", value: "archived", disabled: true },
