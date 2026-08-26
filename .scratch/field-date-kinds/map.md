@@ -20,6 +20,8 @@ All four Field kinds shipped end-to-end in `components/Field.tsx` — DateField,
 
 ## Decisions so far
 
+- [Calendar popup a11y research](issues/01-calendar-popup-a11y-research.md) — Follow APG Date Picker Dialog: dialog+grid with roving tabindex, full arrow/PageUp/Home/End/Esc keyboard map, focus on selected day/today on open and back to trigger on close, aria-disabled for out-of-bounds days; range two-step picking follows React Aria/USWDS conventions (live-region announcements, composed cell names, selected-state band) since no W3C pattern exists.
+
 ## Not yet specified
 
 - Implementation slicing into task tickets (engine value-model extension for object-shaped values, calendar widget extraction, per-kind slices, test plan, demo page, glossary updates) — graduates once the decision tickets close.
