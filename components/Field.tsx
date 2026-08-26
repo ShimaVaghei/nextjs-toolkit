@@ -963,6 +963,9 @@ function CalendarPopup({
   onCancelRef,
   triggerRef,
   widgetRef,
+  calendarPanelRef,
+  onCalendarMouseDown,
+  onCalendarMouseUp,
   min,
   max,
   draftDay,
@@ -994,6 +997,9 @@ function CalendarPopup({
   onCancelRef?: React.Ref<HTMLButtonElement>;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   widgetRef: React.RefObject<HTMLDivElement | null>;
+  calendarPanelRef: React.RefObject<HTMLDivElement | null>;
+  onCalendarMouseDown?: () => void;
+  onCalendarMouseUp?: () => void;
   min?: string;
   max?: string;
   draftDay: number;
@@ -1028,9 +1034,9 @@ function CalendarPopup({
 
   const headerLabel = formatMonthYear(draftYear, draftMonth);
   const today = new Date();
-  const todayYear = today.getUTCFullYear();
-  const todayMonth = today.getUTCMonth() + 1;
-  const todayDay = today.getUTCDate();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth() + 1;
+  const todayDay = today.getDate();
   const isToday = draftYear === todayYear && draftMonth === todayMonth && draftDay === todayDay;
   const days = daysInMonth(draftYear, draftMonth);
   const firstDayOfWeek = new Date(Date.UTC(draftYear, draftMonth - 1, 1)).getUTCDay();
@@ -1296,11 +1302,14 @@ function CalendarPopup({
   return (
     <div
       id={panelId}
+      ref={calendarPanelRef}
       hidden={!open}
       className={CALENDAR_PANEL_CLASS}
       role="dialog"
       aria-modal="false"
       aria-label={range ? "Choose date range" : "Choose date"}
+      onMouseDown={onCalendarMouseDown}
+      onMouseUp={onCalendarMouseUp}
     >
       {range && (
         <div aria-live="polite" className="sr-only">
@@ -1586,6 +1595,8 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const [timeHour, setTimeHour] = useState("00");
   const [timeMinute, setTimeMinute] = useState("00");
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const calendarPanelRef = useRef<HTMLDivElement>(null);
+  const didMouseDownInCalendarRef = useRef(false);
 
   // Range state for date-range and datetime-range
   const [rangeAnchor, setRangeAnchor] = useState<string | undefined>(undefined);
@@ -1703,6 +1714,14 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const handleEndTimeChange = useCallback((h: string, m: string) => {
     setEndTimeHour(h);
     setEndTimeMinute(m);
+  }, []);
+
+  const handleCalendarMouseDown = useCallback(() => {
+    didMouseDownInCalendarRef.current = true;
+  }, []);
+
+  const handleCalendarMouseUp = useCallback(() => {
+    didMouseDownInCalendarRef.current = false;
   }, []);
 
   const toggleCalendar = useCallback(() => {
@@ -2129,6 +2148,12 @@ function Field<K extends FieldKind = "input", T = unknown>({
     ) {
       return;
     }
+    // A mousedown inside the calendar panel (e.g. clicking a day cell)
+    // should not close the calendar — only Apply/Cancel or outside clicks.
+    if (calendarOpen && didMouseDownInCalendarRef.current) {
+      didMouseDownInCalendarRef.current = false;
+      return;
+    }
     if (open && next === null && absorbedPressRef.current) {
       absorbedPressRef.current = false;
       return;
@@ -2540,6 +2565,9 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   onCancelRef={cancelRef}
                   triggerRef={triggerRef}
                   widgetRef={widgetRef}
+                  calendarPanelRef={calendarPanelRef}
+                  onCalendarMouseDown={handleCalendarMouseDown}
+                  onCalendarMouseUp={handleCalendarMouseUp}
                   min={typeof config.validator?.min === "string" ? config.validator.min : typeof config.validator?.min === "object" && config.validator?.min && "value" in config.validator.min ? String(config.validator.min.value) : undefined}
                   max={typeof config.validator?.max === "string" ? config.validator.max : typeof config.validator?.max === "object" && config.validator?.max && "value" in config.validator.max ? String(config.validator.max.value) : undefined}
                   draftDay={draftDay}
