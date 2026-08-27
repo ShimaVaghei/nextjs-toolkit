@@ -324,6 +324,9 @@ const CALENDAR_HEADER_CLASS = "flex items-center justify-between mb-2";
 const CALENDAR_MONTH_CLASS =
   "text-sm font-medium text-neutral-900 dark:text-neutral-100";
 
+const CALENDAR_HEADER_BUTTON_CLASS =
+  "text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 rounded-md px-2 py-1 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30 cursor-pointer";
+
 const CALENDAR_NAV_BUTTON_CLASS =
   "flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30";
 
@@ -369,6 +372,11 @@ const CALENDAR_APPLY_CLASS =
 const CALENDAR_CANCEL_CLASS =
   CALENDAR_ACTION_BUTTON_CLASS +
   " text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800";
+
+const CALENDAR_YEAR_GRID_CLASS = "grid grid-cols-3 gap-1.5";
+
+const CALENDAR_YEAR_BUTTON_CLASS =
+  "flex h-9 items-center justify-center rounded-md text-sm text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30";
 
 type Constraint<T> = T | { value: T; message: string };
 
@@ -948,6 +956,8 @@ const MONTH_YEAR_FORMATTER = new Intl.DateTimeFormat("en-US", {
 
 // ─── CalendarPopup ─────────────────────────────────────────────────────
 
+type CalendarOverlay = "none" | "year" | "month";
+
 function CalendarPopup({
   panelId,
   gridId,
@@ -1020,6 +1030,18 @@ function CalendarPopup({
   onEndTimeChange?: (h: string, m: string) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const [overlay, setOverlay] = useState<CalendarOverlay>("none");
+  const [decadeOffset, setDecadeOffset] = useState(0);
+
+  // Reset overlay when calendar closes.
+  useEffect(() => {
+    if (!open) {
+      setOverlay("none");
+      setDecadeOffset(0);
+    }
+  }, [open]);
+
+  const decadeStart = (draftYear || new Date().getFullYear()) - ((draftYear || new Date().getFullYear()) % 12) + decadeOffset * 12;
 
   // Focus management: focus the selected-day button, or today, on open.
   useEffect(() => {
@@ -1320,6 +1342,7 @@ function CalendarPopup({
         </div>
       )}
       <div className={CALENDAR_HEADER_CLASS}>
+        {overlay !== "year" && (
         <button
           type="button"
           aria-label="Previous month"
@@ -1331,7 +1354,21 @@ function CalendarPopup({
             <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <span className={CALENDAR_MONTH_CLASS}>{headerLabel}</span>
+        )}
+        <span className={CALENDAR_MONTH_CLASS}>
+          <button
+            type="button"
+            className={CALENDAR_HEADER_BUTTON_CLASS}
+            aria-label="Choose year"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setOverlay("year");
+            }}
+          >
+            {headerLabel}
+          </button>
+        </span>
+        {overlay !== "year" && (
         <button
           type="button"
           aria-label="Next month"
@@ -1343,8 +1380,75 @@ function CalendarPopup({
             <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+        )}
       </div>
 
+      {overlay === "year" && (
+        <div
+          role="grid"
+          aria-label="Choose year"
+          className={CALENDAR_YEAR_GRID_CLASS}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Previous decade"
+            className={CALENDAR_NAV_BUTTON_CLASS}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setDecadeOffset((prev) => prev - 1);
+            }}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+              <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {Array.from({ length: 12 }, (_, i) => {
+            const year = decadeStart + i;
+            const isSelected = year === draftYear;
+            return (
+              <button
+                key={year}
+                type="button"
+                role="gridcell"
+                aria-selected={isSelected || undefined}
+                className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}`}
+                tabIndex={isSelected ? 0 : -1}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const nm = draftMonth;
+                  const nd = Math.min(draftDay, daysInMonth(year, nm));
+                  onDraftChange(`${year}-${pad2(nm)}-${pad2(nd)}`);
+                  setOverlay("month");
+                }}
+              >
+                {year}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            aria-label="Next decade"
+            className={CALENDAR_NAV_BUTTON_CLASS}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setDecadeOffset((prev) => prev + 1);
+            }}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {(overlay === "none" || overlay === "month") && (
       <div
         ref={gridRef}
         id={gridId}
@@ -1358,6 +1462,7 @@ function CalendarPopup({
         ))}
         {buildCells()}
       </div>
+      )}
 
       {kind === "datetime" && !range && (
         <div className={CALENDAR_TIME_CLASS}>
