@@ -378,6 +378,9 @@ const CALENDAR_YEAR_GRID_CLASS = "grid grid-cols-3 gap-1.5";
 const CALENDAR_YEAR_BUTTON_CLASS =
   "flex h-9 items-center justify-center rounded-md text-sm text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30";
 
+const CALENDAR_NAV_BUTTON_DISABLED_CLASS =
+  "cursor-not-allowed opacity-50 pointer-events-none";
+
 type Constraint<T> = T | { value: T; message: string };
 
 function isConstraintPair<T>(
@@ -944,6 +947,26 @@ function formatMonthYear(year: number, month: number): string {
   }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
+function extractYearBound(iso: string | undefined): number | null {
+  if (!iso) return null;
+  const parts = utcDateParts(iso);
+  return parts ? parts.year : null;
+}
+
+function isYearDisabled(year: number, minYear: number | null, maxYear: number | null): boolean {
+  if (minYear !== null && year < minYear) return true;
+  if (maxYear !== null && year > maxYear) return true;
+  return false;
+}
+
+function isMonthDisabled(year: number, month: number, min: string | undefined, max: string | undefined): boolean {
+  const firstDay = `${year}-${pad2(month)}-01`;
+  const lastDay = `${year}-${pad2(month)}-${pad2(daysInMonth(year, month))}`;
+  if (min && lastDay < min.slice(0, 10)) return true;
+  if (max && firstDay > max.slice(0, 10)) return true;
+  return false;
+}
+
 const CELL_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
   year: "numeric",
@@ -1344,19 +1367,23 @@ function CalendarPopup({
         </div>
       )}
       <div className={CALENDAR_HEADER_CLASS}>
-        {overlay === "none" && (
-        <button
-          type="button"
-          aria-label="Previous month"
-          className={CALENDAR_NAV_BUTTON_CLASS}
-          onMouseDown={prevMonthMouseDown}
-          onKeyDown={prevMonthKeyDown}
-        >
-          <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
-            <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        )}
+        {overlay === "none" && (() => {
+          const prevMonthDisabled = !!(min && `${draftYear}-${pad2(draftMonth)}-01` <= min.slice(0, 10));
+          const nextMonthDisabled = !!(max && `${draftYear}-${pad2(draftMonth)}-${pad2(daysInMonth(draftYear, draftMonth))}` >= max.slice(0, 10));
+          return (<>
+          <button
+            type="button"
+            aria-label="Previous month"
+            disabled={prevMonthDisabled || undefined}
+            className={`${CALENDAR_NAV_BUTTON_CLASS}${prevMonthDisabled ? ` ${CALENDAR_NAV_BUTTON_DISABLED_CLASS}` : ""}`}
+            onMouseDown={prevMonthMouseDown}
+            onKeyDown={prevMonthKeyDown}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+              <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button></>);
+        })()}
         <span className={CALENDAR_MONTH_CLASS}>
           <button
             type="button"
@@ -1370,22 +1397,32 @@ function CalendarPopup({
             {headerLabel}
           </button>
         </span>
-        {overlay === "none" && (
-        <button
-          type="button"
-          aria-label="Next month"
-          className={CALENDAR_NAV_BUTTON_CLASS}
-          onMouseDown={nextMonthMouseDown}
-          onKeyDown={nextMonthKeyDown}
-        >
-          <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
-            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        )}
+        {overlay === "none" && (() => {
+          const prevMonthDisabled = !!(min && `${draftYear}-${pad2(draftMonth)}-01` <= min.slice(0, 10));
+          const nextMonthDisabled = !!(max && `${draftYear}-${pad2(draftMonth)}-${pad2(daysInMonth(draftYear, draftMonth))}` >= max.slice(0, 10));
+          return (
+          <button
+            type="button"
+            aria-label="Next month"
+            disabled={nextMonthDisabled || undefined}
+            className={`${CALENDAR_NAV_BUTTON_CLASS}${nextMonthDisabled ? ` ${CALENDAR_NAV_BUTTON_DISABLED_CLASS}` : ""}`}
+            onMouseDown={nextMonthMouseDown}
+            onKeyDown={nextMonthKeyDown}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          );
+        })()}
       </div>
 
-      {overlay === "year" && (
+      {overlay === "year" && (() => {
+        const minYear = extractYearBound(min);
+        const maxYear = extractYearBound(max);
+        const prevDecadeDisabled = minYear !== null && decadeStart <= minYear;
+        const nextDecadeDisabled = maxYear !== null && (decadeStart + 11) >= maxYear;
+        return (
         <div
           role="grid"
           aria-label="Choose year"
@@ -1401,7 +1438,8 @@ function CalendarPopup({
           <button
             type="button"
             aria-label="Previous decade"
-            className={CALENDAR_NAV_BUTTON_CLASS}
+            disabled={prevDecadeDisabled || undefined}
+            className={`${CALENDAR_NAV_BUTTON_CLASS}${prevDecadeDisabled ? ` ${CALENDAR_NAV_BUTTON_DISABLED_CLASS}` : ""}`}
             onMouseDown={(e) => {
               e.preventDefault();
               setDecadeOffset((prev) => prev - 1);
@@ -1414,13 +1452,16 @@ function CalendarPopup({
           {Array.from({ length: 12 }, (_, i) => {
             const year = decadeStart + i;
             const isSelected = year === draftYear;
+            const disabled = isYearDisabled(year, minYear, maxYear);
             return (
               <button
                 key={year}
                 type="button"
                 role="gridcell"
                 aria-selected={isSelected || undefined}
-                className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}`}
+                aria-disabled={disabled || undefined}
+                disabled={disabled || undefined}
+                className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}${disabled ? ` ${CALENDAR_DAY_DISABLED_CLASS}` : ""}`}
                 tabIndex={isSelected ? 0 : -1}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -1437,7 +1478,8 @@ function CalendarPopup({
           <button
             type="button"
             aria-label="Next decade"
-            className={CALENDAR_NAV_BUTTON_CLASS}
+            disabled={nextDecadeDisabled || undefined}
+            className={`${CALENDAR_NAV_BUTTON_CLASS}${nextDecadeDisabled ? ` ${CALENDAR_NAV_BUTTON_DISABLED_CLASS}` : ""}`}
             onMouseDown={(e) => {
               e.preventDefault();
               setDecadeOffset((prev) => prev + 1);
@@ -1448,7 +1490,8 @@ function CalendarPopup({
             </svg>
           </button>
         </div>
-      )}
+        );
+      })()}
 
       {overlay === "none" && (
       <div
@@ -1482,14 +1525,17 @@ function CalendarPopup({
           {MONTH_LABELS.map((label, i) => {
             const monthNum = i + 1;
             const isSelected = monthNum === draftMonth;
+            const disabled = isMonthDisabled(draftYear, monthNum, min, max);
             return (
               <button
                 key={monthNum}
                 type="button"
                 role="gridcell"
                 aria-selected={isSelected || undefined}
+                aria-disabled={disabled || undefined}
                 aria-label={label}
-                className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}`}
+                disabled={disabled || undefined}
+                className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}${disabled ? ` ${CALENDAR_DAY_DISABLED_CLASS}` : ""}`}
                 tabIndex={isSelected ? 0 : -1}
                 onMouseDown={(e) => {
                   e.preventDefault();

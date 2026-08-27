@@ -4586,7 +4586,333 @@ describe("DateField — month panel", () => {
   });
 });
 
-// ─── DateRangeField & DateTimeRangeField — calendar widget UI tests ───
+describe("DateField — min/max constraints on year and month panels", () => {
+  afterEach(cleanup);
+
+  it("years outside min/max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Years 2016-2019 are before min year 2020, should be disabled
+    const year2019 = screen.getByRole("gridcell", { name: "2019" });
+    expect(year2019).toHaveAttribute("aria-disabled", "true");
+    expect(year2019).toBeDisabled();
+
+    // Year 2020 is the min year, should be enabled
+    const year2020 = screen.getByRole("gridcell", { name: "2020" });
+    expect(year2020).not.toHaveAttribute("aria-disabled");
+    expect(year2020).not.toBeDisabled();
+
+    // Years 2021-2027 are within range, should be enabled
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("years beyond max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2026-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // decadeStart for 2025: 2025 - (2025 % 12) = 2016, decade shows 2016-2027
+    // Max year is 2026, so 2027 should be disabled
+    const year2027 = screen.getByRole("gridcell", { name: "2027" });
+    expect(year2027).toHaveAttribute("aria-disabled", "true");
+    expect(year2027).toBeDisabled();
+
+    // Year 2026 is max year, should be enabled
+    const year2026 = screen.getByRole("gridcell", { name: "2026" });
+    expect(year2026).not.toHaveAttribute("aria-disabled");
+    expect(year2026).not.toBeDisabled();
+  });
+
+  it("disabled years cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2022-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Try clicking a disabled year (2019 is before min year 2022)
+    const disabledYear = screen.getByRole("gridcell", { name: "2019" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledYear);
+    });
+
+    // Should still be on year panel (not transitioned to month panel)
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+  });
+
+  it("prev decade arrow is disabled when earliest displayed year is at or before min year", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2016-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2020-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // decadeStart for 2020: 2020 - (2020 % 12) = 2020 - 8 = 2012
+    // Previous decade would show 2000-2011, all before min year 2016
+    const prevDecade = screen.getByRole("button", { name: "Previous decade" });
+    expect(prevDecade).toBeDisabled();
+  });
+
+  it("next decade arrow is disabled when latest displayed year is at or after max year", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2027-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // decadeStart for 2025: 2025 - (2025 % 12) = 2025 - 9 = 2016
+    // decadeEnd = 2016 + 11 = 2027, which is >= max year 2027
+    const nextDecade = screen.getByRole("button", { name: "Next decade" });
+    expect(nextDecade).toBeDisabled();
+  });
+
+  it("months outside min/max range render as disabled in the month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Select year 2025 (within range)
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Month panel should be visible
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+
+    // Months before May (Jan, Feb, Mar, Apr) should be disabled
+    // (their last day is before min 2025-05-01)
+    const jan = screen.getByRole("gridcell", { name: "Jan" });
+    expect(jan).toHaveAttribute("aria-disabled", "true");
+    expect(jan).toBeDisabled();
+
+    const feb = screen.getByRole("gridcell", { name: "Feb" });
+    expect(feb).toHaveAttribute("aria-disabled", "true");
+
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveAttribute("aria-disabled", "true");
+
+    const apr = screen.getByRole("gridcell", { name: "Apr" });
+    expect(apr).toHaveAttribute("aria-disabled", "true");
+
+    // May should be enabled (min month)
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).not.toHaveAttribute("aria-disabled");
+    expect(may).not.toBeDisabled();
+
+    // June should be enabled (within range)
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).not.toHaveAttribute("aria-disabled");
+
+    // September should be enabled (max month)
+    const sep = screen.getByRole("gridcell", { name: "Sep" });
+    expect(sep).not.toHaveAttribute("aria-disabled");
+
+    // Months after September (Oct, Nov, Dec) should be disabled
+    // (their first day is after max 2025-09-30)
+    const oct = screen.getByRole("gridcell", { name: "Oct" });
+    expect(oct).toHaveAttribute("aria-disabled", "true");
+    expect(oct).toBeDisabled();
+
+    const nov = screen.getByRole("gridcell", { name: "Nov" });
+    expect(nov).toHaveAttribute("aria-disabled", "true");
+
+    const dec = screen.getByRole("gridcell", { name: "Dec" });
+    expect(dec).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("disabled months cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Try clicking a disabled month (Jan is before min month June)
+    const disabledMonth = screen.getByRole("gridcell", { name: "Jan" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledMonth);
+    });
+
+    // Should still be on month panel
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+  });
+
+  it("prev month arrow is disabled when current month is at min boundary", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Current month is June 2025, min is 2025-06-01
+    // Previous month would be May 2025, which is before min
+    const prevMonth = screen.getByRole("button", { name: "Previous month" });
+    expect(prevMonth).toBeDisabled();
+  });
+
+  it("next month arrow is disabled when current month is at max boundary", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2025-06-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Current month is June 2025, max is 2025-06-30
+    // Next month would be July 2025, which is after max
+    const nextMonth = screen.getByRole("button", { name: "Next month" });
+    expect(nextMonth).toBeDisabled();
+  });
+});
 
 describe("DateRangeField — calendar widget", () => {
   afterEach(cleanup);
