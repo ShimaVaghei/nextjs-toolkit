@@ -906,6 +906,8 @@ function OptionsPopup({
 
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function utcDateParts(iso: string): { year: number; month: number; day: number } | null {
   const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return null;
@@ -1342,7 +1344,7 @@ function CalendarPopup({
         </div>
       )}
       <div className={CALENDAR_HEADER_CLASS}>
-        {overlay !== "year" && (
+        {overlay === "none" && (
         <button
           type="button"
           aria-label="Previous month"
@@ -1368,7 +1370,7 @@ function CalendarPopup({
             {headerLabel}
           </button>
         </span>
-        {overlay !== "year" && (
+        {overlay === "none" && (
         <button
           type="button"
           aria-label="Next month"
@@ -1448,7 +1450,7 @@ function CalendarPopup({
         </div>
       )}
 
-      {(overlay === "none" || overlay === "month") && (
+      {overlay === "none" && (
       <div
         ref={gridRef}
         id={gridId}
@@ -1462,6 +1464,45 @@ function CalendarPopup({
         ))}
         {buildCells()}
       </div>
+      )}
+
+      {overlay === "month" && (
+        <div
+          role="grid"
+          aria-label="Choose month"
+          className={CALENDAR_YEAR_GRID_CLASS}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }
+          }}
+        >
+          {MONTH_LABELS.map((label, i) => {
+            const monthNum = i + 1;
+            const isSelected = monthNum === draftMonth;
+            return (
+              <button
+                key={monthNum}
+                type="button"
+                role="gridcell"
+                aria-selected={isSelected || undefined}
+                aria-label={label}
+                className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}`}
+                tabIndex={isSelected ? 0 : -1}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const nd = Math.min(draftDay, daysInMonth(draftYear, monthNum));
+                  onDraftChange(`${draftYear}-${pad2(monthNum)}-${pad2(nd)}`);
+                  setOverlay("none");
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {kind === "datetime" && !range && (
