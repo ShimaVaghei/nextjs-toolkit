@@ -1055,14 +1055,20 @@ function CalendarPopup({
   onEndTimeChange?: (h: string, m: string) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const yearGridRef = useRef<HTMLDivElement>(null);
+  const monthGridRef = useRef<HTMLDivElement>(null);
   const [overlay, setOverlay] = useState<CalendarOverlay>("none");
   const [decadeOffset, setDecadeOffset] = useState(0);
+  const [focusedYearIdx, setFocusedYearIdx] = useState<number | null>(null);
+  const [focusedMonthIdx, setFocusedMonthIdx] = useState<number | null>(null);
 
   // Reset overlay when calendar closes.
   useEffect(() => {
     if (!open) {
       setOverlay("none");
       setDecadeOffset(0);
+      setFocusedYearIdx(null);
+      setFocusedMonthIdx(null);
     }
   }, [open]);
 
@@ -1080,6 +1086,43 @@ function CalendarPopup({
     const todayBtn = gridRef.current.querySelector<HTMLElement>('[data-day]');
     if (todayBtn) todayBtn.focus();
   }, [open]);
+
+  // Focus management: when year panel opens, focus the selected year.
+  useEffect(() => {
+    if (overlay !== "year" || !yearGridRef.current) return;
+    const selectedBtn = yearGridRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (selectedBtn) {
+      const yearVal = parseInt(selectedBtn.textContent || "0", 10);
+      setFocusedYearIdx(yearVal - decadeStart);
+      selectedBtn.focus();
+    }
+  }, [overlay, decadeStart]);
+
+  // Focus management: when month panel opens, focus the selected month.
+  useEffect(() => {
+    if (overlay !== "month" || !monthGridRef.current) return;
+    const selectedBtn = monthGridRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (selectedBtn) {
+      const label = selectedBtn.getAttribute("aria-label") || "";
+      const monthIdx = MONTH_LABELS.indexOf(label);
+      if (monthIdx >= 0) {
+        setFocusedMonthIdx(monthIdx);
+        selectedBtn.focus();
+      }
+    }
+  }, [overlay]);
+
+  // Focus management: when returning to day grid, focus the selected day.
+  useEffect(() => {
+    if (overlay !== "none" || !gridRef.current) return;
+    const selectedBtn = gridRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (selectedBtn) {
+      selectedBtn.focus();
+      return;
+    }
+    const todayBtn = gridRef.current.querySelector<HTMLElement>('[data-day]');
+    if (todayBtn) todayBtn.focus();
+  }, [overlay]);
 
   const headerLabel = formatMonthYear(draftYear, draftMonth);
   const today = new Date();
@@ -1189,6 +1232,79 @@ function CalendarPopup({
         onCommit();
         break;
     }
+  };
+
+  const handleGridNavigation = (
+    e: React.KeyboardEvent,
+    gridRef: React.RefObject<HTMLDivElement | null>,
+    focusedIdx: number | null,
+    setFocusedIdx: (idx: number) => void,
+    onSelect: () => void,
+  ) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      onCancel();
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onSelect();
+      return;
+    }
+
+    const buttons = gridRef.current?.querySelectorAll<HTMLButtonElement>(
+      ':scope > [role="gridcell"]',
+    );
+    if (!buttons || buttons.length === 0) return;
+
+    const cols = 3;
+    const total = buttons.length;
+    let idx = focusedIdx ?? 0;
+
+    switch (e.key) {
+      case "ArrowRight":
+        e.preventDefault();
+        idx = Math.min(idx + 1, total - 1);
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        idx = Math.max(idx - 1, 0);
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        idx = Math.min(idx + cols, total - 1);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        idx = Math.max(idx - cols, 0);
+        break;
+      default:
+        return;
+    }
+
+    setFocusedIdx(idx);
+    buttons[idx]?.focus();
+  };
+
+  const handleYearGridKeyDown = (e: React.KeyboardEvent) => {
+    handleGridNavigation(e, yearGridRef, focusedYearIdx, setFocusedYearIdx, () => {
+      const year = decadeStart + (focusedYearIdx ?? 0);
+      const nm = draftMonth;
+      const nd = Math.min(draftDay, daysInMonth(year, nm));
+      onDraftChange(`${year}-${pad2(nm)}-${pad2(nd)}`);
+      setOverlay("month");
+    });
+  };
+
+  const handleMonthGridKeyDown = (e: React.KeyboardEvent) => {
+    handleGridNavigation(e, monthGridRef, focusedMonthIdx, setFocusedMonthIdx, () => {
+      const monthNum = (focusedMonthIdx ?? 0) + 1;
+      const nd = Math.min(draftDay, daysInMonth(draftYear, monthNum));
+      onDraftChange(`${draftYear}-${pad2(monthNum)}-${pad2(nd)}`);
+      setOverlay("none");
+    });
   };
 
   const focusDayRef = useCallback(
@@ -1424,16 +1540,11 @@ function CalendarPopup({
         const nextDecadeDisabled = maxYear !== null && (decadeStart + 11) >= maxYear;
         return (
         <div
+          ref={yearGridRef}
           role="grid"
           aria-label="Choose year"
           className={CALENDAR_YEAR_GRID_CLASS}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              e.stopPropagation();
-              onCancel();
-            }
-          }}
+          onKeyDown={handleYearGridKeyDown}
         >
           <button
             type="button"
@@ -1453,6 +1564,7 @@ function CalendarPopup({
             const year = decadeStart + i;
             const isSelected = year === draftYear;
             const disabled = isYearDisabled(year, minYear, maxYear);
+            const isFocused = focusedYearIdx !== null ? focusedYearIdx === i : isSelected;
             return (
               <button
                 key={year}
@@ -1462,7 +1574,7 @@ function CalendarPopup({
                 aria-disabled={disabled || undefined}
                 disabled={disabled || undefined}
                 className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}${disabled ? ` ${CALENDAR_DAY_DISABLED_CLASS}` : ""}`}
-                tabIndex={isSelected ? 0 : -1}
+                tabIndex={isFocused ? 0 : -1}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   const nm = draftMonth;
@@ -1511,21 +1623,17 @@ function CalendarPopup({
 
       {overlay === "month" && (
         <div
+          ref={monthGridRef}
           role="grid"
           aria-label="Choose month"
           className={CALENDAR_YEAR_GRID_CLASS}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              e.stopPropagation();
-              onCancel();
-            }
-          }}
+          onKeyDown={handleMonthGridKeyDown}
         >
           {MONTH_LABELS.map((label, i) => {
             const monthNum = i + 1;
             const isSelected = monthNum === draftMonth;
             const disabled = isMonthDisabled(draftYear, monthNum, min, max);
+            const isFocused = focusedMonthIdx !== null ? focusedMonthIdx === i : isSelected;
             return (
               <button
                 key={monthNum}
@@ -1536,7 +1644,7 @@ function CalendarPopup({
                 aria-label={label}
                 disabled={disabled || undefined}
                 className={`${CALENDAR_YEAR_BUTTON_CLASS}${isSelected ? ` ${CALENDAR_DAY_SELECTED_CLASS}` : ""}${disabled ? ` ${CALENDAR_DAY_DISABLED_CLASS}` : ""}`}
-                tabIndex={isSelected ? 0 : -1}
+                tabIndex={isFocused ? 0 : -1}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   const nd = Math.min(draftDay, daysInMonth(draftYear, monthNum));
