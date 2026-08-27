@@ -1846,7 +1846,6 @@ function Field<K extends FieldKind = "input", T = unknown>({
       // Reset range state
       setRangeAnchor(undefined);
       setHoverDate(undefined);
-      closeCalendar();
     }
   }, [rangeAnchor, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue, closeCalendar]);
 
