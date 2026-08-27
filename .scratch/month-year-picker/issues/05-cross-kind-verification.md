@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] DateTimeField: header click opens year panel, full flow through month selection returns to day grid
-- [ ] DateRangeField: header click opens year panel, full flow through month selection returns to day grid
-- [ ] DateTimeRangeField: header click opens year panel, full flow through month selection returns to day grid
-- [ ] Min/max constraints work correctly for all four date kinds
-- [ ] Keyboard navigation works correctly for all four date kinds
-- [ ] Tests for each date kind covering the full overlay flow
+- [x] DateTimeField: header click opens year panel, full flow through month selection returns to day grid
+- [x] DateRangeField: header click opens year panel, full flow through month selection returns to day grid
+- [x] DateTimeRangeField: header click opens year panel, full flow through month selection returns to day grid
+- [x] Min/max constraints work correctly for all four date kinds
+- [x] Keyboard navigation works correctly for all four date kinds
+- [x] Tests for each date kind covering the full overlay flow
