@@ -974,6 +974,7 @@ function CalendarPopup({
   range,
   anchor,
   hoverDate,
+  rangeEndDate,
   onDayHover,
   onDayRangeSelect,
   startTimeHour,
@@ -1008,6 +1009,7 @@ function CalendarPopup({
   range?: boolean;
   anchor?: string;
   hoverDate?: string;
+  rangeEndDate?: string;
   onDayHover?: (date: string) => void;
   onDayRangeSelect?: (date: string) => void;
   startTimeHour?: string;
@@ -1170,7 +1172,7 @@ function CalendarPopup({
     let isRangeStart = false;
     let isRangeEnd = false;
     if (range && anchor) {
-      const compareDate = hoverDate || anchor;
+      const compareDate = hoverDate || rangeEndDate || anchor;
       const minDate = anchor < compareDate ? anchor : compareDate;
       const maxDate = anchor < compareDate ? compareDate : anchor;
       isAnchor = dateStr === anchor;
@@ -1600,6 +1602,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   // Range state for date-range and datetime-range
   const [rangeAnchor, setRangeAnchor] = useState<string | undefined>(undefined);
+  const [rangeEndDate, setRangeEndDate] = useState<string | undefined>(undefined);
   const [hoverDate, setHoverDate] = useState<string | undefined>(undefined);
   const [startTimeHour, setStartTimeHour] = useState("00");
   const [startTimeMinute, setStartTimeMinute] = useState("00");
@@ -1657,6 +1660,16 @@ function Field<K extends FieldKind = "input", T = unknown>({
         setRangeAnchor(undefined);
       }
       setHoverDate(undefined);
+      
+      // Seed rangeEndDate from the committed value's `to` end
+      if (rangeValue?.to) {
+        const toParts = utcDateParts(rangeValue.to);
+        if (toParts) {
+          setRangeEndDate(`${toParts.year}-${pad2(toParts.month)}-${pad2(toParts.day)}`);
+        }
+      } else {
+        setRangeEndDate(undefined);
+      }
       
       // Initialize time controls for datetime-range
       if (kind === "datetime-range" && rangeValue) {
@@ -1808,6 +1821,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
     if (!rangeAnchor) {
       // First click: set anchor and stream half-pick
       setRangeAnchor(dateStr);
+      setRangeEndDate(undefined);
       setDraft(dateStr);
       const dp = utcDateParts(dateStr);
       if (dp) {
@@ -1845,7 +1859,11 @@ function Field<K extends FieldKind = "input", T = unknown>({
       
       // Reset range state
       setRangeAnchor(undefined);
+      setRangeEndDate(to);
       setHoverDate(undefined);
+      
+      // Close the calendar after completing the range
+      closeCalendar();
     }
   }, [rangeAnchor, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue, closeCalendar]);
 
@@ -2575,6 +2593,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   range={isRangeKind}
                   anchor={rangeAnchor}
                   hoverDate={hoverDate}
+                  rangeEndDate={rangeEndDate}
                   onDayHover={handleDayHover}
                   onDayRangeSelect={handleDayRangeSelect}
                   startTimeHour={startTimeHour}

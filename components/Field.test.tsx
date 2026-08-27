@@ -4390,6 +4390,71 @@ describe("DateRangeField — calendar widget", () => {
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
+
+  it("reopening with a committed range highlights start, end, and intermediate dates", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    // Set a committed range value
+    act(() =>
+      handle.current!.setValue({
+        from: "2026-08-10T00:00:00Z",
+        to: "2026-08-20T00:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    
+    // Open the calendar
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Verify calendar is open
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    
+    // Check that start date (day 10) has selected class
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    expect(day10).toHaveAttribute("aria-selected", "true");
+    
+    // Check that end date (day 20) has selected class
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    expect(day20).toHaveAttribute("aria-selected", "true");
+    
+    // Check that intermediate dates have in-range class
+    const day15 = screen.getByRole("gridcell", { name: /August 15, 2026/ });
+    expect(day15.className).toContain("bg-neutral-100");
+  });
+
+  it("reopening with a half-picked range highlights only the anchor date", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    // Set a half-picked range value (only from set)
+    act(() =>
+      handle.current!.setValue({
+        from: "2026-08-10T00:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    
+    // Open the calendar
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Verify calendar is open
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    
+    // Check that start date (day 10) has selected class
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    expect(day10).toHaveAttribute("aria-selected", "true");
+    
+    // Check that other dates don't have the in-range class (bg-neutral-100 without hover: prefix)
+    const day15 = screen.getByRole("gridcell", { name: /August 15, 2026/ });
+    expect(day15.className).not.toMatch(/(?<!hover:)(?<!dark:)bg-neutral-100/);
+  });
 });
 
 describe("DateTimeRangeField — calendar widget", () => {
