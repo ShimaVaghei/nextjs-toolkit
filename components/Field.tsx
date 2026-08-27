@@ -1861,11 +1861,8 @@ function Field<K extends FieldKind = "input", T = unknown>({
       setRangeAnchor(undefined);
       setRangeEndDate(to);
       setHoverDate(undefined);
-      
-      // Close the calendar after completing the range
-      closeCalendar();
     }
-  }, [rangeAnchor, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue, closeCalendar]);
+  }, [rangeAnchor, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue]);
 
   const handleDayHover = useCallback((dateStr: string) => {
     if (rangeAnchor) {

@@ -4233,9 +4233,9 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day20);
     });
 
-    // Should commit and close
+    // Should commit but calendar stays open for Apply
     expect(spy).toHaveBeenCalled();
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 
   it("out-of-order picking swaps ends so from <= to", async () => {

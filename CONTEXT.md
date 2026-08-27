@@ -175,7 +175,7 @@ The imperative handle a parent obtains from `Field` via the `ref` prop. `validat
 _Avoid_: ref methods, validation API
 
 **Calendar popup**:
-The disclosure panel shared by the date, datetime, date-range, and datetime-range Field kinds: a month grid with day cells, navigation controls, and (for datetime kinds) time inputs. Opening moves focus to the selected day or today; Escape or outside click closes and returns focus to the trigger. The popup follows a draft-with-commit interaction: picks edit a draft state shown in the pane, Apply commits the draft to the Field's value, Cancel or Escape discards. Range kinds use two-step picking (anchor then complete) within the same popup.
+The disclosure panel shared by the date, datetime, date-range, and datetime-range Field kinds: a month grid with day cells, navigation controls, and (for datetime kinds) time inputs. Opening moves focus to the selected day or today; Escape or outside click closes and returns focus to the trigger. The popup follows a draft-with-commit interaction: picks edit a draft state shown in the pane, Apply commits the draft to the Field's value, Cancel or Escape discards. Range kinds use two-step picking (anchor then complete) within the same popup; the popup stays open after the range is completed so the user can review and click Apply.
 _Avoid_: date picker, calendar widget, date popup
 
 **Draft**:
