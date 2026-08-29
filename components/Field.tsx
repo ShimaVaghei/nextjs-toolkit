@@ -1011,6 +1011,7 @@ function CalendarPopup({
   hoverDate,
   rangeEndDate,
   onDayHover,
+  onDayHoverLeave,
   onDayRangeSelect,
   startTimeHour,
   startTimeMinute,
@@ -1046,6 +1047,7 @@ function CalendarPopup({
   hoverDate?: string;
   rangeEndDate?: string;
   onDayHover?: (date: string) => void;
+  onDayHoverLeave?: () => void;
   onDayRangeSelect?: (date: string) => void;
   startTimeHour?: string;
   startTimeMinute?: string;
@@ -1617,6 +1619,9 @@ function CalendarPopup({
         role="grid"
         aria-label={headerLabel}
         className="grid grid-cols-7 gap-0.5"
+        onMouseLeave={() => {
+          if (range && onDayHoverLeave) onDayHoverLeave();
+        }}
         onKeyDown={handleGridKeyDown}
       >
         {WEEKDAY_LABELS.map((d) => (
@@ -2178,6 +2183,10 @@ function Field<K extends FieldKind = "input", T = unknown>({
       setHoverDate(dateStr);
     }
   }, [rangeAnchor]);
+
+  const handleDayHoverLeave = useCallback(() => {
+    setHoverDate(undefined);
+  }, []);
 
   // Retry always re-fires the newest loader the parent passed.
   const loaderRef = useRef(options);
@@ -2901,6 +2910,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   hoverDate={hoverDate}
                   rangeEndDate={rangeEndDate}
                   onDayHover={handleDayHover}
+                  onDayHoverLeave={handleDayHoverLeave}
                   onDayRangeSelect={handleDayRangeSelect}
                   startTimeHour={startTimeHour}
                   startTimeMinute={startTimeMinute}

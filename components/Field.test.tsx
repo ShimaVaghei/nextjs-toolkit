@@ -5396,6 +5396,36 @@ describe("DateRangeField — calendar widget", () => {
     expect(lastCall.from <= lastCall.to).toBe(true);
   });
 
+  it("hover preview clears when the pointer leaves the calendar grid", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: anchor (day 5)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 5, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Hover a later day: preview end is highlighted
+    const grid = screen.getByRole("grid");
+    await act(async () => {
+      fireEvent.mouseEnter(screen.getByRole("gridcell", { name: /August 20, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Move the mouse outside the grid: preview must fall back to the anchor
+    await act(async () => {
+      fireEvent.mouseLeave(grid);
+    });
+    expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).not.toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("half-picks stream live with undefined ends", async () => {
     const spy = vi.fn();
     render(<DateRangeHarness onChangeSpy={spy} />);
