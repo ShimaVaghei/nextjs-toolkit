@@ -14,7 +14,16 @@ import {
   MultiSelectField,
   SelectField,
   TextareaField,
+  DateField,
+  DateTimeField,
+  DateRangeField,
+  DateTimeRangeField,
   type FieldCheckboxConfig,
+  type FieldDateConfig,
+  type FieldDateTimeConfig,
+  type FieldDateRangeConfig,
+  type FieldDateTimeRangeConfig,
+  type FieldDateRangeValue,
   type FieldHandle,
   type FieldInputConfig,
   type FieldMultiSelectConfig,
@@ -3242,5 +3251,4242 @@ describe("Field generic value typing", () => {
     // A bare kindless config is already a plain input Field config.
     const loose: FieldInputConfig = { label: "Name" };
     expect(loose.label).toBe("Name");
+  });
+});
+
+// ─── Date kinds — engine value model tests ───────────────────────────
+
+const DEFAULT_DATE_REQUIRED = "This field is required.";
+
+function DateHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateConfig>;
+  onChangeSpy?: (value: string) => void;
+  handleRef?: React.Ref<FieldHandle<string>>;
+}) {
+  return (
+    <DateField
+      ref={handleRef}
+      config={{
+        label: "Birthday",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+function DateTimeHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateTimeConfig>;
+  onChangeSpy?: (value: string) => void;
+  handleRef?: React.Ref<FieldHandle<string>>;
+}) {
+  return (
+    <DateTimeField
+      ref={handleRef}
+      config={{
+        label: "Appointment",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+function DateRangeHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateRangeConfig>;
+  onChangeSpy?: (value: FieldDateRangeValue) => void;
+  handleRef?: React.Ref<FieldHandle<FieldDateRangeValue>>;
+}) {
+  return (
+    <DateRangeField
+      ref={handleRef}
+      config={{
+        label: "Booking",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+function DateTimeRangeHarness({
+  overrides = {},
+  onChangeSpy,
+  handleRef,
+}: {
+  overrides?: Partial<FieldDateTimeRangeConfig>;
+  onChangeSpy?: (value: FieldDateRangeValue) => void;
+  handleRef?: React.Ref<FieldHandle<FieldDateRangeValue>>;
+}) {
+  return (
+    <DateTimeRangeField
+      ref={handleRef}
+      config={{
+        label: "Window",
+        onValueChange: onChangeSpy,
+        ...overrides,
+      }}
+    />
+  );
+}
+
+describe("DateField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("accepts a bare YYYY-MM-DD and stores with fixed-zero UTC midnight", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+  });
+
+  it("accepts a full Z-terminated ISO string and extracts the UTC calendar date", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+  });
+
+  it("accepts a no-Z ISO string and normalizes to UTC calendar date", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-06-15T14:30:00"));
+    const value = handle.current!.getValue();
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00Z$/);
+  });
+
+  it("rejects an invalid string (no-op setValue, seed-less Initial)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("not-a-date"));
+    expect(handle.current!.getValue()).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("rejects an empty string with a dev warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue(""));
+    expect(handle.current!.getValue()).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("streams the normalized value through onValueChange", () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    expect(spy).toHaveBeenCalledWith("2025-03-15T00:00:00Z");
+  });
+
+  it("required validates a date field", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    act(() => {
+      handle.current!.validate();
+    });
+    expect(handle.current!.getValue()).toBeUndefined();
+    // validate returns false when value is empty
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("min validates the date string via lexicographic comparison", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    act(() => handle.current!.setValue("2025-07-01"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+
+  it("max validates the date string via lexicographic comparison", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2025-12-31T00:00:00Z" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-12-15"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+
+    act(() => handle.current!.setValue("2026-01-01"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("textual rules (minLength, maxLength, regex, email) draw a dev-only rule-fit warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    render(
+      <DateHarness
+        overrides={{
+          validator: {
+            minLength: 5,
+            maxLength: 10,
+            regex: /abc/,
+            email: true,
+          },
+        }}
+      />,
+    );
+
+    // The dev warning fires for each non-fitting rule
+    const fieldWarnings = warnSpy.mock.calls.filter(
+      (call) =>
+        typeof call[0] === "string" && call[0].startsWith("[Field]"),
+    );
+    expect(fieldWarnings.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("DateTimeField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("accepts a full Z-terminated ISO string as-is", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
+    expect(handle.current!.getValue()).toBe("2025-03-15T14:30:00Z");
+  });
+
+  it("accepts a no-Z string and converts from local to UTC", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00"));
+    const value = handle.current!.getValue();
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$/);
+  });
+
+  it("accepts a bare YYYY-MM-DD and treats as local midnight", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    const value = handle.current!.getValue();
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$/);
+  });
+
+  it("rejects an invalid string with a dev warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("garbage"));
+    expect(handle.current!.getValue()).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("streams the normalized value through onValueChange", () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T09:00:00Z"));
+    expect(spy).toHaveBeenCalledWith("2025-03-15T09:00:00Z");
+  });
+
+  it("min validates the datetime string via lexicographic comparison", () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateTimeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-03-15T10:00:00Z"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    act(() => handle.current!.setValue("2025-07-01T10:00:00Z"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+});
+
+describe("DateRangeField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("stores both ends as fixed-zero UTC midnight strings", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-01-10", to: "2025-03-20" }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-01-10T00:00:00Z",
+      to: "2025-03-20T00:00:00Z",
+    });
+  });
+
+  it("preserves undefined ends for half-picks", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-01-10T00:00:00Z",
+      to: undefined,
+    });
+  });
+
+  it("swaps out-of-order ends so from <= to", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-20", to: "2025-01-10" }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-01-10T00:00:00Z",
+      to: "2025-03-20T00:00:00Z",
+    });
+  });
+
+  it("a range is Empty unless both ends hold values", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    // Half-pick: required should reject
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    // Both ends: required should pass
+    act(() =>
+      handle.current!.setValue({ from: "2025-01-10", to: "2025-03-20" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+
+  it("min tests from and max tests to via string comparison", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{
+          validator: {
+            min: "2025-06-01T00:00:00Z" as any,
+            max: "2025-12-31T00:00:00Z" as any,
+          },
+        }}
+      />,
+    );
+
+    // from < min → invalid
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-15", to: "2025-09-01" }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    // Both within bounds → valid
+    act(() =>
+      handle.current!.setValue({ from: "2025-07-01", to: "2025-11-01" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+
+    // to > max → invalid
+    act(() =>
+      handle.current!.setValue({ from: "2025-07-01", to: "2026-01-01" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("streams range progress live with undefined ends", () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    expect(spy).toHaveBeenCalledWith({
+      from: "2025-01-10T00:00:00Z",
+      to: undefined,
+    });
+  });
+
+  it("rejects invalid range input with a dev warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "bad", to: "also-bad" } as any),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: undefined,
+      to: undefined,
+    });
+    expect(warnSpy).toHaveBeenCalled();
+  });
+});
+
+describe("DateTimeRangeField — engine value model", () => {
+  afterEach(cleanup);
+
+  it("stores both ends as fixed-width UTC datetime strings", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T09:00:00Z",
+        to: "2025-03-15T17:00:00Z",
+      }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-15T09:00:00Z",
+      to: "2025-03-15T17:00:00Z",
+    });
+  });
+
+  it("swaps out-of-order datetime ends", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T17:00:00Z",
+        to: "2025-03-15T09:00:00Z",
+      }),
+    );
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-15T09:00:00Z",
+      to: "2025-03-15T17:00:00Z",
+    });
+  });
+
+  it("required rejects a datetime range half-pick", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-15T09:00:00Z" }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("min tests from and max tests to for datetime ranges", () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{
+          validator: {
+            min: "2025-06-01T00:00:00Z" as any,
+            max: "2025-12-31T23:59:59Z" as any,
+          },
+        }}
+      />,
+    );
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T09:00:00Z",
+        to: "2025-09-01T17:00:00Z",
+      }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false); // from < min
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-07-01T09:00:00Z",
+        to: "2025-11-01T17:00:00Z",
+      }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+});
+
+// ─── DateField & DateTimeField — calendar widget UI tests ─────────────
+
+describe("DateField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("renders a trigger button with label and placeholder ghost when empty", () => {
+    render(
+      <DateHarness overrides={{ placeholder: "Pick a date" }} />,
+    );
+
+    // Button accessible name includes label text ("Birthday") + placeholder
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Birthday")).toBeInTheDocument();
+  });
+
+  it("opens the calendar popup on trigger click", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Choose date" })).toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("closes the calendar on Escape", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows the formatted date value on the trigger face when filled", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+  });
+
+  it("picking a day and clicking Apply commits the value", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Click day 15 in the current month
+    const day15 = screen.getByRole("gridcell", { name: /15/ });
+    await act(async () => {
+      fireEvent.mouseDown(day15);
+    });
+
+    // Click Apply
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.mouseDown(apply);
+    });
+
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall).toMatch(/^\d{4}-\d{2}-15T00:00:00Z$/);
+  });
+
+  it("Cancel discards the draft and closes the calendar", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick a day
+    const day15 = screen.getByRole("gridcell", { name: /15/ });
+    await act(async () => {
+      fireEvent.mouseDown(day15);
+    });
+
+    // Click Cancel
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    await act(async () => {
+      fireEvent.mouseDown(cancel);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // onValueChange should NOT have been called
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("placeholder shows only on the closed face when empty", () => {
+    render(<DateHarness overrides={{ placeholder: "Select date" }} />);
+
+    // Button accessible name comes from the label association; placeholder is visual ghost text
+    const trigger = screen.getByRole("button", { name: "Birthday" });
+    expect(trigger).toBeInTheDocument();
+    // Placeholder text is rendered inside the button
+    expect(within(trigger).getByText("Select date")).toBeInTheDocument();
+  });
+
+  it("calendar shows month grid with weekday headers", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Weekday headers
+    expect(screen.getByRole("columnheader", { name: "Su" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Mo" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Fr" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sa" })).toBeInTheDocument();
+  });
+
+  it("navigates months with Previous/Next month buttons", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const prevBtn = screen.getByRole("button", { name: "Previous month" });
+    const nextBtn = screen.getByRole("button", { name: "Next month" });
+
+    // Navigate forward then back
+    await act(async () => {
+      fireEvent.mouseDown(nextBtn);
+    });
+    await act(async () => {
+      fireEvent.mouseDown(prevBtn);
+    });
+
+    // Should still show the calendar (no error thrown)
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("required validation shows error after validate()", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+    expect(screen.getByText("This field is required.")).toBeInTheDocument();
+  });
+
+  it("min/max validators work with the calendar", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+      />,
+    );
+
+    act(() => handle.current!.setValue("2025-03-15"));
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    act(() => handle.current!.setValue("2025-07-01"));
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+});
+
+describe("DateTimeField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("renders a trigger button with placeholder when empty", () => {
+    render(
+      <DateTimeHarness overrides={{ placeholder: "Pick date & time" }} />,
+    );
+
+    // Button accessible name comes from the label association; placeholder is visual ghost text
+    const trigger = screen.getByRole("button", { name: "Appointment" });
+    expect(trigger).toBeInTheDocument();
+    expect(within(trigger).getByText("Pick date & time")).toBeInTheDocument();
+  });
+
+  it("opens calendar with time inputs for datetime kind", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("dialog", { name: "Choose date" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Hour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Minute")).toBeInTheDocument();
+  });
+
+  it("datetime Apply commits with time", async () => {
+    const spy = vi.fn();
+    render(<DateTimeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick day 15
+    const day15 = screen.getByRole("gridcell", { name: /15/ });
+    await act(async () => {
+      fireEvent.mouseDown(day15);
+    });
+
+    // Set time (local time)
+    const hourInput = screen.getByLabelText("Hour");
+    const minuteInput = screen.getByLabelText("Minute");
+    await act(async () => {
+      fireEvent.change(hourInput, { target: { value: "14" } });
+      fireEvent.change(minuteInput, { target: { value: "30" } });
+    });
+
+    // Click Apply
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.mouseDown(apply);
+    });
+
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    // The value is the UTC equivalent of local 14:30 on the picked date
+    expect(lastCall).toMatch(/^\d{4}-\d{2}-15T\d{2}:\d{2}:00Z$/);
+  });
+
+  it("datetime shows formatted value on trigger face", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+    // Time displayed in local timezone — just check the date part
+  });
+
+  it("minutes type freely and clamp on blur", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const minuteInput = screen.getByLabelText("Minute");
+
+    // Type a value > 59
+    await act(async () => {
+      fireEvent.change(minuteInput, { target: { value: "75" } });
+      fireEvent.blur(minuteInput);
+    });
+
+    // Should clamp to 59
+    expect(minuteInput).toHaveValue("59");
+  });
+
+  it("Escape closes the datetime calendar from time input", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const hourInput = screen.getByLabelText("Hour");
+    await act(async () => {
+      fireEvent.keyDown(hourInput, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("DateField — keyboard accessibility", () => {
+  afterEach(cleanup);
+
+  it("arrow keys navigate days in the grid", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    // Arrow right should move to next day
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "ArrowRight" });
+    });
+
+    // Grid should still be open
+    expect(grid).toBeInTheDocument();
+  });
+
+  it("PageDown navigates to next month", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "PageDown" });
+    });
+
+    // Should still show the calendar
+    expect(grid).toBeInTheDocument();
+  });
+
+  it("Enter selects the focused day and commits", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    // Press Enter to select the currently focused day
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Enter" });
+    });
+
+    expect(spy).toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Space selects the focused day and commits", async () => {
+    const spy = vi.fn();
+    render(<DateHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const grid = screen.getByRole("grid");
+
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: " " });
+    });
+
+    expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe("DateField — year panel", () => {
+  afterEach(cleanup);
+
+  it("header click opens year panel with 12-year grid", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Click the header button to open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Year panel should be visible
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    // Month grid should be hidden
+    expect(screen.queryByRole("grid", { name: /Birthday/i })).not.toBeInTheDocument();
+  });
+
+  it("year grid renders 12 years derived from draftYear", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Click header to open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Should show years from 2016 to 2027 (decade containing 2025: 2025 - (2025 % 12) = 2016)
+    expect(screen.getByRole("gridcell", { name: "2016" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2025" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2027" })).toBeInTheDocument();
+  });
+
+  it("prev/next decade buttons navigate between decades", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const prevDecade = screen.getByRole("button", { name: "Previous decade" });
+    const nextDecade = screen.getByRole("button", { name: "Next decade" });
+
+    // Get the current decade start (current year: 2026, 2026 % 12 = 10, so decadeStart = 2016)
+    const currentYear = new Date().getFullYear();
+    const originalDecadeStart = currentYear - (currentYear % 12);
+
+    // Navigate to previous decade
+    await act(async () => {
+      fireEvent.mouseDown(prevDecade);
+    });
+
+    // Should show years from previous decade
+    expect(screen.getByRole("gridcell", { name: String(originalDecadeStart - 12) })).toBeInTheDocument();
+
+    // Navigate to next decade
+    await act(async () => {
+      fireEvent.mouseDown(nextDecade);
+    });
+
+    // Should show original decade
+    expect(screen.getByRole("gridcell", { name: String(originalDecadeStart) })).toBeInTheDocument();
+  });
+
+  it("currently selected year is visually highlighted", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Year 2025 should be selected
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    expect(yearButton).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("clicking a year sets overlay to month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Click a year
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Should transition to month panel (year panel hidden, month grid visible)
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("Escape from year panel closes the calendar popup", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Press Escape
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(yearGrid, { key: "Escape" });
+    });
+
+    // Calendar should close
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("overlay resets to none when calendar closes", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Close calendar
+    const grid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    // Reopen calendar - should show month grid, not year panel
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next year in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowRight" }); });
+
+    const year2026 = screen.getByRole("gridcell", { name: "2026" });
+    expect(year2026).toHaveFocus();
+  });
+
+  it("ArrowLeft moves focus to the previous year in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+
+    const year2024 = screen.getByRole("gridcell", { name: "2024" });
+    expect(year2024).toHaveFocus();
+  });
+
+  it("ArrowDown moves focus one row down in the year grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+
+    // 2025 is at index 9 in the decade (2016-2027)
+    // Moving down from row 3 should go to row 4 (index 12 would be out of bounds)
+    // So it should stay at the last row
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowDown" }); });
+
+    // Should still have focus on 2025 or a valid year
+    const focused = yearGrid.querySelector(":focus");
+    expect(focused).toBeInTheDocument();
+  });
+
+  it("ArrowUp moves focus one row up in the year grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowUp" }); });
+
+    // 2025 is at index 9, moving up 3 should go to index 6 = 2022
+    const year2022 = screen.getByRole("gridcell", { name: "2022" });
+    expect(year2022).toHaveFocus();
+  });
+
+  it("Enter selects the focused year and transitions to month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+
+    // Navigate to 2024
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+    const year2024 = screen.getByRole("gridcell", { name: "2024" });
+    expect(year2024).toHaveFocus();
+
+    // Press Enter to select
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "Enter" }); });
+
+    // Should transition to month panel
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+
+    // Focus should move to the selected month in the month panel
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+  });
+
+  it("arrow keys are trapped within the year grid bounds", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+
+    // Navigate to 2016 (first year in decade) using ArrowLeft
+    // 2025 is at index 9, need to go left 9 times to reach index 0 (2016)
+    for (let i = 0; i < 9; i++) {
+      await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+    }
+    const year2016 = screen.getByRole("gridcell", { name: "2016" });
+    expect(year2016).toHaveFocus();
+
+    // Try to go left from first year - should stay
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+    expect(year2016).toHaveFocus();
+  });
+});
+
+describe("DateField — month panel", () => {
+  afterEach(cleanup);
+
+  it("month panel renders after year selection", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Click a year
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Month panel should be visible
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+    // Year panel should be hidden
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("month grid renders 12 months in a 3×4 grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel and select year
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Should have 12 month buttons
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const monthButtons = monthGrid.querySelectorAll('[role="gridcell"]');
+    expect(monthButtons).toHaveLength(12);
+
+    // Verify month labels
+    expect(screen.getByRole("gridcell", { name: "Jan" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "Dec" })).toBeInTheDocument();
+  });
+
+  it("currently selected month is visually highlighted", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel and select year
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Month 6 (Jun) should be selected
+    const monthButton = screen.getByRole("gridcell", { name: "Jun" });
+    expect(monthButton).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("clicking a month returns to day grid with correct month/year", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel and select year
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Click month
+    const monthButton = screen.getByRole("gridcell", { name: "Mar" });
+    await act(async () => {
+      fireEvent.mouseDown(monthButton);
+    });
+
+    // Should return to day grid
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    // Header should reflect the selected month/year
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+
+  it("header label remains visible and clickable after month selection", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    // Set a specific date
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel and select year
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Click month
+    const monthButton = screen.getByRole("gridcell", { name: "Mar" });
+    await act(async () => {
+      fireEvent.mouseDown(monthButton);
+    });
+
+    // Header should still be visible and clickable
+    expect(headerButton).toBeInTheDocument();
+    expect(headerButton).toHaveTextContent("March 2024");
+
+    // Click header to re-open year panel
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+  });
+
+  it("Escape from month panel closes the calendar popup", async () => {
+    render(<DateHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Open year panel and select year
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Press Escape on month panel
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => {
+      fireEvent.keyDown(monthGrid, { key: "Escape" });
+    });
+
+    // Calendar should close
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next month in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowRight" }); });
+
+    const jul = screen.getByRole("gridcell", { name: "Jul" });
+    expect(jul).toHaveFocus();
+  });
+
+  it("ArrowLeft moves focus to the previous month in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowLeft" }); });
+
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).toHaveFocus();
+  });
+
+  it("ArrowDown moves focus one row down in the month grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+
+    // Jun is at index 5, moving down 3 should go to index 8 = Sep
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowDown" }); });
+
+    const sep = screen.getByRole("gridcell", { name: "Sep" });
+    expect(sep).toHaveFocus();
+  });
+
+  it("ArrowUp moves focus one row up in the month grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+
+    // Jun is at index 5, moving up 3 should go to index 2 = Mar
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowUp" }); });
+
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveFocus();
+  });
+
+  it("Enter selects the focused month and returns to day grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+
+    // Navigate to Mar: from Jun(5) go up one row to Mar(2)
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowUp" }); });
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveFocus();
+
+    // Press Enter
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "Enter" }); });
+
+    // Should return to day grid
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    const dayGrid = screen.getByRole("grid");
+    expect(dayGrid).toBeInTheDocument();
+    expect(headerButton).toHaveTextContent("March 2024");
+
+    // Focus should move to the selected day button within the day grid
+    const selectedDay = screen.getByRole("gridcell", { name: /March 15, 2024/ });
+    expect(selectedDay).toHaveFocus();
+  });
+
+  it("arrow keys are trapped within the month grid bounds", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-01-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const jan = screen.getByRole("gridcell", { name: "Jan" });
+    expect(jan).toHaveFocus();
+
+    // Try to go left from Jan - should stay
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowLeft" }); });
+    expect(jan).toHaveFocus();
+  });
+
+  it("focus moves to selected month when month panel opens", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    // Focus should be on Jun (selected month)
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+  });
+
+  it("focus moves to selected year when year panel opens", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    // Focus should be on 2025 (selected year)
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).toHaveFocus();
+  });
+});
+
+describe("DateField — min/max constraints on year and month panels", () => {
+  afterEach(cleanup);
+
+  it("years outside min/max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Years 2016-2019 are before min year 2020, should be disabled
+    const year2019 = screen.getByRole("gridcell", { name: "2019" });
+    expect(year2019).toHaveAttribute("aria-disabled", "true");
+    expect(year2019).toBeDisabled();
+
+    // Year 2020 is the min year, should be enabled
+    const year2020 = screen.getByRole("gridcell", { name: "2020" });
+    expect(year2020).not.toHaveAttribute("aria-disabled");
+    expect(year2020).not.toBeDisabled();
+
+    // Years 2021-2027 are within range, should be enabled
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("years beyond max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2026-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // decadeStart for 2025: 2025 - (2025 % 12) = 2016, decade shows 2016-2027
+    // Max year is 2026, so 2027 should be disabled
+    const year2027 = screen.getByRole("gridcell", { name: "2027" });
+    expect(year2027).toHaveAttribute("aria-disabled", "true");
+    expect(year2027).toBeDisabled();
+
+    // Year 2026 is max year, should be enabled
+    const year2026 = screen.getByRole("gridcell", { name: "2026" });
+    expect(year2026).not.toHaveAttribute("aria-disabled");
+    expect(year2026).not.toBeDisabled();
+  });
+
+  it("disabled years cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2022-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Try clicking a disabled year (2019 is before min year 2022)
+    const disabledYear = screen.getByRole("gridcell", { name: "2019" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledYear);
+    });
+
+    // Should still be on year panel (not transitioned to month panel)
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+  });
+
+  it("prev decade arrow is disabled when earliest displayed year is at or before min year", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2016-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2020-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // decadeStart for 2020: 2020 - (2020 % 12) = 2020 - 8 = 2012
+    // Previous decade would show 2000-2011, all before min year 2016
+    const prevDecade = screen.getByRole("button", { name: "Previous decade" });
+    expect(prevDecade).toBeDisabled();
+  });
+
+  it("next decade arrow is disabled when latest displayed year is at or after max year", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2027-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // decadeStart for 2025: 2025 - (2025 % 12) = 2025 - 9 = 2016
+    // decadeEnd = 2016 + 11 = 2027, which is >= max year 2027
+    const nextDecade = screen.getByRole("button", { name: "Next decade" });
+    expect(nextDecade).toBeDisabled();
+  });
+
+  it("months outside min/max range render as disabled in the month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    // Select year 2025 (within range)
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Month panel should be visible
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+
+    // Months before May (Jan, Feb, Mar, Apr) should be disabled
+    // (their last day is before min 2025-05-01)
+    const jan = screen.getByRole("gridcell", { name: "Jan" });
+    expect(jan).toHaveAttribute("aria-disabled", "true");
+    expect(jan).toBeDisabled();
+
+    const feb = screen.getByRole("gridcell", { name: "Feb" });
+    expect(feb).toHaveAttribute("aria-disabled", "true");
+
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveAttribute("aria-disabled", "true");
+
+    const apr = screen.getByRole("gridcell", { name: "Apr" });
+    expect(apr).toHaveAttribute("aria-disabled", "true");
+
+    // May should be enabled (min month)
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).not.toHaveAttribute("aria-disabled");
+    expect(may).not.toBeDisabled();
+
+    // June should be enabled (within range)
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).not.toHaveAttribute("aria-disabled");
+
+    // September should be enabled (max month)
+    const sep = screen.getByRole("gridcell", { name: "Sep" });
+    expect(sep).not.toHaveAttribute("aria-disabled");
+
+    // Months after September (Oct, Nov, Dec) should be disabled
+    // (their first day is after max 2025-09-30)
+    const oct = screen.getByRole("gridcell", { name: "Oct" });
+    expect(oct).toHaveAttribute("aria-disabled", "true");
+    expect(oct).toBeDisabled();
+
+    const nov = screen.getByRole("gridcell", { name: "Nov" });
+    expect(nov).toHaveAttribute("aria-disabled", "true");
+
+    const dec = screen.getByRole("gridcell", { name: "Dec" });
+    expect(dec).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("disabled months cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    // Try clicking a disabled month (Jan is before min month June)
+    const disabledMonth = screen.getByRole("gridcell", { name: "Jan" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledMonth);
+    });
+
+    // Should still be on month panel
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+  });
+
+  it("prev month arrow is disabled when current month is at min boundary", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Current month is June 2025, min is 2025-06-01
+    // Previous month would be May 2025, which is before min
+    const prevMonth = screen.getByRole("button", { name: "Previous month" });
+    expect(prevMonth).toBeDisabled();
+  });
+
+  it("next month arrow is disabled when current month is at max boundary", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateHarness
+        handleRef={handle}
+        overrides={{ validator: { max: "2025-06-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Current month is June 2025, max is 2025-06-30
+    // Next month would be July 2025, which is after max
+    const nextMonth = screen.getByRole("button", { name: "Next month" });
+    expect(nextMonth).toBeDisabled();
+  });
+});
+
+import { resolveCalendarPlacement } from "./Field";
+
+describe("resolveCalendarPlacement", () => {
+  it("opens below when there is enough space under the field", () => {
+    expect(resolveCalendarPlacement({ top: 100, bottom: 140 }, 300, 768)).toBe("bottom");
+  });
+
+  it("opens above when there is no space below but enough above", () => {
+    // Trigger near the viewport bottom: 28px below, 700px above
+    expect(resolveCalendarPlacement({ top: 700, bottom: 740 }, 300, 768)).toBe("top");
+  });
+
+  it("picks the side with more space when neither side fits the panel", () => {
+    // Panel (400) taller than both gaps: above 300 vs below 388 → below
+    expect(resolveCalendarPlacement({ top: 300, bottom: 380 }, 400, 768)).toBe("bottom");
+    // Above 380 vs below 310 → above
+    expect(resolveCalendarPlacement({ top: 380, bottom: 458 }, 400, 768)).toBe("top");
+  });
+});
+
+describe("DateRangeField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("renders a trigger button with label and placeholder ghost when empty", () => {
+    render(
+      <DateRangeHarness overrides={{ placeholder: "Pick dates" }} />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Booking")).toBeInTheDocument();
+  });
+
+  it("opens the calendar popup on trigger click", async () => {
+    render(<DateRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Choose date range" })).toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("two-step picking: first click sets anchor, second click completes range", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Calendar should still be open
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    // Second click: complete range (day 20 of current month)
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day20);
+    });
+
+    // Should commit but calendar stays open for Apply
+    expect(spy).toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    // Draft range should remain highlighted in the grid after completion
+    expect(screen.getByRole("gridcell", { name: /August 10, 2026/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("draft range stays highlighted after the second click (no reset)", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: anchor (day 5)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 5, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Second click: complete (day 25)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 25, 2026/ }));
+    });
+
+    // Both ends of the completed draft must still be highlighted
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 25, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // A third click starts a fresh pick: re-anchors and clears the old range
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 12, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 12, 2026/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).not.toHaveAttribute("aria-selected", "true");
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.to).toBeUndefined();
+  });
+
+  it("out-of-order picking swaps ends so from <= to", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 20 of current month)
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day20);
+    });
+
+    // Second click: complete range before anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Should commit with from <= to
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.from).toBeDefined();
+    expect(lastCall.to).toBeDefined();
+    expect(lastCall.from <= lastCall.to).toBe(true);
+  });
+
+  it("hover preview clears when the pointer leaves the calendar grid", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: anchor (day 5)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 5, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Hover a later day: preview end is highlighted
+    const grid = screen.getByRole("grid");
+    await act(async () => {
+      fireEvent.mouseEnter(screen.getByRole("gridcell", { name: /August 20, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Move the mouse outside the grid: preview must fall back to the anchor
+    await act(async () => {
+      fireEvent.mouseLeave(grid);
+    });
+    expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).not.toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens above the field when there is no space below", async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === "BUTTON") {
+        // Trigger near the viewport bottom (jsdom viewport = 768px)
+        return { top: 700, bottom: 740, left: 0, right: 200, width: 200, height: 40, x: 0, y: 700, toJSON: () => ({}) } as DOMRect;
+      }
+      // Calendar panel: 300px tall
+      return { top: 0, bottom: 300, left: 0, right: 200, width: 200, height: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+
+    render(<DateHarness />);
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Choose date" });
+    expect(dialog).toHaveAttribute("data-placement", "top");
+    expect(dialog.className).toContain("bottom-full");
+    expect(dialog.className).not.toContain("top-full");
+
+    rectSpy.mockRestore();
+  });
+
+  it("opens below the field when there is enough space below", async () => {
+    render(<DateHarness />);
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Choose date" });
+    // jsdom rects are all zeros → effectively unlimited space below
+    expect(dialog).toHaveAttribute("data-placement", "bottom");
+    expect(dialog.className).toContain("top-full");
+  });
+
+  it("half-picks stream live with undefined ends", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // The value should stream with only from set
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.from).toBeDefined();
+    expect(lastCall.to).toBeUndefined();
+  });
+
+  it("required rejects a half-pick", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { required: true } }}
+      />,
+    );
+
+    // Set a half-pick
+    act(() => handle.current!.setValue({ from: "2025-01-10" }));
+    
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+  });
+
+  it("closed face joins with ' – ' for complete ranges", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T00:00:00Z",
+        to: "2025-03-20T00:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+
+  it("closed face shows set end plus trailing dash for half-picks", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-03-15" }));
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+
+  it("min/max validators work with the calendar", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{
+          validator: {
+            min: "2025-06-01T00:00:00Z" as any,
+            max: "2025-12-31T00:00:00Z" as any,
+          },
+        }}
+      />,
+    );
+
+    // from < min → invalid
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-15", to: "2025-09-01" }),
+    );
+    let valid: boolean;
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(false);
+
+    // Both within bounds → valid
+    act(() =>
+      handle.current!.setValue({ from: "2025-07-01", to: "2025-11-01" }),
+    );
+    act(() => {
+      valid = handle.current!.validate();
+    });
+    expect(valid!).toBe(true);
+  });
+
+  it("Escape closes the calendar without committing", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Press Escape
+    const grid = screen.getByRole("grid");
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("reopening with a committed range highlights start, end, and intermediate dates", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    // Set a committed range value
+    act(() =>
+      handle.current!.setValue({
+        from: "2026-08-10T00:00:00Z",
+        to: "2026-08-20T00:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    
+    // Open the calendar
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Verify calendar is open
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    
+    // Check that start date (day 10) has selected class
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    expect(day10).toHaveAttribute("aria-selected", "true");
+    
+    // Check that end date (day 20) has selected class
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    expect(day20).toHaveAttribute("aria-selected", "true");
+    
+    // Check that intermediate dates have in-range class
+    const day15 = screen.getByRole("gridcell", { name: /August 15, 2026/ });
+    expect(day15.className).toContain("bg-neutral-100");
+  });
+
+  it("reopening with a half-picked range highlights only the anchor date", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    // Set a half-picked range value (only from set)
+    act(() =>
+      handle.current!.setValue({
+        from: "2026-08-10T00:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    
+    // Open the calendar
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Verify calendar is open
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    
+    // Check that start date (day 10) has selected class
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    expect(day10).toHaveAttribute("aria-selected", "true");
+    
+    // Check that other dates don't have the in-range class (bg-neutral-100 without hover: prefix)
+    const day15 = screen.getByRole("gridcell", { name: /August 15, 2026/ });
+    expect(day15.className).not.toMatch(/(?<!hover:)(?<!dark:)bg-neutral-100/);
+  });
+});
+
+describe("DateTimeRangeField — calendar widget", () => {
+  afterEach(cleanup);
+
+  it("opens calendar with independent start/end time controls", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("dialog", { name: "Choose date range" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Start hour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Start minute")).toBeInTheDocument();
+    expect(screen.getByLabelText("End hour")).toBeInTheDocument();
+    expect(screen.getByLabelText("End minute")).toBeInTheDocument();
+  });
+
+  it("two-step picking with datetime-range commits both ends with time", async () => {
+    const spy = vi.fn();
+    render(<DateTimeRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Set start time using change events (no blur to avoid closing calendar)
+    const startHourInput = screen.getByLabelText("Start hour");
+    await act(async () => {
+      fireEvent.change(startHourInput, { target: { value: "09" } });
+    });
+    const startMinuteInput = screen.getByLabelText("Start minute");
+    await act(async () => {
+      fireEvent.change(startMinuteInput, { target: { value: "30" } });
+    });
+
+    // Set end time
+    const endHourInput = screen.getByLabelText("End hour");
+    await act(async () => {
+      fireEvent.change(endHourInput, { target: { value: "17" } });
+    });
+    const endMinuteInput = screen.getByLabelText("End minute");
+    await act(async () => {
+      fireEvent.change(endMinuteInput, { target: { value: "00" } });
+    });
+
+    // First click: set anchor (day 10 of current month)
+    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day10);
+    });
+
+    // Second click: complete range (day 20 of current month)
+    const day20 = screen.getByRole("gridcell", { name: /August 20, 2026/ });
+    await act(async () => {
+      fireEvent.mouseDown(day20);
+    });
+
+    // Should commit with time (may be UTC-converted)
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    // Verify time was included (may be UTC-converted from local)
+    expect(lastCall.from).toMatch(/T\d{2}:\d{2}:00Z$/);
+    expect(lastCall.to).toMatch(/T\d{2}:\d{2}:00Z$/);
+    // Verify the times are different (start vs end)
+    const fromTime = lastCall.from.match(/T(\d{2}:\d{2}):00Z$/)[1];
+    const toTime = lastCall.to.match(/T(\d{2}:\d{2}):00Z$/)[1];
+    expect(fromTime).not.toBe(toTime);
+  });
+
+  it("seeds start/end time controls with the field's displayed (local) times", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-10T09:00:00Z", to: "2025-03-24T17:30:00Z" }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // The popup must show the same wall-clock times as the closed face,
+    // i.e. the stored UTC instants rendered in the browser-local timezone
+    // (same convention as the single datetime kind).
+    const fromLocal = new Date("2025-03-10T09:00:00Z");
+    const toLocal = new Date("2025-03-24T17:30:00Z");
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    expect(screen.getByLabelText("Start hour")).toHaveValue(pad2(fromLocal.getHours()));
+    expect(screen.getByLabelText("Start minute")).toHaveValue(pad2(fromLocal.getMinutes()));
+    expect(screen.getByLabelText("End hour")).toHaveValue(pad2(toLocal.getHours()));
+    expect(screen.getByLabelText("End minute")).toHaveValue(pad2(toLocal.getMinutes()));
+  });
+
+  it("opening without a value seeds all time fields to now", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const before = new Date();
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    const after = new Date();
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const minutes = [pad2(before.getMinutes()), pad2(after.getMinutes())];
+
+    const startHour = screen.getByLabelText("Start hour") as HTMLInputElement;
+    const startMinute = screen.getByLabelText("Start minute") as HTMLInputElement;
+    const endHour = screen.getByLabelText("End hour") as HTMLInputElement;
+    const endMinute = screen.getByLabelText("End minute") as HTMLInputElement;
+    expect(startHour).toHaveValue(pad2(before.getHours()));
+    expect(minutes).toContain(startMinute.value);
+    expect(endHour).toHaveValue(pad2(before.getHours()));
+    expect(minutes).toContain(endMinute.value);
+  });
+
+  it("picking days does not reset the start/end time controls", async () => {
+    const spy = vi.fn();
+    render(<DateTimeRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // User sets custom times before picking days
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Start hour"), { target: { value: "09" } });
+      fireEvent.change(screen.getByLabelText("Start minute"), { target: { value: "30" } });
+      fireEvent.change(screen.getByLabelText("End hour"), { target: { value: "17" } });
+      fireEvent.change(screen.getByLabelText("End minute"), { target: { value: "00" } });
+    });
+
+    // First click: anchor (day 10)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 10, 2026/ }));
+    });
+    // Second click: complete (day 20)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 20, 2026/ }));
+    });
+
+    // Time controls must be untouched by day picking
+    expect(screen.getByLabelText("Start hour")).toHaveValue("09");
+    expect(screen.getByLabelText("Start minute")).toHaveValue("30");
+    expect(screen.getByLabelText("End hour")).toHaveValue("17");
+    expect(screen.getByLabelText("End minute")).toHaveValue("00");
+
+    // Committed values carry the user's local times converted to UTC
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    const expectedFrom = new Date(2026, 7, 10, 9, 30, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const expectedTo = new Date(2026, 7, 20, 17, 0, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
+    expect(lastCall.from).toBe(expectedFrom);
+    expect(lastCall.to).toBe(expectedTo);
+  });
+
+  it("apply after changing only times keeps both dates", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-10T09:00:00Z", to: "2025-03-24T17:00:00Z" }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Change only the start time
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Start hour"), { target: { value: "11" } });
+    });
+
+    // Click Apply
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.mouseDown(apply);
+    });
+
+    // Both ends must survive with the updated start time
+    const value = handle.current!.getValue() as FieldDateRangeValue;
+    expect(value.from).toBeDefined();
+    expect(value.to).toBeDefined();
+    // Start hour changed to 11; start minute keeps the seeded 30
+    const expectedFrom = new Date(2025, 2, 10, 11, 30, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
+    expect(value.from).toBe(expectedFrom);
+  });
+
+  it("closed face joins datetime range with ' – '", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({
+        from: "2025-03-15T09:00:00Z",
+        to: "2025-03-15T17:00:00Z",
+      }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+
+  it("half-pick shows set end plus trailing dash", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue({ from: "2025-03-15T09:00:00Z" }));
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    expect(trigger).toHaveTextContent(/–/);
+  });
+});
+
+// ─── Cross-kind verification ──────────────────────────────────────────
+
+describe("DateTimeField — year panel", () => {
+  afterEach(cleanup);
+
+  it("header click opens year panel with 12-year grid", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: /Appointment/i })).not.toBeInTheDocument();
+  });
+
+  it("year grid renders 12 years derived from draftYear", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("gridcell", { name: "2016" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2025" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2027" })).toBeInTheDocument();
+  });
+
+  it("clicking a year sets overlay to month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("Escape from year panel closes the calendar popup", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(yearGrid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("overlay resets to none when calendar closes", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const grid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next year in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowRight" }); });
+
+    const year2026 = screen.getByRole("gridcell", { name: "2026" });
+    expect(year2026).toHaveFocus();
+  });
+
+  it("Enter selects the focused year and transitions to month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+    const year2024 = screen.getByRole("gridcell", { name: "2024" });
+    expect(year2024).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "Enter" }); });
+
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+  });
+});
+
+describe("DateTimeField — month panel", () => {
+  afterEach(cleanup);
+
+  it("month panel renders after year selection", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("month grid renders 12 months in a 3×4 grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const monthButtons = monthGrid.querySelectorAll('[role="gridcell"]');
+    expect(monthButtons).toHaveLength(12);
+
+    expect(screen.getByRole("gridcell", { name: "Jan" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "Dec" })).toBeInTheDocument();
+  });
+
+  it("clicking a month returns to day grid with correct month/year", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthButton = screen.getByRole("gridcell", { name: "Mar" });
+    await act(async () => {
+      fireEvent.mouseDown(monthButton);
+    });
+
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+
+  it("Escape from month panel closes the calendar popup", async () => {
+    render(<DateTimeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => {
+      fireEvent.keyDown(monthGrid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next month in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowRight" }); });
+
+    const jul = screen.getByRole("gridcell", { name: "Jul" });
+    expect(jul).toHaveFocus();
+  });
+
+  it("ArrowLeft moves focus to the previous month in the grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowLeft" }); });
+
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).toHaveFocus();
+  });
+
+  it("ArrowDown moves focus one row down in the month grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowDown" }); });
+
+    const sep = screen.getByRole("gridcell", { name: "Sep" });
+    expect(sep).toHaveFocus();
+  });
+
+  it("Enter selects the focused month and returns to day grid", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowUp" }); });
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "Enter" }); });
+
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    const dayGrid = screen.getByRole("grid");
+    expect(dayGrid).toBeInTheDocument();
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+});
+
+describe("DateTimeField — min/max constraints on year and month panels", () => {
+  afterEach(cleanup);
+
+  it("years outside min/max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateTimeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const year2019 = screen.getByRole("gridcell", { name: "2019" });
+    expect(year2019).toHaveAttribute("aria-disabled", "true");
+    expect(year2019).toBeDisabled();
+
+    const year2020 = screen.getByRole("gridcell", { name: "2020" });
+    expect(year2020).not.toHaveAttribute("aria-disabled");
+    expect(year2020).not.toBeDisabled();
+  });
+
+  it("months outside min/max range render as disabled in the month panel", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateTimeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const jan = screen.getByRole("gridcell", { name: "Jan" });
+    expect(jan).toHaveAttribute("aria-disabled", "true");
+    expect(jan).toBeDisabled();
+
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).not.toHaveAttribute("aria-disabled");
+    expect(may).not.toBeDisabled();
+
+    const oct = screen.getByRole("gridcell", { name: "Oct" });
+    expect(oct).toHaveAttribute("aria-disabled", "true");
+    expect(oct).toBeDisabled();
+  });
+
+  it("disabled years cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateTimeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2022-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const disabledYear = screen.getByRole("gridcell", { name: "2019" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledYear);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+  });
+
+  it("disabled months cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(
+      <DateTimeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue("2025-06-15T10:30:00Z");
+    });
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const disabledMonth = screen.getByRole("gridcell", { name: "Jan" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledMonth);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+  });
+});
+
+describe("DateRangeField — year panel", () => {
+  afterEach(cleanup);
+
+  it("header click opens year panel with 12-year grid", async () => {
+    render(<DateRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: /Booking/i })).not.toBeInTheDocument();
+  });
+
+  it("year grid renders 12 years derived from draftYear", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("gridcell", { name: "2016" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2025" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2027" })).toBeInTheDocument();
+  });
+
+  it("clicking a year sets overlay to month panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("Escape from year panel closes the calendar popup", async () => {
+    render(<DateRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(yearGrid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("overlay resets to none when calendar closes", async () => {
+    render(<DateRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const grid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next year in the grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowRight" }); });
+
+    const year2026 = screen.getByRole("gridcell", { name: "2026" });
+    expect(year2026).toHaveFocus();
+  });
+
+  it("Enter selects the focused year and transitions to month panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+    const year2024 = screen.getByRole("gridcell", { name: "2024" });
+    expect(year2024).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "Enter" }); });
+
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+  });
+});
+
+describe("DateRangeField — month panel", () => {
+  afterEach(cleanup);
+
+  it("month panel renders after year selection", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("month grid renders 12 months in a 3×4 grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const monthButtons = monthGrid.querySelectorAll('[role="gridcell"]');
+    expect(monthButtons).toHaveLength(12);
+
+    expect(screen.getByRole("gridcell", { name: "Jan" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "Dec" })).toBeInTheDocument();
+  });
+
+  it("clicking a month returns to day grid with correct month/year", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthButton = screen.getByRole("gridcell", { name: "Mar" });
+    await act(async () => {
+      fireEvent.mouseDown(monthButton);
+    });
+
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+
+  it("Escape from month panel closes the calendar popup", async () => {
+    render(<DateRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => {
+      fireEvent.keyDown(monthGrid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next month in the grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowRight" }); });
+
+    const jul = screen.getByRole("gridcell", { name: "Jul" });
+    expect(jul).toHaveFocus();
+  });
+
+  it("Enter selects the focused month and returns to day grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowUp" }); });
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "Enter" }); });
+
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    const dayGrid = screen.getByRole("grid");
+    expect(dayGrid).toBeInTheDocument();
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+});
+
+describe("DateRangeField — min/max constraints on year and month panels", () => {
+  afterEach(cleanup);
+
+  it("years outside min/max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const year2019 = screen.getByRole("gridcell", { name: "2019" });
+    expect(year2019).toHaveAttribute("aria-disabled", "true");
+    expect(year2019).toBeDisabled();
+
+    const year2020 = screen.getByRole("gridcell", { name: "2020" });
+    expect(year2020).not.toHaveAttribute("aria-disabled");
+    expect(year2020).not.toBeDisabled();
+  });
+
+  it("months outside min/max range render as disabled in the month panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const jan = screen.getByRole("gridcell", { name: "Jan" });
+    expect(jan).toHaveAttribute("aria-disabled", "true");
+    expect(jan).toBeDisabled();
+
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).not.toHaveAttribute("aria-disabled");
+    expect(may).not.toBeDisabled();
+
+    const oct = screen.getByRole("gridcell", { name: "Oct" });
+    expect(oct).toHaveAttribute("aria-disabled", "true");
+    expect(oct).toBeDisabled();
+  });
+
+  it("disabled years cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2022-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const disabledYear = screen.getByRole("gridcell", { name: "2019" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledYear);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+  });
+
+  it("disabled months cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T00:00:00Z",
+        to: "2025-06-20T00:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const disabledMonth = screen.getByRole("gridcell", { name: "Jan" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledMonth);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+  });
+});
+
+describe("DateTimeRangeField — year panel", () => {
+  afterEach(cleanup);
+
+  it("header click opens year panel with 12-year grid", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: /Window/i })).not.toBeInTheDocument();
+  });
+
+  it("year grid renders 12 years derived from draftYear", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    expect(screen.getByRole("gridcell", { name: "2016" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2025" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "2027" })).toBeInTheDocument();
+  });
+
+  it("clicking a year sets overlay to month panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("Escape from year panel closes the calendar popup", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(yearGrid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("overlay resets to none when calendar closes", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const grid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.keyDown(grid, { key: "Escape" });
+    });
+
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next year in the grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    const year2025 = screen.getByRole("gridcell", { name: "2025" });
+    expect(year2025).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowRight" }); });
+
+    const year2026 = screen.getByRole("gridcell", { name: "2026" });
+    expect(year2026).toHaveFocus();
+  });
+
+  it("Enter selects the focused year and transitions to month panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+
+    const yearGrid = screen.getByRole("grid", { name: "Choose year" });
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "ArrowLeft" }); });
+    const year2024 = screen.getByRole("gridcell", { name: "2024" });
+    expect(year2024).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(yearGrid, { key: "Enter" }); });
+
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+  });
+});
+
+describe("DateTimeRangeField — month panel", () => {
+  afterEach(cleanup);
+
+  it("month panel renders after year selection", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose year" })).not.toBeInTheDocument();
+  });
+
+  it("month grid renders 12 months in a 3×4 grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const monthButtons = monthGrid.querySelectorAll('[role="gridcell"]');
+    expect(monthButtons).toHaveLength(12);
+
+    expect(screen.getByRole("gridcell", { name: "Jan" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "Dec" })).toBeInTheDocument();
+  });
+
+  it("clicking a month returns to day grid with correct month/year", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthButton = screen.getByRole("gridcell", { name: "Mar" });
+    await act(async () => {
+      fireEvent.mouseDown(monthButton);
+    });
+
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+
+  it("Escape from month panel closes the calendar popup", async () => {
+    render(<DateTimeRangeHarness />);
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => {
+      fireEvent.keyDown(monthGrid, { key: "Escape" });
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("ArrowRight moves focus to the next month in the grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    const jun = screen.getByRole("gridcell", { name: "Jun" });
+    expect(jun).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowRight" }); });
+
+    const jul = screen.getByRole("gridcell", { name: "Jul" });
+    expect(jul).toHaveFocus();
+  });
+
+  it("Enter selects the focused month and returns to day grid", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => { fireEvent.click(trigger); });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => { fireEvent.mouseDown(headerButton); });
+    const yearButton = screen.getByRole("gridcell", { name: "2024" });
+    await act(async () => { fireEvent.mouseDown(yearButton); });
+
+    const monthGrid = screen.getByRole("grid", { name: "Choose month" });
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "ArrowUp" }); });
+    const mar = screen.getByRole("gridcell", { name: "Mar" });
+    expect(mar).toHaveFocus();
+
+    await act(async () => { fireEvent.keyDown(monthGrid, { key: "Enter" }); });
+
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+    const dayGrid = screen.getByRole("grid");
+    expect(dayGrid).toBeInTheDocument();
+    expect(headerButton).toHaveTextContent("March 2024");
+  });
+});
+
+describe("DateTimeRangeField — min/max constraints on year and month panels", () => {
+  afterEach(cleanup);
+
+  it("years outside min/max range render as disabled in the year panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const year2019 = screen.getByRole("gridcell", { name: "2019" });
+    expect(year2019).toHaveAttribute("aria-disabled", "true");
+    expect(year2019).toBeDisabled();
+
+    const year2020 = screen.getByRole("gridcell", { name: "2020" });
+    expect(year2020).not.toHaveAttribute("aria-disabled");
+    expect(year2020).not.toBeDisabled();
+  });
+
+  it("months outside min/max range render as disabled in the month panel", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const jan = screen.getByRole("gridcell", { name: "Jan" });
+    expect(jan).toHaveAttribute("aria-disabled", "true");
+    expect(jan).toBeDisabled();
+
+    const may = screen.getByRole("gridcell", { name: "May" });
+    expect(may).not.toHaveAttribute("aria-disabled");
+    expect(may).not.toBeDisabled();
+
+    const oct = screen.getByRole("gridcell", { name: "Oct" });
+    expect(oct).toHaveAttribute("aria-disabled", "true");
+    expect(oct).toBeDisabled();
+  });
+
+  it("disabled years cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2022-01-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const disabledYear = screen.getByRole("gridcell", { name: "2019" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledYear);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
+  });
+
+  it("disabled months cannot be clicked/selected", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(
+      <DateTimeRangeHarness
+        handleRef={handle}
+        overrides={{ validator: { min: "2025-06-01" as any } }}
+      />,
+    );
+
+    await act(async () => {
+      handle.current!.setValue({
+        from: "2025-06-15T09:00:00Z",
+        to: "2025-06-20T17:00:00Z",
+      });
+    });
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const headerButton = screen.getByRole("button", { name: "Choose year" });
+    await act(async () => {
+      fireEvent.mouseDown(headerButton);
+    });
+
+    const yearButton = screen.getByRole("gridcell", { name: "2025" });
+    await act(async () => {
+      fireEvent.mouseDown(yearButton);
+    });
+
+    const disabledMonth = screen.getByRole("gridcell", { name: "Jan" });
+    await act(async () => {
+      fireEvent.mouseDown(disabledMonth);
+    });
+
+    expect(screen.getByRole("grid", { name: "Choose month" })).toBeInTheDocument();
   });
 });

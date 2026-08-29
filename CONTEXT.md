@@ -173,3 +173,27 @@ _Avoid_: errorMessage state, failure
 **FieldHandle**:
 The imperative handle a parent obtains from `Field` via the `ref` prop. `validate()` force-runs every rule regardless of Touched state, shows any resulting Error, and returns whether the value is valid — used at submit time. `getValue()` reads the current internal value; `setValue()` installs one through the same pipeline as a user edit (observer fired, Error re-evaluated when Touched).
 _Avoid_: ref methods, validation API
+
+**Calendar popup**:
+The disclosure panel shared by the date, datetime, date-range, and datetime-range Field kinds: a month grid with day cells, navigation controls, and (for datetime kinds) time inputs. Opening moves focus to the selected day or today; Escape or outside click closes and returns focus to the trigger. The popup follows a draft-with-commit interaction: picks edit a draft state shown in the pane, Apply commits the draft to the Field's value, Cancel or Escape discards. Range kinds use two-step picking (anchor then complete) within the same popup; the popup stays open after the range is completed so the user can review and click Apply.
+_Avoid_: date picker, calendar widget, date popup
+
+**Month/year picker overlay**:
+A panel that replaces the day grid inside a Calendar popup when the user clicks the header label. It allows navigating to any month and year without stepping through months one at a time. The overlay uses a stacked two-step flow: years first, then months. Clicking a year advances to the month panel; clicking a month sets the year+month and returns to the day grid immediately. The overlay always opens at the year panel regardless of prior state.
+_Avoid_: month selector, year selector, date navigator
+
+**Year panel**:
+The first screen of the Month/year picker overlay. Displays a 12-year grid (one decade) with prev/next decade arrow buttons. The currently selected year is highlighted. Clicking a year advances to the Month panel.
+_Avoid_: decade picker, year grid
+
+**Month panel**:
+The second screen of the Month/year picker overlay. Displays 12 months in a 3×4 grid. The currently selected month is highlighted. Clicking a month sets the year+month and returns immediately to the day grid.
+_Avoid_: month selector, month grid
+
+**Draft**:
+The temporary value state inside a Calendar popup before Apply commits it. For single dates, the draft is the selected day (and time, for datetime kinds). For ranges, the draft accumulates across two clicks: first click anchors one end, second click completes the other. The draft is visible in the popup's summary pane but not yet in the Field's value or emitted to the parent. Cancel or Escape discards the draft without changing the Field.
+_Avoid_: pending value, staged value, uncommitted pick
+
+**Commit**:
+The action that lands a Calendar popup's draft into the Field's value, triggered by clicking Apply or pressing Enter on the Apply button. Commit normalizes the draft through the same pipeline as a user edit: the observer fires, Error re-evaluates when Touched, and the closed face updates. For datetime ranges, Commit ensures both ends carry complete instants (picking a date without a time seeds midnight).
+_Avoid_: apply, confirm, save

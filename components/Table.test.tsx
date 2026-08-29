@@ -435,7 +435,7 @@ describe("Table column type renderers", () => {
     await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
-      .getByText("Nov 2, 2023, 2:20 PM")
+      .getByText("Nov 2, 2023, 14:20")
       .closest("time") as HTMLElement;
     expect(dateTime).toHaveAttribute("datetime", "2023-11-02T14:20");
   });

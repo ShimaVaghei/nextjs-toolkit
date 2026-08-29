@@ -3,11 +3,19 @@
 import { useRef, useState } from "react";
 import {
   CheckboxField,
+  DateField,
+  DateTimeField,
+  DateRangeField,
+  DateTimeRangeField,
   InputField,
   MultiSelectField,
   SelectField,
   TextareaField,
   type FieldCheckboxConfig,
+  type FieldDateConfig,
+  type FieldDateTimeConfig,
+  type FieldDateRangeConfig,
+  type FieldDateTimeRangeConfig,
   type FieldHandle,
   type FieldInputConfig,
   type FieldMultiSelectConfig,
@@ -142,6 +150,54 @@ const retiredTrainConfig: FieldSelectConfig<ReleaseTrain> = {
   matchValue: matchTrainById,
   options: RELEASE_TRAINS,
   initialValue: { id: 99, codename: "soyuz" },
+};
+
+// Date field configs: each demonstrates Initial values, validators, and
+// onValueChange observation.
+const birthdayConfig: FieldDateConfig = {
+  label: "Birthday",
+  placeholder: "Pick a date",
+  hint: "A date-only field: the calendar popup shows a month grid with no time inputs.",
+  initialValue: "1990-05-15",
+  validator: {
+    required: { value: true, message: "Choose your birthday." },
+    max: { value: "2010-01-01", message: "Must be born before 2010." },
+  },
+  onValueChange: (value) => console.log("Birthday changed:", value),
+};
+
+const meetingConfig: FieldDateTimeConfig = {
+  label: "Meeting time",
+  placeholder: "Pick date and time",
+  hint: "Combines the calendar popup with time inputs for hours and minutes.",
+  initialValue: "2025-03-20T14:30:00Z",
+  validator: {
+    required: { value: true, message: "Set a meeting time." },
+    min: { value: "2025-01-01T00:00:00Z", message: "Must be in 2025 or later." },
+  },
+  onValueChange: (value) => console.log("Meeting time changed:", value),
+};
+
+const vacationConfig: FieldDateRangeConfig = {
+  label: "Vacation",
+  placeholder: "Pick start and end dates",
+  hint: "Two-click range picking: first click anchors, second completes; out-of-order swaps automatically.",
+  initialValue: { from: "2025-07-01", to: "2025-07-14" },
+  validator: {
+    required: { value: true, message: "Choose a vacation range." },
+  },
+  onValueChange: (value) => console.log("Vacation changed:", value),
+};
+
+const sprintConfig: FieldDateTimeRangeConfig = {
+  label: "Sprint window",
+  placeholder: "Pick start and end date-times",
+  hint: "Independent time controls for each end; picking a date seeds that end's time to midnight.",
+  initialValue: { from: "2025-03-10T09:00:00Z", to: "2025-03-24T17:00:00Z" },
+  validator: {
+    required: { value: true, message: "Set a sprint window." },
+  },
+  onValueChange: (value) => console.log("Sprint window changed:", value),
 };
 
 const REF_BUTTON_CLASS =
@@ -367,6 +423,73 @@ export default function FieldDemoPage() {
           </p>
         </div>
         <CheckboxField config={consentConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Date
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            A date-only picker: the calendar popup shows a month grid with day
+            cells. Clicking a day picks it; Apply commits the draft, Cancel or
+            Escape discards. The closed face shows the en-US formatted date
+            when filled, placeholder ghost when Empty. Keyboard navigation
+            follows the APG grid pattern.
+          </p>
+        </div>
+        <DateField config={birthdayConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            DateTime
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Combines the calendar popup with time inputs for hours and minutes.
+            Minutes type freely (0–59) with blur/Enter commit and clamping.
+            The emitted value is a fixed-width ISO datetime string with
+            seconds, representing the real UTC instant from browser-local
+            wall-clock.
+          </p>
+        </div>
+        <DateTimeField config={meetingConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            DateRange
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Two-click range picking: first click anchors, second completes;
+            out-of-order completions swap so from &le; to always holds.
+            Half-picks stream live with unset ends as{" "}
+            <code className="font-mono">undefined</code>; a required Field
+            rejects them as Empty. The closed face joins per-end formatted
+            strings with &ldquo; – &rdquo;; a half-set range shows the set end
+            followed by a dash.
+          </p>
+        </div>
+        <DateRangeField config={vacationConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            DateTimeRange
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Independent time controls for each end (&ldquo;Start time&rdquo; /
+            &ldquo;End time&rdquo;). Picking a date seeds that end&rsquo;s
+            draft time to midnight, shown immediately in its own control, so
+            Apply always lands complete instants. Screen readers receive
+            live-region announcements and composed cell names during two-step
+            picking.
+          </p>
+        </div>
+        <DateTimeRangeField config={sprintConfig} />
       </section>
     </div>
   );
