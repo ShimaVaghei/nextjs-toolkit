@@ -1539,13 +1539,8 @@ function CalendarPopup({
         const prevDecadeDisabled = minYear !== null && decadeStart <= minYear;
         const nextDecadeDisabled = maxYear !== null && (decadeStart + 11) >= maxYear;
         return (
-        <div
-          ref={yearGridRef}
-          role="grid"
-          aria-label="Choose year"
-          className={CALENDAR_YEAR_GRID_CLASS}
-          onKeyDown={handleYearGridKeyDown}
-        >
+        <>
+        <div className={CALENDAR_HEADER_CLASS}>
           <button
             type="button"
             aria-label="Previous decade"
@@ -1560,6 +1555,29 @@ function CalendarPopup({
               <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
+          <span className={CALENDAR_MONTH_CLASS}>{decadeStart}–{decadeStart + 11}</span>
+          <button
+            type="button"
+            aria-label="Next decade"
+            disabled={nextDecadeDisabled || undefined}
+            className={`${CALENDAR_NAV_BUTTON_CLASS}${nextDecadeDisabled ? ` ${CALENDAR_NAV_BUTTON_DISABLED_CLASS}` : ""}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setDecadeOffset((prev) => prev + 1);
+            }}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
+              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+        <div
+          ref={yearGridRef}
+          role="grid"
+          aria-label="Choose year"
+          className={CALENDAR_YEAR_GRID_CLASS}
+          onKeyDown={handleYearGridKeyDown}
+        >
           {Array.from({ length: 12 }, (_, i) => {
             const year = decadeStart + i;
             const isSelected = year === draftYear;
@@ -1587,21 +1605,8 @@ function CalendarPopup({
               </button>
             );
           })}
-          <button
-            type="button"
-            aria-label="Next decade"
-            disabled={nextDecadeDisabled || undefined}
-            className={`${CALENDAR_NAV_BUTTON_CLASS}${nextDecadeDisabled ? ` ${CALENDAR_NAV_BUTTON_DISABLED_CLASS}` : ""}`}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setDecadeOffset((prev) => prev + 1);
-            }}
-          >
-            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4">
-              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
         </div>
+        </>
         );
       })()}
 
