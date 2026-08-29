@@ -1920,8 +1920,12 @@ function Field<K extends FieldKind = "input", T = unknown>({
     const current = valueRef.current;
     const now = new Date();
     let dateStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-    let h = "00";
-    let m = "00";
+    // Time fields default to the current local wall-clock for datetime kinds
+    // (overridden by the value below when one exists).
+    const nowH = pad2(now.getHours());
+    const nowM = pad2(now.getMinutes());
+    let h = kind === "datetime" ? nowH : "00";
+    let m = kind === "datetime" ? nowM : "00";
 
     if (typeof current === "string" && current) {
       const parts = utcDateParts(current);
@@ -1975,19 +1979,23 @@ function Field<K extends FieldKind = "input", T = unknown>({
         setRangeEndDate(undefined);
       }
       
-      // Initialize time controls for datetime-range.
-      // The time controls are browser-local wall-clock (same convention as
-      // the single datetime kind and the closed-face display), so extract
-      // the local hour/minute of the stored UTC instants.
-      if (kind === "datetime-range" && rangeValue) {
-        if (rangeValue.from) {
+      // Initialize time controls for datetime-range: default to now, then
+      // override with the value's ends. The time controls are browser-local
+      // wall-clock (same convention as the single datetime kind and the
+      // closed-face display).
+      if (kind === "datetime-range") {
+        setStartTimeHour(nowH);
+        setStartTimeMinute(nowM);
+        setEndTimeHour(nowH);
+        setEndTimeMinute(nowM);
+        if (rangeValue?.from) {
           const fromDate = new Date(rangeValue.from);
           if (!isNaN(fromDate.getTime())) {
             setStartTimeHour(pad2(fromDate.getHours()));
             setStartTimeMinute(pad2(fromDate.getMinutes()));
           }
         }
-        if (rangeValue.to) {
+        if (rangeValue?.to) {
           const toDate = new Date(rangeValue.to);
           if (!isNaN(toDate.getTime())) {
             setEndTimeHour(pad2(toDate.getHours()));
@@ -2138,12 +2146,11 @@ function Field<K extends FieldKind = "input", T = unknown>({
         setDraftMonth(dp.month);
         setDraftDay(dp.day);
       }
-      // For datetime-range, seed the start time to midnight
+      // Day picking must not touch the time controls — the user's times stay
+      // as-is; stream the half-pick using the current start time.
       if (kind === "datetime-range") {
-        setStartTimeHour("00");
-        setStartTimeMinute("00");
         // Emit half-pick with datetime
-        commitValue({ from: `${dateStr}T00:00:00`, to: undefined });
+        commitValue({ from: `${dateStr}T${startTimeHour}:${startTimeMinute}:00`, to: undefined });
       } else {
         // Emit half-pick with date
         commitValue({ from: dateStr, to: undefined });

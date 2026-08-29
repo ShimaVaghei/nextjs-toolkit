@@ -5712,25 +5712,66 @@ describe("DateTimeRangeField — calendar widget", () => {
     expect(screen.getByLabelText("End minute")).toHaveValue(pad2(toLocal.getMinutes()));
   });
 
-  it("fresh date pick seeds midnight in start time control", async () => {
+  it("opening without a value seeds all time fields to now", async () => {
     render(<DateTimeRangeHarness />);
+
+    const before = new Date();
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    const after = new Date();
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const minutes = [pad2(before.getMinutes()), pad2(after.getMinutes())];
+
+    const startHour = screen.getByLabelText("Start hour") as HTMLInputElement;
+    const startMinute = screen.getByLabelText("Start minute") as HTMLInputElement;
+    const endHour = screen.getByLabelText("End hour") as HTMLInputElement;
+    const endMinute = screen.getByLabelText("End minute") as HTMLInputElement;
+    expect(startHour).toHaveValue(pad2(before.getHours()));
+    expect(minutes).toContain(startMinute.value);
+    expect(endHour).toHaveValue(pad2(before.getHours()));
+    expect(minutes).toContain(endMinute.value);
+  });
+
+  it("picking days does not reset the start/end time controls", async () => {
+    const spy = vi.fn();
+    render(<DateTimeRangeHarness onChangeSpy={spy} />);
 
     const trigger = screen.getByRole("button", { name: /Window/i });
     await act(async () => {
       fireEvent.click(trigger);
     });
 
-    // First click: set anchor (day 10 of current month)
-    const day10 = screen.getByRole("gridcell", { name: /August 10, 2026/ });
+    // User sets custom times before picking days
     await act(async () => {
-      fireEvent.mouseDown(day10);
+      fireEvent.change(screen.getByLabelText("Start hour"), { target: { value: "09" } });
+      fireEvent.change(screen.getByLabelText("Start minute"), { target: { value: "30" } });
+      fireEvent.change(screen.getByLabelText("End hour"), { target: { value: "17" } });
+      fireEvent.change(screen.getByLabelText("End minute"), { target: { value: "00" } });
     });
 
-    // Start time should be 00:00
-    const startHourInput = screen.getByLabelText("Start hour");
-    const startMinuteInput = screen.getByLabelText("Start minute");
-    expect(startHourInput).toHaveValue("00");
-    expect(startMinuteInput).toHaveValue("00");
+    // First click: anchor (day 10)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 10, 2026/ }));
+    });
+    // Second click: complete (day 20)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 20, 2026/ }));
+    });
+
+    // Time controls must be untouched by day picking
+    expect(screen.getByLabelText("Start hour")).toHaveValue("09");
+    expect(screen.getByLabelText("Start minute")).toHaveValue("30");
+    expect(screen.getByLabelText("End hour")).toHaveValue("17");
+    expect(screen.getByLabelText("End minute")).toHaveValue("00");
+
+    // Committed values carry the user's local times converted to UTC
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    const expectedFrom = new Date(2026, 7, 10, 9, 30, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const expectedTo = new Date(2026, 7, 20, 17, 0, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
+    expect(lastCall.from).toBe(expectedFrom);
+    expect(lastCall.to).toBe(expectedTo);
   });
 
   it("closed face joins datetime range with ' – '", async () => {
