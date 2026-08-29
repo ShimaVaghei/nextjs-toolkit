@@ -5273,6 +5273,26 @@ describe("DateField — min/max constraints on year and month panels", () => {
   });
 });
 
+import { resolveCalendarPlacement } from "./Field";
+
+describe("resolveCalendarPlacement", () => {
+  it("opens below when there is enough space under the field", () => {
+    expect(resolveCalendarPlacement({ top: 100, bottom: 140 }, 300, 768)).toBe("bottom");
+  });
+
+  it("opens above when there is no space below but enough above", () => {
+    // Trigger near the viewport bottom: 28px below, 700px above
+    expect(resolveCalendarPlacement({ top: 700, bottom: 740 }, 300, 768)).toBe("top");
+  });
+
+  it("picks the side with more space when neither side fits the panel", () => {
+    // Panel (400) taller than both gaps: above 300 vs below 388 → below
+    expect(resolveCalendarPlacement({ top: 300, bottom: 380 }, 400, 768)).toBe("bottom");
+    // Above 380 vs below 310 → above
+    expect(resolveCalendarPlacement({ top: 380, bottom: 458 }, 400, 768)).toBe("top");
+  });
+});
+
 describe("DateRangeField — calendar widget", () => {
   afterEach(cleanup);
 
@@ -5424,6 +5444,43 @@ describe("DateRangeField — calendar widget", () => {
     });
     expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).not.toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens above the field when there is no space below", async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === "BUTTON") {
+        // Trigger near the viewport bottom (jsdom viewport = 768px)
+        return { top: 700, bottom: 740, left: 0, right: 200, width: 200, height: 40, x: 0, y: 700, toJSON: () => ({}) } as DOMRect;
+      }
+      // Calendar panel: 300px tall
+      return { top: 0, bottom: 300, left: 0, right: 200, width: 200, height: 300, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+
+    render(<DateHarness />);
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Choose date" });
+    expect(dialog).toHaveAttribute("data-placement", "top");
+    expect(dialog.className).toContain("bottom-full");
+    expect(dialog.className).not.toContain("top-full");
+
+    rectSpy.mockRestore();
+  });
+
+  it("opens below the field when there is enough space below", async () => {
+    render(<DateHarness />);
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Choose date" });
+    // jsdom rects are all zeros → effectively unlimited space below
+    expect(dialog).toHaveAttribute("data-placement", "bottom");
+    expect(dialog.className).toContain("top-full");
   });
 
   it("half-picks stream live with undefined ends", async () => {

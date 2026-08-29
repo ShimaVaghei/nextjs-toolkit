@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
 import { normalizeDateInput, type DateInputKind, type FieldDateRangeValue } from "@/lib/date-normalize";
 import { DATE_DISPLAY_FORMAT, DATETIME_DISPLAY_FORMAT } from "@/lib/date-display";
@@ -315,9 +315,29 @@ const ROW_BUTTON_CLASS =
 
 // ─── Calendar widget tokens ────────────────────────────────────────────
 
-const CALENDAR_PANEL_CLASS =
-  "absolute left-0 right-0 top-full z-10 mt-1.5 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
+const CALENDAR_PANEL_BASE_CLASS =
+  "absolute left-0 right-0 z-10 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
   "dark:border-neutral-700 dark:bg-neutral-900";
+const CALENDAR_PANEL_BELOW_CLASS = "top-full mt-1.5";
+const CALENDAR_PANEL_ABOVE_CLASS = "bottom-full mb-1.5";
+
+/**
+ * Decide whether the calendar popup opens below ("bottom") or above ("top")
+ * the field, given the trigger's bounding rect, the panel height, and the
+ * viewport height. Prefers below; flips above when the panel would overflow
+ * the viewport bottom and there is more room above.
+ */
+export function resolveCalendarPlacement(
+  triggerRect: { top: number; bottom: number },
+  panelHeight: number,
+  viewportHeight: number,
+): "top" | "bottom" {
+  const spaceBelow = viewportHeight - triggerRect.bottom;
+  const spaceAbove = triggerRect.top;
+  if (spaceBelow >= panelHeight) return "bottom";
+  if (spaceAbove >= panelHeight) return "top";
+  return spaceAbove > spaceBelow ? "top" : "bottom";
+}
 
 const CALENDAR_HEADER_CLASS = "flex items-center justify-between mb-2";
 
@@ -1057,6 +1077,25 @@ function CalendarPopup({
   const [decadeOffset, setDecadeOffset] = useState(0);
   const [focusedYearIdx, setFocusedYearIdx] = useState<number | null>(null);
   const [focusedMonthIdx, setFocusedMonthIdx] = useState<number | null>(null);
+  const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
+
+  // Measure available viewport space when the popup opens and flip the
+  // panel above the field when it would overflow below (prevents page jump).
+  // useLayoutEffect so the measurement happens before the browser paints the
+  // popup below the trigger and before any focus-induced scrolling skews the
+  // trigger rect (a passive effect measured the already-scrolled position,
+  // which kept the popup below on the first open).
+  useLayoutEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    const panel = calendarPanelRef.current;
+    if (!trigger || !panel) return;
+    const rect = trigger.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    setPlacement(
+      resolveCalendarPlacement(rect, panelRect.height, window.innerHeight),
+    );
+  }, [open, triggerRef, calendarPanelRef]);
 
   // Reset overlay when calendar closes.
   useEffect(() => {
@@ -1076,11 +1115,11 @@ function CalendarPopup({
     // Find the selected day button, or today's button, or the first day button.
     const selectedBtn = gridRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
     if (selectedBtn) {
-      selectedBtn.focus();
+      selectedBtn.focus({ preventScroll: true });
       return;
     }
     const todayBtn = gridRef.current.querySelector<HTMLElement>('[data-day]');
-    if (todayBtn) todayBtn.focus();
+    if (todayBtn) todayBtn.focus({ preventScroll: true });
   }, [open]);
 
   // Focus management: when year panel opens, focus the selected year.
@@ -1090,7 +1129,7 @@ function CalendarPopup({
     if (selectedBtn) {
       const yearVal = parseInt(selectedBtn.textContent || "0", 10);
       setFocusedYearIdx(yearVal - decadeStart);
-      selectedBtn.focus();
+      selectedBtn.focus({ preventScroll: true });
     }
   }, [overlay, decadeStart]);
 
@@ -1103,7 +1142,7 @@ function CalendarPopup({
       const monthIdx = MONTH_LABELS.indexOf(label);
       if (monthIdx >= 0) {
         setFocusedMonthIdx(monthIdx);
-        selectedBtn.focus();
+        selectedBtn.focus({ preventScroll: true });
       }
     }
   }, [overlay]);
@@ -1113,11 +1152,11 @@ function CalendarPopup({
     if (overlay !== "none" || !gridRef.current) return;
     const selectedBtn = gridRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
     if (selectedBtn) {
-      selectedBtn.focus();
+      selectedBtn.focus({ preventScroll: true });
       return;
     }
     const todayBtn = gridRef.current.querySelector<HTMLElement>('[data-day]');
-    if (todayBtn) todayBtn.focus();
+    if (todayBtn) todayBtn.focus({ preventScroll: true });
   }, [overlay]);
 
   const headerLabel = formatMonthYear(draftYear, draftMonth);
@@ -1305,7 +1344,10 @@ function CalendarPopup({
 
   const focusDayRef = useCallback(
     (node: HTMLButtonElement | null) => {
-      if (node) node.focus();
+      // preventScroll: focusing the day button during commit must not scroll
+      // the page — the scroll skews the placement measurement that runs right
+      // after commit and forced the popup below on the first open.
+      if (node) node.focus({ preventScroll: true });
     },
     [draftDay, draftMonth, draftYear],
   );
@@ -1465,7 +1507,8 @@ function CalendarPopup({
       id={panelId}
       ref={calendarPanelRef}
       hidden={!open}
-      className={CALENDAR_PANEL_CLASS}
+      data-placement={placement}
+      className={`${CALENDAR_PANEL_BASE_CLASS} ${placement === "top" ? CALENDAR_PANEL_ABOVE_CLASS : CALENDAR_PANEL_BELOW_CLASS}`}
       role="dialog"
       aria-modal="false"
       aria-label={range ? "Choose date range" : "Choose date"}
