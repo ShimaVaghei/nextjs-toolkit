@@ -2123,7 +2123,9 @@ function Field<K extends FieldKind = "input", T = unknown>({
   }, [draft, timeHour, timeMinute, kind, isRangeKind, rangeAnchor, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue, closeCalendar]);
 
   const handleDayRangeSelect = useCallback((dateStr: string) => {
-    if (!rangeAnchor) {
+    // A completed draft (rangeEndDate set) or no anchor starts a fresh pick;
+    // otherwise a second click completes the range.
+    if (!rangeAnchor || rangeEndDate) {
       // First click: set anchor and stream half-pick
       setRangeAnchor(dateStr);
       setRangeEndDate(undefined);
@@ -2162,12 +2164,14 @@ function Field<K extends FieldKind = "input", T = unknown>({
       // Commit the range value
       commitValue({ from: fromValue, to: toValue });
       
-      // Reset range state
-      setRangeAnchor(undefined);
+      // Keep the anchor and record the completed end so the draft range
+      // stays highlighted in the grid until Apply/Cancel. A further click
+      // starts a fresh pick (see the rangeEndDate guard above).
       setRangeEndDate(to);
+      setDraft(dateStr);
       setHoverDate(undefined);
     }
-  }, [rangeAnchor, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue]);
+  }, [rangeAnchor, rangeEndDate, kind, startTimeHour, startTimeMinute, endTimeHour, endTimeMinute, commitValue]);
 
   const handleDayHover = useCallback((dateStr: string) => {
     if (rangeAnchor) {

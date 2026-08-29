@@ -5327,6 +5327,44 @@ describe("DateRangeField — calendar widget", () => {
     // Should commit but calendar stays open for Apply
     expect(spy).toHaveBeenCalled();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    // Draft range should remain highlighted in the grid after completion
+    expect(screen.getByRole("gridcell", { name: /August 10, 2026/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("draft range stays highlighted after the second click (no reset)", async () => {
+    const spy = vi.fn();
+    render(<DateRangeHarness onChangeSpy={spy} />);
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // First click: anchor (day 5)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 5, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Second click: complete (day 25)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 25, 2026/ }));
+    });
+
+    // Both ends of the completed draft must still be highlighted
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 25, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // A third click starts a fresh pick: re-anchors and clears the old range
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /August 12, 2026/ }));
+    });
+    expect(screen.getByRole("gridcell", { name: /August 12, 2026/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).not.toHaveAttribute("aria-selected", "true");
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.to).toBeUndefined();
   });
 
   it("out-of-order picking swaps ends so from <= to", async () => {
