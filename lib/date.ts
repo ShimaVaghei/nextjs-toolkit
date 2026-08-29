@@ -1,4 +1,42 @@
-import { DATE_ONLY_PATTERN } from "./date-display";
+// ─── Display formatters ────────────────────────────────────────────────
+
+export const DATE_DISPLAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
+
+export const DATETIME_DISPLAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  hour12: false,
+});
+
+export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// ─── Parts helpers ─────────────────────────────────────────────────────
+
+/**
+ * Get the UTC calendar date components from a fixed-width ISO string
+ * (e.g. "2025-03-15" or "2025-03-15T00:00:00Z"). Returns null when the
+ * string does not begin with a YYYY-MM-DD date.
+ */
+export function utcDateParts(
+  iso: string,
+): { year: number; month: number; day: number } | null {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return { year: +match[1], month: +match[2], day: +match[3] };
+}
+
+export function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+// ─── Normalization ─────────────────────────────────────────────────────
 
 export type DateInputKind =
   | "date"
@@ -38,16 +76,12 @@ function toFixedUTC(d: Date): string {
 /**
  * Get the UTC calendar date components from a Date.
  */
-function utcDateParts(d: Date): { year: number; month: number; day: number } {
+function dateUtcDateParts(d: Date): { year: number; month: number; day: number } {
   return {
     year: d.getUTCFullYear(),
     month: d.getUTCMonth() + 1,
     day: d.getUTCDate(),
   };
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
 }
 
 /**
@@ -62,8 +96,8 @@ function emitDateFixedZero(input: string): string {
   // Full ISO → parse, extract UTC calendar date, emit fixed-zero
   const d = parseAsLocal(input);
   if (!d || isNaN(d.getTime())) return "";
-  const { year, month, day } = utcDateParts(d);
-  return `${year}-${pad(month)}-${pad(day)}T00:00:00Z`;
+  const { year, month, day } = dateUtcDateParts(d);
+  return `${year}-${pad2(month)}-${pad2(day)}T00:00:00Z`;
 }
 
 /**

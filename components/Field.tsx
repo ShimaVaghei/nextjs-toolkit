@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
-import { normalizeDateInput, type DateInputKind, type FieldDateRangeValue } from "@/lib/date-normalize";
-import { DATE_DISPLAY_FORMAT, DATETIME_DISPLAY_FORMAT } from "@/lib/date-display";
+import {
+  DATE_DISPLAY_FORMAT,
+  DATETIME_DISPLAY_FORMAT,
+  normalizeDateInput,
+  pad2,
+  utcDateParts,
+  type DateInputKind,
+  type FieldDateRangeValue,
+} from "@/lib/date";
 
 type FieldKind =
   | "input"
@@ -931,34 +938,16 @@ const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function utcDateParts(iso: string): { year: number; month: number; day: number } | null {
-  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) return null;
-  return { year: +match[1], month: +match[2], day: +match[3] };
+function formatCellLabel(year: number, month: number, day: number): string {
+  return CELL_LABEL_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)));
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
+function formatMonthYear(year: number, month: number): string {
+  return MONTH_YEAR_FORMATTER.format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-function formatCellLabel(year: number, month: number, day: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(Date.UTC(year, month - 1, day)));
-}
-
-function formatMonthYear(year: number, month: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-  }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 function extractYearBound(iso: string | undefined): number | null {
