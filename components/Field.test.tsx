@@ -5687,6 +5687,31 @@ describe("DateTimeRangeField — calendar widget", () => {
     expect(fromTime).not.toBe(toTime);
   });
 
+  it("seeds start/end time controls with the field's displayed (local) times", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-10T09:00:00Z", to: "2025-03-24T17:30:00Z" }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // The popup must show the same wall-clock times as the closed face,
+    // i.e. the stored UTC instants rendered in the browser-local timezone
+    // (same convention as the single datetime kind).
+    const fromLocal = new Date("2025-03-10T09:00:00Z");
+    const toLocal = new Date("2025-03-24T17:30:00Z");
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    expect(screen.getByLabelText("Start hour")).toHaveValue(pad2(fromLocal.getHours()));
+    expect(screen.getByLabelText("Start minute")).toHaveValue(pad2(fromLocal.getMinutes()));
+    expect(screen.getByLabelText("End hour")).toHaveValue(pad2(toLocal.getHours()));
+    expect(screen.getByLabelText("End minute")).toHaveValue(pad2(toLocal.getMinutes()));
+  });
+
   it("fresh date pick seeds midnight in start time control", async () => {
     render(<DateTimeRangeHarness />);
 

@@ -917,12 +917,6 @@ function utcDateParts(iso: string): { year: number; month: number; day: number }
   return { year: +match[1], month: +match[2], day: +match[3] };
 }
 
-function utcTimeParts(iso: string): { hour: number; minute: number } | null {
-  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (!match) return null;
-  return { hour: +match[4], minute: +match[5] };
-}
-
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -1981,20 +1975,23 @@ function Field<K extends FieldKind = "input", T = unknown>({
         setRangeEndDate(undefined);
       }
       
-      // Initialize time controls for datetime-range
+      // Initialize time controls for datetime-range.
+      // The time controls are browser-local wall-clock (same convention as
+      // the single datetime kind and the closed-face display), so extract
+      // the local hour/minute of the stored UTC instants.
       if (kind === "datetime-range" && rangeValue) {
         if (rangeValue.from) {
-          const fromTimeParts = utcTimeParts(rangeValue.from);
-          if (fromTimeParts) {
-            setStartTimeHour(pad2(fromTimeParts.hour));
-            setStartTimeMinute(pad2(fromTimeParts.minute));
+          const fromDate = new Date(rangeValue.from);
+          if (!isNaN(fromDate.getTime())) {
+            setStartTimeHour(pad2(fromDate.getHours()));
+            setStartTimeMinute(pad2(fromDate.getMinutes()));
           }
         }
         if (rangeValue.to) {
-          const toTimeParts = utcTimeParts(rangeValue.to);
-          if (toTimeParts) {
-            setEndTimeHour(pad2(toTimeParts.hour));
-            setEndTimeMinute(pad2(toTimeParts.minute));
+          const toDate = new Date(rangeValue.to);
+          if (!isNaN(toDate.getTime())) {
+            setEndTimeHour(pad2(toDate.getHours()));
+            setEndTimeMinute(pad2(toDate.getMinutes()));
           }
         }
       }
