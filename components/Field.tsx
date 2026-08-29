@@ -1963,7 +1963,11 @@ function Field<K extends FieldKind = "input", T = unknown>({
           setDraftDay(fromParts.day);
           setDraft(`${fromParts.year}-${pad2(fromParts.month)}-${pad2(fromParts.day)}`);
         }
-        setRangeAnchor(rangeValue.from);
+        setRangeAnchor(
+          fromParts
+            ? `${fromParts.year}-${pad2(fromParts.month)}-${pad2(fromParts.day)}`
+            : undefined,
+        );
       } else {
         setRangeAnchor(undefined);
       }

@@ -5774,6 +5774,39 @@ describe("DateTimeRangeField — calendar widget", () => {
     expect(lastCall.to).toBe(expectedTo);
   });
 
+  it("apply after changing only times keeps both dates", async () => {
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateTimeRangeHarness handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-10T09:00:00Z", to: "2025-03-24T17:00:00Z" }),
+    );
+
+    const trigger = screen.getByRole("button", { name: /Window/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Change only the start time
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Start hour"), { target: { value: "11" } });
+    });
+
+    // Click Apply
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.mouseDown(apply);
+    });
+
+    // Both ends must survive with the updated start time
+    const value = handle.current!.getValue() as FieldDateRangeValue;
+    expect(value.from).toBeDefined();
+    expect(value.to).toBeDefined();
+    // Start hour changed to 11; start minute keeps the seeded 30
+    const expectedFrom = new Date(2025, 2, 10, 11, 30, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
+    expect(value.from).toBe(expectedFrom);
+  });
+
   it("closed face joins datetime range with ' – '", async () => {
     const handle = createRef<FieldHandle<FieldDateRangeValue>>();
     render(<DateTimeRangeHarness handleRef={handle} />);
