@@ -101,7 +101,12 @@ export function CalendarPopup({
   // value changes mid-open (range streaming updates it), so the value rides a
   // ref rather than the seed's dependency list.
   const valueRef = useRef(value);
-  valueRef.current = value;
+  // The latest value lands in the ref in an effect (refs stay read-only during
+  // render), declared before the seed effect so an open-transition render
+  // seeds from the same commit's value.
+  useEffect(() => {
+    valueRef.current = value;
+  });
 
   const seedFromValue = useCallback(() => {
     const current = valueRef.current;
@@ -177,10 +182,13 @@ export function CalendarPopup({
     if (open) seedFromValue();
   }, [open, seedFromValue]);
 
-  // Reset the overlay when the popup closes.
-  useEffect(() => {
+  // Reset the overlay when the popup closes. Derived-state pattern: the reset
+  // happens during render when `open` flips, which the compiler rules accept.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setShowOverlay(false);
-  }, [open]);
+  }
 
   // Focus return: hand focus back to the trigger whenever the popup closes.
   const prevOpenRef = useRef(open);
@@ -429,7 +437,8 @@ const handleGridKeyDown = (e: React.KeyboardEvent) => {
 
     const d = utcDateParts(draft);
     if (!d) return;
-    let { year, month, day } = d;
+    let { year, month } = d;
+    const day = d.day;
     const dim = daysInMonth(year, month);
 
     const nav = (delta: number) => {

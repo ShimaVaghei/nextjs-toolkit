@@ -2934,7 +2934,7 @@ describe("DateField — engine value model", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -2957,7 +2957,7 @@ describe("DateField — engine value model", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2025-12-31T00:00:00Z" as any } }}
+        overrides={{ validator: { max: "2025-12-31T00:00:00Z" } }}
       />,
     );
 
@@ -3052,7 +3052,7 @@ describe("DateTimeField — engine value model", () => {
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" } }}
       />,
     );
 
@@ -3145,8 +3145,8 @@ describe("DateRangeField — engine value model", () => {
         handleRef={handle}
         overrides={{
           validator: {
-            min: "2025-06-01T00:00:00Z" as any,
-            max: "2025-12-31T00:00:00Z" as any,
+            min: "2025-06-01T00:00:00Z",
+            max: "2025-12-31T00:00:00Z",
           },
         }}
       />,
@@ -3199,7 +3199,7 @@ describe("DateRangeField — engine value model", () => {
     render(<DateRangeHarness handleRef={handle} />);
 
     act(() =>
-      handle.current!.setValue({ from: "bad", to: "also-bad" } as any),
+      handle.current!.setValue({ from: "bad", to: "also-bad" }),
     );
     expect(handle.current!.getValue()).toEqual({
       from: undefined,
@@ -3270,8 +3270,8 @@ describe("DateTimeRangeField — engine value model", () => {
         handleRef={handle}
         overrides={{
           validator: {
-            min: "2025-06-01T00:00:00Z" as any,
-            max: "2025-12-31T23:59:59Z" as any,
+            min: "2025-06-01T00:00:00Z",
+            max: "2025-12-31T23:59:59Z",
           },
         }}
       />,
@@ -3481,7 +3481,7 @@ describe("DateField — calendar widget", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" } }}
       />,
     );
 
@@ -4177,7 +4177,7 @@ describe("DateField — month panel", () => {
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
     // Header should reflect the selected month/year
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("header label remains visible and clickable after month selection", async () => {
@@ -4210,15 +4210,16 @@ describe("DateField — month panel", () => {
       fireEvent.mouseDown(monthButton);
     });
 
-    // Header should still be visible and clickable
-    expect(headerButton).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    // Header should still be visible and clickable — fresh query, because toggling
+    // the overlay replaces the header node and the earlier reference goes stale.
+    const freshHeader = screen.getByRole("button", { name: "Choose year" });
+    expect(freshHeader).toBeInTheDocument();
+    expect(freshHeader).toHaveTextContent("March 2024");
 
     // Click header to re-open year panel
     await act(async () => {
-      fireEvent.mouseDown(headerButton);
+      fireEvent.mouseDown(freshHeader);
     });
-
     expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
   });
 
@@ -4381,7 +4382,7 @@ describe("DateField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
 
     // Focus should move to the selected day button within the day grid
     const selectedDay = screen.getByRole("gridcell", { name: /March 15, 2024/ });
@@ -4462,7 +4463,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -4500,7 +4501,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2026-06-01" as any } }}
+        overrides={{ validator: { max: "2026-06-01" } }}
       />,
     );
 
@@ -4535,7 +4536,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -4569,7 +4570,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2016-01-01" as any } }}
+        overrides={{ validator: { min: "2016-01-01" } }}
       />,
     );
 
@@ -4598,7 +4599,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2027-01-01" as any } }}
+        overrides={{ validator: { max: "2027-01-01" } }}
       />,
     );
 
@@ -4627,7 +4628,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -4700,7 +4701,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -4738,7 +4739,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -4762,7 +4763,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2025-06-30" as any } }}
+        overrides={{ validator: { max: "2025-06-30" } }}
       />,
     );
 
@@ -4782,7 +4783,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
   });
 });
 
-import { resolveCalendarPlacement } from "./Field";
+import { resolveCalendarPlacement } from "./calendar/calendarShared";
 
 describe("resolveCalendarPlacement", () => {
   it("opens below when there is enough space under the field", () => {
@@ -5065,8 +5066,8 @@ describe("DateRangeField — calendar widget", () => {
         handleRef={handle}
         overrides={{
           validator: {
-            min: "2025-06-01T00:00:00Z" as any,
-            max: "2025-12-31T00:00:00Z" as any,
+            min: "2025-06-01T00:00:00Z",
+            max: "2025-12-31T00:00:00Z",
           },
         }}
       />,
@@ -5662,7 +5663,7 @@ describe("DateTimeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("Escape from month panel closes the calendar popup", async () => {
@@ -5791,7 +5792,7 @@ describe("DateTimeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 });
 
@@ -5803,7 +5804,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -5835,7 +5836,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -5876,7 +5877,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -5908,7 +5909,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -6222,7 +6223,7 @@ describe("DateRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("Escape from month panel closes the calendar popup", async () => {
@@ -6309,7 +6310,7 @@ describe("DateRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 });
 
@@ -6321,7 +6322,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -6356,7 +6357,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -6400,7 +6401,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -6435,7 +6436,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -6752,7 +6753,7 @@ describe("DateTimeRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("Escape from month panel closes the calendar popup", async () => {
@@ -6839,7 +6840,7 @@ describe("DateTimeRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 });
 
@@ -6851,7 +6852,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -6886,7 +6887,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -6930,7 +6931,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -6965,7 +6966,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 

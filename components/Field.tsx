@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
@@ -19,6 +19,8 @@ import {
   warnUnfittedRules,
   type FieldInputType,
   type FieldKind,
+  type FieldMaxRule,
+  type FieldMinRule,
   type FieldValidator,
 } from "@/lib/field-validation";
 
@@ -84,7 +86,7 @@ type FieldCommonConfig<V> = {
   label: string;
   /**
    * Optional mount-time seed: read exactly once when the Field mounts, then
-   * ignored â€” undefined seeds nothing. A changed prop after mount draws a
+   * ignored — undefined seeds nothing. A changed prop after mount draws a
    * dev-only warning; live control flows only through user edits, setValue,
    * and onValueChange observation.
    */
@@ -106,7 +108,7 @@ type FieldChoiceConfig<T> = {
   options?: FieldOption<T>[] | (() => Promise<FieldOption<T>[]>);
   /**
    * Matching override: replaces Object.is reference identity everywhere
-   * consistently â€” closed-face resolution, popup checkbox states, chip
+   * consistently — closed-face resolution, popup checkbox states, chip
    * membership, and staleness detection. `a` is an Option's value, `b` the
    * held value.
    */
@@ -121,7 +123,7 @@ type FieldChoiceConfig<T> = {
 /**
  * Muted hint text a Field shows while it holds nothing: the native attribute
  * on input and textarea kinds, the closed-face text on select, the empty
- * chip strip's text on multi-select. Checkbox has none. Purely visual â€”
+ * chip strip's text on multi-select. Checkbox has none. Purely visual —
  * inert, aria-hidden, never part of the value pipeline.
  */
 type FieldPlaceholderConfig = {
@@ -130,13 +132,13 @@ type FieldPlaceholderConfig = {
 
 /**
  * Internal superset the shared Field component reads from, generic over the
- * Field kind: K picks the value shape (input â†’ string | number,
- * textarea â†’ string, checkbox â†’ boolean) and T is the Option value type the
- * choice kinds (select â†’ T, multi-select â†’ T[]) carry through Initial, the
+ * Field kind: K picks the value shape (input → string | number,
+ * textarea → string, checkbox → boolean) and T is the Option value type the
+ * choice kinds (select → T, multi-select → T[]) carry through Initial, the
  * observer, and the Handle. Composed from the same building blocks as the
  * public per-kind configs, plus the props individual kinds add; each wrapper
  * component stamps its own literal kind and exposes a kindless alias
- * (FieldInputConfig, FieldSelectConfig<T>, â€¦), so no config a caller writes
+ * (FieldInputConfig, FieldSelectConfig<T>, …), so no config a caller writes
  * ever carries a `kind`.
  */
 type FieldConfig<K extends FieldKind = "input", T = unknown> =
@@ -237,7 +239,7 @@ const CHECKBOX_LABEL_CLASS =
 
 /**
  * Wrapping chip strip (Selection display `chips`): grows with the selection up
- * to about three rows, scrolling internally past that â€” no horizontal scrollbar.
+ * to about three rows, scrolling internally past that — no horizontal scrollbar.
  */
 const CHIP_STRIP_CLASS =
   "field-chip-strip flex max-h-24 min-h-11 min-w-0 flex-1 flex-wrap content-start items-center gap-1.5 overflow-y-auto rounded-md border border-neutral-300 bg-white px-2 py-1 " +
@@ -285,7 +287,7 @@ const ROW_LABEL_CLASS =
 const ROW_LABEL_ENABLED_CLASS = " cursor-pointer hover:bg-neutral-100 focus-within:bg-neutral-100 dark:hover:bg-neutral-800 dark:focus-within:bg-neutral-800";
 
 /**
- * Inert affordances for a disabled row â€” composed exclusively rather than
+ * Inert affordances for a disabled row — composed exclusively rather than
  * overridden, since a label never matches :disabled.
  */
 const ROW_LABEL_DISABLED_CLASS = " cursor-not-allowed opacity-60";
@@ -319,8 +321,8 @@ function isNumberInput(
 }
 
 /**
- * Number-input coercion: non-empty parseable â†’ Number(raw); empty or
- * whitespace-only â†’ ""; non-empty garbage â†’ NaN (counts as Empty at runtime).
+ * Number-input coercion: non-empty parseable → Number(raw); empty or
+ * whitespace-only → ""; non-empty garbage → NaN (counts as Empty at runtime).
  */
 function coerceNumberInput(raw: string): FieldValue {
   return raw.trim() === "" ? "" : Number(raw);
@@ -328,7 +330,7 @@ function coerceNumberInput(raw: string): FieldValue {
 
 /**
  * Matching ties a held value to an Option: reference identity by default, or
- * the config's matchValue override â€” applied identically at every decision
+ * the config's matchValue override — applied identically at every decision
  * point (closed face, popup checkbox states, chip membership, staleness).
  */
 type MatchFn = (a: unknown, b: unknown) => boolean;
@@ -359,7 +361,7 @@ function describedStaleValue(value: unknown): string {
 /**
  * Stable cross-render Chip identity for unbounded values, which cannot key
  * React trees or ref maps directly. Objects and functions get a monotonically
- * increasing id in a module-level WeakMap â€” stable for the value's lifetime,
+ * increasing id in a module-level WeakMap — stable for the value's lifetime,
  * collectable afterwards; primitives get their type prefixed to their string
  * form so lookalikes never collide. Surviving Chips keep their DOM nodes
  * across removals, which the focus hop relies on.
@@ -407,7 +409,7 @@ function resolveChips(
   optionsAuthoritative: boolean,
 ): { entries: Chip[]; staleValues: unknown[] } {
   const chips: Chip[] = [];
-  // Which held values Match some Option â€” computed once, reused by both the
+  // Which held values Match some Option — computed once, reused by both the
   // staleness report and the fallback-Chip pass below.
   const matchesAnOption = values.map((value) =>
     options.some((option) => matches(option.value, value)),
@@ -454,7 +456,7 @@ function resolveChips(
 /**
  * What the closed face of a select renders for its current value for its current value: the ghost while
  * Empty, the matched Option's label (a held disabled Option stays legal under
- * keepDisabledSelection), or the Fallback â€” a demoted Option still renders its
+ * keepDisabledSelection), or the Fallback — a demoted Option still renders its
  * label; an unmatched primitive renders its string form and an unmatched
  * non-primitive renders "(unknown option)". While Options are not yet
  * authoritative (a load is Pending or Rejected) a held selection is
@@ -491,14 +493,14 @@ function resolveSelectFace(
 type OptionLoadStatus = "pending" | "resolved" | "rejected";
 
 /**
- * Seed-once comparison: Matching-aware identity â€” Object.is unless the
- * config overrides it â€” with a shallow elementwise pass for arrays so a
+ * Seed-once comparison: Matching-aware identity — Object.is unless the
+ * config overrides it — with a shallow elementwise pass for arrays so a
  * re-created-but-equal literal (the common multi-select call site, including
  * object-valued Options under a matchValue) does not read as a changed
  * Initial value.
  */
 function sameInitial(a: unknown, b: unknown, matches: MatchFn): boolean {
-  // Absent Initial values are not values â€” they seed nothing, so they never
+  // Absent Initial values are not values — they seed nothing, so they never
   // reach the matcher, whose contract assumes its domain shape (an
   // object-keyed override would throw on undefined). No-seed vs no-seed is
   // quiet; no-seed vs a seed counts as a changed Initial.
@@ -579,9 +581,23 @@ function OptionsPopup({
 
 
 /**
+ * A date kind's Min/Max rule value as the ISO date string the calendar module
+ * consumes — rules may be a bare string or an object carrying the value.
+ */
+function coerceDateBound(
+  rule: FieldMinRule | FieldMaxRule | undefined,
+): string | undefined {
+  if (typeof rule === "string") return rule;
+  if (typeof rule === "object" && rule && "value" in rule) {
+    return String(rule.value);
+  }
+  return undefined;
+}
+
+/**
  * The shared engine behind the five public Field components: renders exactly
  * one labeled control for the stamped kind and owns the value lifecycle.
- * Not exported â€” callers pick a wrapper (InputField, SelectField, â€¦), which
+ * Not exported — callers pick a wrapper (InputField, SelectField, …), which
  * fixes the kind.
  */
 function Field<K extends FieldKind = "input", T = unknown>({
@@ -625,8 +641,8 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   // The Field owns its value: the Initial value seeds it exactly once at
   // mount; afterwards every change flows through commitValue below. The
-  // internal value is unbounded â€” choice kinds carry whatever their Options
-  // carry â€” so it is held as unknown and only the types narrow it.
+  // internal value is unbounded — choice kinds carry whatever their Options
+  // carry — so it is held as unknown and only the types narrow it.
   const [value, setValueState] = useState<unknown>(initialValue);
   const valueRef = useRef<unknown>(initialValue);
 
@@ -664,17 +680,9 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const searchRef = useRef<HTMLInputElement>(null);
   const chipRemoveRefs = useRef(new Map<string, HTMLButtonElement>());
 
-  // â”€â”€â”€ Calendar state (date kinds only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Calendar state (date kinds only) ──────────────────────────────
   const [calendarOpen, setCalendarOpen] = useState(false);
   const isRangeKind = kind === "date-range" || kind === "datetime-range";
-
-
-
-
-
-
-
-
 
   const closeCalendar = useCallback(() => {
     setCalendarOpen(false);
@@ -683,6 +691,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const toggleCalendar = useCallback(() => {
     setCalendarOpen((wasOpen) => !wasOpen);
   }, []);
+
 
   // Async Option load lifecycle (loader-form configs only): Pending until the
   // mount-fired loader settles, then Resolved with the Options or Rejected.
@@ -701,7 +710,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
   });
 
   /**
-   * One honest pipeline for every committed change, however caused â€” user
+   * One honest pipeline for every committed change, however caused — user
    * edit or setValue: install the value internally, notify the observer, and
    * re-evaluate the Error when Touched. The observer's narrowed parameter is
    * widened here once: only kind-appropriate values ever reach this pipeline.
@@ -728,6 +737,28 @@ function Field<K extends FieldKind = "input", T = unknown>({
       );
     }
   }, [kind, inputType]);
+
+  /**
+   * The blur-equivalent: mark Touched and re-evaluate the Error against the
+   * latest committed value (date commits run through commitValue above first,
+   * so valueRef already carries the normalized result).
+   */
+  const touchAndValidate = () => {
+    setTouched(true);
+    setError(
+      evaluate(kind, inputType, configRef.current.validator, valueRef.current, true),
+    );
+  };
+
+  /**
+   * Calendar commit: the popup hands back the raw draft; Field runs it
+   * through the same pipeline as a user edit — normalization inside
+   * commitValue, then the Touched + Error re-evaluation a blur performs.
+   */
+  const handleCalendarCommit = (rawDraft: string | FieldDateRangeValue) => {
+    commitValue(rawDraft);
+    touchAndValidate();
+  };
 
 
 
@@ -817,7 +848,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
   );
 
   // The description is computed during render so the effect's dependencies
-  // stay primitive â€” it re-fires only when the unmatched value changes.
+  // stay primitive — it re-fires only when the unmatched value changes.
   const staleDescription =
     isStale && face.kind === "fallback"
       ? describedStaleValue(face.value)
@@ -897,7 +928,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
   };
 
   const toggleOption = (option: FieldOption) => {
-    // In-panel toggles announce nothing extra â€” clear any pending removal
+    // In-panel toggles announce nothing extra — clear any pending removal
     // message so a repeated removal re-announces with fresh text.
     setAnnouncement(null);
     const kept = selectedValues.filter(
@@ -953,6 +984,15 @@ function Field<K extends FieldKind = "input", T = unknown>({
   };
 
 
+  // Escape anywhere in the widget closes the panel and returns focus to the
+  // trigger that opened it. The calendar popup owns its own Escape handling.
+  const handleWidgetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" && open) {
+      closePanel();
+      triggerRef.current?.focus();
+    }
+  };
+
   // Pointer-down outside the widget closes the panel without moving focus.
   useEffect(() => {
     if (!open) {
@@ -970,7 +1010,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
   }, [closePanel, open]);
 
   const toggleOpen = () => {
-    // The popup only ever opens once options are resolved â€” Pending and
+    // The popup only ever opens once options are resolved — Pending and
     // Rejected refuse outright, independent of the disabled open button.
     if (!open && optionsLoadBlocked) {
       return;
@@ -980,6 +1020,27 @@ function Field<K extends FieldKind = "input", T = unknown>({
     } else {
       setOpen(true);
     }
+  };
+
+  // Focus leaving the whole widget (Tab-out or otherwise) closes the panel
+  // naturally — no trap — and counts as leaving the field for the Touched
+  // lifecycle. Internal focus moves are ignored. One null-relatedTarget blur
+  // is exempt: a row press absorbed its own mousedown, so focus dissolves
+  // before the click can reach the checkbox — closing there would unmount
+  // the panel and eat the toggle.
+  const handleWidgetBlur = (event: FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && widgetRef.current?.contains(next)) {
+      return;
+    }
+    if (open && next === null && absorbedPressRef.current) {
+      absorbedPressRef.current = false;
+      return;
+    }
+    if (open) {
+      closePanel();
+    }
+    touchAndValidate();
   };
 
 
@@ -992,7 +1053,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   // The search filters resolved Options client-side; filtered rows leave the
   // accessibility tree because they are not rendered at all. Rows carry their
-  // position in the full Options list as a stable key â€” unbounded values
+  // position in the full Options list as a stable key — unbounded values
   // cannot key React trees themselves.
   const query = search.trim().toLowerCase();
   const panelRows = selectOptions
@@ -1015,7 +1076,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   // NaN and seeded-nothing display as Empty; React would otherwise stringify
   // them into the control. Checkboxes render `checked` instead, so booleans
-  // never reach this value â€” and nothing else an unbounded value could be
+  // never reach this value — and nothing else an unbounded value could be
   // (objects, arrays) belongs in a textual control.
   const displayValue: string | number =
     typeof value === "number"
@@ -1039,7 +1100,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
     <div className={className}>
       {kind === "multi-select" ? (
         <>
-          {/* The visible label names the closed-face group via aria-labelledby â€” never content-computed. */}
+          {/* The visible label names the closed-face group via aria-labelledby — never content-computed. */}
           <label id={labelId} className={LABEL_CLASS}>
             {label}
             {requiredMarker}
@@ -1301,8 +1362,6 @@ function Field<K extends FieldKind = "input", T = unknown>({
               <div
                 ref={widgetRef}
                 className="relative mt-1.5"
-                onBlur={handleWidgetBlur}
-                onKeyDown={handleWidgetKeyDown}
               >
                 <button
                   type="button"
@@ -1334,9 +1393,9 @@ function Field<K extends FieldKind = "input", T = unknown>({
                           };
                           const fromStr = formatSingle(rangeVal.from);
                           const toStr = formatSingle(rangeVal.to);
-                          if (fromStr && toStr) return `${fromStr} â€“ ${toStr}`;
-                          if (fromStr) return `${fromStr} â€“`;
-                          if (toStr) return `â€“ ${toStr}`;
+                          if (fromStr && toStr) return `${fromStr} – ${toStr}`;
+                          if (fromStr) return `${fromStr} –`;
+                          if (toStr) return `– ${toStr}`;
                           return "";
                         })()
                       ) : null
@@ -1365,6 +1424,18 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   </svg>
                 </button>
 
+                <CalendarPopup
+                  kind={kind as DateInputKind}
+                  value={value as string | FieldDateRangeValue | undefined}
+                  min={coerceDateBound(config.validator?.min)}
+                  max={coerceDateBound(config.validator?.max)}
+                  triggerRef={triggerRef}
+                  open={calendarOpen}
+                  onClose={closeCalendar}
+                  onCommit={handleCalendarCommit}
+                  panelId={calendarId}
+                  gridId={calendarGridId}
+                />
               </div>
             </>
           )}
@@ -1378,7 +1449,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
           loadStatus === "pending" ? (
             <span className="flex items-center gap-1.5">
               {OPTION_LOAD_SPINNER}
-              Loading optionsâ€¦
+              Loading options…
             </span>
           ) : (
             <>
@@ -1442,7 +1513,7 @@ export type FieldSelectConfig<T = unknown> = FieldCommonConfig<T> &
  * The config for a MultiSelectField: `initialValue`, `onValueChange`,
  * Options, and `matchValue` narrow to T, the Option value type; the Field
  * holds a `T[]`. `selectionDisplay` chooses how the selection renders inside
- * the control â€” `chips` or `text`, defaulting to `text`.
+ * the control — `chips` or `text`, defaulting to `text`.
  */
 export type FieldMultiSelectConfig<T = unknown> = FieldCommonConfig<T[]> &
   FieldChoiceConfig<T> &
@@ -1519,7 +1590,7 @@ export function SelectField<T>({
 
 /**
  * A multi-select Field: multiple choice from searchable Options. The
- * Selection display picks the closed face â€” a comma-joined text line by
+ * Selection display picks the closed face — a comma-joined text line by
  * default, or removable Chips via `selectionDisplay: "chips"`.
  */
 export function MultiSelectField<T>({
