@@ -155,7 +155,7 @@ The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/
 _Avoid_: rules, schema, validation config, Validator
 
 **Placeholder**:
-Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select, the empty trigger-face text on the date kinds; checkbox has none. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
+Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select, the empty trigger-face text on the date kinds; checkbox has none. The shared Options popup's search box carries its own fixed native placeholder, "Search options", mirroring its sr-only label. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
 _Avoid_: ghost, hint
 
 **Empty**:

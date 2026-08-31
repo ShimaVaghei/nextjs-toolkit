@@ -1049,6 +1049,14 @@ describe("Field select popup", () => {
     expect(selectTrigger("Country")).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("shows a visible placeholder on the popup's search input", () => {
+    render(<SelectHarness overrides={SELECT_OVERRIDES} />);
+    fireEvent.click(selectTrigger("Country"));
+    expect(
+      screen.getByRole("textbox", { name: "Search options" }),
+    ).toHaveAttribute("placeholder", "Search options");
+  });
+
   it("shares the multi-select's popup structure: search outside a legend-named group of rows", () => {
     render(<SelectHarness overrides={SELECT_OVERRIDES} />);
 
@@ -1684,6 +1692,14 @@ describe("Field multi-select closed face", () => {
     expect(
       screen.getByRole("button", { name: "Remove Design" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows a visible placeholder on the popup's search input", () => {
+    render(<MultiSelectHarness overrides={tagOverrides()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    expect(
+      screen.getByRole("textbox", { name: "Search options" }),
+    ).toHaveAttribute("placeholder", "Search options");
   });
 
   it("keeps a separate open button beside the strip when the Selection display is chips", () => {

@@ -566,6 +566,7 @@ function OptionsPopup({
         id={searchId}
         type="text"
         value={search}
+        placeholder="Search options"
         onChange={(event) => onSearchChange(event.target.value)}
         className={`${CONTROL_CLASS} mt-0`}
       />
