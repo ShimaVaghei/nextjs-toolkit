@@ -1404,9 +1404,13 @@ function Field<K extends FieldKind = "input", T = unknown>({
                           const rangeVal = faceValue as FieldDateRangeValue;
                           const formatSingle = (iso: string | undefined) => {
                             if (!iso) return "";
-                            return kind === "date-range" 
-                              ? DATE_DISPLAY_FORMAT.format(new Date(iso))
-                              : DATETIME_DISPLAY_FORMAT.format(new Date(iso));
+                            const d = new Date(iso);
+                            // Defensive: a mid-edit draft can be unparseable;
+                            // Intl format throws RangeError on invalid dates.
+                            if (Number.isNaN(d.getTime())) return "";
+                            return kind === "date-range"
+                              ? DATE_DISPLAY_FORMAT.format(d)
+                              : DATETIME_DISPLAY_FORMAT.format(d);
                           };
                           const fromStr = formatSingle(rangeVal.from);
                           const toStr = formatSingle(rangeVal.to);
@@ -1417,11 +1421,15 @@ function Field<K extends FieldKind = "input", T = unknown>({
                         })()
                       ) : null
                     ) : faceValue ? (
-                      kind === "date" ? (
-                        DATE_DISPLAY_FORMAT.format(new Date(String(faceValue)))
-                      ) : (
-                        DATETIME_DISPLAY_FORMAT.format(new Date(String(faceValue)))
-                      )
+                      (() => {
+                        const d = new Date(String(faceValue));
+                        // Defensive: a mid-edit draft can be unparseable;
+                        // Intl format throws RangeError on invalid dates.
+                        if (Number.isNaN(d.getTime())) return "";
+                        return kind === "date"
+                          ? DATE_DISPLAY_FORMAT.format(d)
+                          : DATETIME_DISPLAY_FORMAT.format(d);
+                      })()
                     ) : null}
                     {!isRangeKind && !faceValue && placeholder}
                   </span>

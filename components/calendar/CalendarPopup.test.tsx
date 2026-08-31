@@ -278,6 +278,33 @@ describe("CalendarPopup — draft preview", () => {
     fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "30" } });
     expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-15T22:30:00");
   });
+  it("pads a single-digit hour slice in the streamed draft", () => {
+    const onDraftPreview = vi.fn();
+    render(<PopupHarness kind="datetime" value="2024-03-15T14:30:00Z" open onDraftPreview={onDraftPreview} />);
+    // Pin both slices first so the expectation is seed/timezone-independent.
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "22" } });
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "1" } });
+    expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-15T01:30:00");
+  });
+
+  it("treats a cleared hour slice as 00 in the streamed draft", () => {
+    const onDraftPreview = vi.fn();
+    render(<PopupHarness kind="datetime" value="2024-03-15T14:30:00Z" open onDraftPreview={onDraftPreview} />);
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "" } });
+    expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-15T00:30:00");
+  });
+
+  it("pads and clamps a cleared/single-digit minute slice in the streamed draft", () => {
+    const onDraftPreview = vi.fn();
+    render(<PopupHarness kind="datetime" value="2024-03-15T14:30:00Z" open onDraftPreview={onDraftPreview} />);
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "14" } });
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "" } });
+    expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-15T14:00:00");
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "5" } });
+    expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-15T14:05:00");
+  });
 
   it("does not stream while closed", () => {
     const onDraftPreview = vi.fn();

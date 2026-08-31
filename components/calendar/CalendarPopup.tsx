@@ -195,6 +195,12 @@ export function CalendarPopup({
   // both what Apply commits and what the preview streams, so the two can
   // never drift. Returns null while the draft is unbuildable (pre-seed, or
   // a range pick with no anchor yet).
+  // Time slices are read from free-typed inputs and can be a single digit or
+  // empty mid-edit; normalizing here guarantees the emitted string is always
+  // fixed-width, parseable ISO (an empty/single-digit slice would otherwise
+  // produce an invalid instant and make the trigger face throw).
+  const normalizeSlice = (v: string, max: number) =>
+    pad2(Math.max(0, Math.min(max, parseInt(v, 10) || 0)));
   const buildDraftValue = useCallback((): string | FieldDateRangeValue | null => {
     if (!utcDateParts(draft)) return null;
     if (isRangeKind) {
@@ -203,13 +209,17 @@ export function CalendarPopup({
       const to = rangeAnchor < draft ? draft : rangeAnchor;
       if (kind === "datetime-range") {
         return {
-          from: `${from}T${startTimeHour}:${startTimeMinute}:00`,
-          to: rangeEndDate ? `${to}T${endTimeHour}:${endTimeMinute}:00` : undefined,
+          from: `${from}T${normalizeSlice(startTimeHour, 23)}:${normalizeSlice(startTimeMinute, 59)}:00`,
+          to: rangeEndDate
+            ? `${to}T${normalizeSlice(endTimeHour, 23)}:${normalizeSlice(endTimeMinute, 59)}:00`
+            : undefined,
         };
       }
       return { from, to: rangeEndDate ? to : undefined };
     }
-    return kind === "datetime" ? `${draft}T${timeHour}:${timeMinute}:00` : draft;
+    return kind === "datetime"
+      ? `${draft}T${normalizeSlice(timeHour, 23)}:${normalizeSlice(timeMinute, 59)}:00`
+      : draft;
   }, [
     draft,
     kind,
