@@ -16,7 +16,8 @@ import {
   DATE_DISPLAY_FORMAT,
   DATE_ONLY_PATTERN,
   DATETIME_DISPLAY_FORMAT,
-} from "@/lib/date-display";
+  pad2,
+} from "@/lib/date";
 
 export type TableColumnType =
   | "text"
@@ -278,10 +279,6 @@ function matchesFilter<T>(
     default:
       return false;
   }
-}
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
 }
 
 function buildDateTimeAttribute(date: Date, includeTime: boolean): string {

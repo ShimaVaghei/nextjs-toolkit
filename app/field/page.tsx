@@ -105,6 +105,21 @@ const tagsConfig: FieldMultiSelectConfig<string> = {
   ],
 };
 
+const tagChipsConfig: FieldMultiSelectConfig<string> = {
+  label: "Tags (chips)",
+  placeholder: "Pick some tags",
+  hint: "Chips Selection display: one removable chip per selected Option in a strip that grows to about three rows; the separate Show options button opens the same popup.",
+  initialValue: ["design", "research", "a11y"],
+  selectionDisplay: "chips",
+  options: [
+    { label: "Design", value: "design" },
+    { label: "Research", value: "research" },
+    { label: "Engineering", value: "engineering" },
+    { label: "Documentation", value: "docs" },
+    { label: "Accessibility", value: "a11y" },
+  ],
+};
+
 const legacyPlanConfig: FieldSelectConfig<string> = {
   label: "Plan",
   initialValue: "starter",
@@ -388,17 +403,20 @@ export default function FieldDemoPage() {
             The Selection display picks the closed face. By default the labels
             join into one comma-separated line that truncates with an
             ellipsis — hover it for the whole string; removal happens inside
-            the popup. Opting into{" "}
+            the popup, and the strip itself opens it, like the select kind.
+            Opting into{" "}
             <code className="font-mono">selectionDisplay: &quot;chips&quot;</code>{" "}
             renders removable chips instead, in a strip that grows to about
-            three rows and scrolls past that. &ldquo;Show options&rdquo; opens
-            a plain disclosure popup: a search box filters the rows above a
-            group of native checkboxes. Opening lands focus on the search box,
+            three rows and scrolls past that, with a separate &ldquo;Show
+            options&rdquo; button opening a plain disclosure popup: a search
+            box filters the rows above a group of native checkboxes. Opening
+            lands focus on the search box,
             Escape returns it to the button, clicking outside closes quietly,
             and removing the focused chip hops focus to its neighbour.
           </p>
         </div>
         <MultiSelectField config={tagsConfig} />
+        <MultiSelectField config={tagChipsConfig} />
       </section>
 
       <section className="space-y-6">

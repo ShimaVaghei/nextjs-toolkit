@@ -461,462 +461,6 @@ describe("Field value ownership", () => {
   });
 });
 
-describe("Field required over Empty", () => {
-  it("counts whitespace-only values as Empty without altering the stored value", () => {
-    render(<InputHarness overrides={{ initialValue: "   " }} />);
-
-    const control = requiredControl("Name");
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent(
-      DEFAULT_REQUIRED_MESSAGE,
-    );
-    expect(control).toHaveValue("   ");
-  });
-
-  it("shows a custom message from a { value, message } pair", () => {
-    render(
-      <InputHarness
-        overrides={{
-          validator: {
-            required: { value: true, message: "Enter your name." },
-          },
-        }}
-      />,
-    );
-
-    const control = requiredControl("Name");
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent("Enter your name.");
-  });
-
-  it("skips required entirely when not configured", () => {
-    render(<InputHarness overrides={{ validator: undefined }} />);
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-  });
-});
-
-describe("Field Touched lifecycle", () => {
-  it("stays silent until Touched, reveals on first blur, and re-evaluates on every later change", () => {
-    render(<InputHarness />);
-
-    const control = requiredControl("Name");
-
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(
-      DEFAULT_REQUIRED_MESSAGE,
-    );
-    expect(control).toHaveAttribute("aria-invalid", "true");
-
-    fireEvent.change(control, { target: { value: "Ada" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-
-    fireEvent.change(control, { target: { value: "" } });
-    expect(errorParagraph(control)).toHaveTextContent(
-      DEFAULT_REQUIRED_MESSAGE,
-    );
-    expect(control).toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("never shouts while typing before the field is Touched, even with invalid values", () => {
-    render(<InputHarness />);
-
-    const control = requiredControl("Name");
-
-    fireEvent.change(control, { target: { value: "   " } });
-    fireEvent.change(control, { target: { value: "" } });
-    fireEvent.change(control, { target: { value: "  " } });
-
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(
-      DEFAULT_REQUIRED_MESSAGE,
-    );
-  });
-});
-
-describe("Field Validator rule set", () => {
-  it("enforces minLength on an input with the built-in default message and clears once satisfied", () => {
-    render(<InputHarness overrides={{ validator: { minLength: 3 } }} />);
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.change(control, { target: { value: "ab" } });
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent(
-      "Must be at least 3 characters.",
-    );
-    expect(control).toHaveAttribute("aria-invalid", "true");
-
-    fireEvent.change(control, { target: { value: "Ada" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-  });
-
-  it("enforces maxLength on a textarea with a custom { value, message } pair", () => {
-    render(
-      <TextareaHarness
-        overrides={{
-          validator: {
-            maxLength: { value: 5, message: "Keep it under five." },
-          },
-        }}
-      />,
-    );
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.change(control, { target: { value: "toolong" } });
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent("Keep it under five.");
-  });
-
-  it("enforces regex with the built-in default message and accepts a matching value", () => {
-    render(<InputHarness overrides={{ validator: { regex: /^\d+$/ } }} />);
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.change(control, { target: { value: "abc" } });
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent("Invalid format.");
-
-    fireEvent.change(control, { target: { value: "123" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-  });
-
-  it("enforces textual rules on textareas too, minLength taking precedence over regex", () => {
-    render(
-      <TextareaHarness
-        overrides={{ validator: { minLength: 3, regex: /^[a-z]+$/ } }}
-      />,
-    );
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.change(control, { target: { value: "a!" } });
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(
-      "Must be at least 3 characters.",
-    );
-
-    fireEvent.change(control, { target: { value: "abc!" } });
-    expect(errorParagraph(control)).toHaveTextContent("Invalid format.");
-
-    fireEvent.change(control, { target: { value: "abc" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-  });
-
-  it("enforces maxLength on an input with the built-in default message", () => {
-    render(<InputHarness overrides={{ validator: { maxLength: 2 } }} />);
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.change(control, { target: { value: "Ada" } });
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent(
-      "Must be at most 2 characters.",
-    );
-  });
-
-  it("honors custom { value, message } pairs for numeric and regex constraints", () => {
-    const numeric = render(
-      <InputHarness
-        overrides={{
-          inputType: "number",
-          validator: { min: { value: 1, message: "Too small." } },
-        }}
-      />,
-    );
-    const numericControl = numeric.getByRole("spinbutton", { name: "Name" });
-    fireEvent.change(numericControl, { target: { value: "-3.5" } });
-    fireEvent.blur(numericControl);
-    expect(errorParagraph(numericControl)).toHaveTextContent("Too small.");
-    numeric.unmount();
-
-    const pattern = render(
-      <InputHarness
-        overrides={{
-          validator: {
-            regex: { value: /^[a-z]+$/, message: "Lowercase letters only." },
-          },
-        }}
-      />,
-    );
-    const patternControl = pattern.getByRole("textbox", { name: "Name" });
-    fireEvent.change(patternControl, { target: { value: "ABC" } });
-    fireEvent.blur(patternControl);
-    expect(errorParagraph(patternControl)).toHaveTextContent(
-      "Lowercase letters only.",
-    );
-  });
-
-  it("enforces numeric min and max only on number inputs, with boundaries passing", () => {
-    render(
-      <InputHarness
-        overrides={{
-          inputType: "number",
-          validator: { min: 1, max: 10 },
-          initialValue: 5,
-        }}
-      />,
-    );
-
-    const control = screen.getByRole("spinbutton", { name: "Name" });
-
-    fireEvent.change(control, { target: { value: "-3.5" } });
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent("Must be 1 or greater.");
-
-    fireEvent.change(control, { target: { value: "42" } });
-    expect(errorParagraph(control)).toHaveTextContent("Must be 10 or less.");
-
-    fireEvent.change(control, { target: { value: "10" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-  });
-
-  it("ignores a rule that does not fit the kind with a dev-only warn naming the field and the rule", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      render(
-        <InputHarness
-          overrides={{
-            inputType: "number",
-            label: "Age",
-            validator: { minLength: 3 },
-          }}
-        />,
-      );
-      const warnCalls = () =>
-        warnSpy.mock.calls.filter((call) => typeof call[0] === "string");
-
-      const control = screen.getByRole("spinbutton", { name: "Age" });
-      fireEvent.change(control, { target: { value: "42" } });
-      fireEvent.blur(control);
-
-      expect(errorParagraph(control)).toHaveTextContent("");
-      expect(warnCalls()).toHaveLength(1);
-      const [message] = warnCalls()[0];
-      expect(message).toContain('"Age"');
-      expect(message).toContain('"minLength"');
-    } finally {
-      warnSpy.mockRestore();
-    }
-  });
-
-  it("ignores numeric rules on non-number inputs the same way", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      render(
-        <TextareaHarness
-          overrides={{ validator: { min: 1 } }}
-        />,
-      );
-
-      const control = screen.getByRole("textbox", { name: "Name" });
-      fireEvent.change(control, { target: { value: "anything" } });
-      fireEvent.blur(control);
-
-      expect(errorParagraph(control)).toHaveTextContent("");
-      const [message] = warnSpy.mock.calls.find(
-        (call) => typeof call[0] === "string",
-      )!;
-      expect(message).toContain('"Name"');
-      expect(message).toContain('"min"');
-    } finally {
-      warnSpy.mockRestore();
-    }
-  });
-
-  it("shows at most one Error — required wins while Empty, then textual rules take over", () => {
-    render(
-      <InputHarness
-        overrides={{ validator: { required: true, minLength: 3 } }}
-      />,
-    );
-
-    const control = requiredControl("Name");
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_REQUIRED_MESSAGE);
-
-    fireEvent.change(control, { target: { value: "ab" } });
-    expect(errorParagraph(control)).toHaveTextContent(
-      "Must be at least 3 characters.",
-    );
-  });
-});
-
-describe("Field email rule", () => {
-  const DEFAULT_EMAIL_MESSAGE = "Enter a valid email address.";
-
-  it("rejects a malformed address on an input with the built-in default message and clears once satisfied", () => {
-    render(<InputHarness overrides={{ validator: { email: true } }} />);
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-
-    // A pristine undefined value never reaches the textual rules…
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-
-    // …but once Touched, typed garbage fails the email check…
-    fireEvent.change(control, { target: { value: "not-an-email" } });
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
-    expect(control).toHaveAttribute("aria-invalid", "true");
-
-    // …and so does clearing back to Empty.
-    fireEvent.change(control, { target: { value: "" } });
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
-
-    fireEvent.change(control, { target: { value: "ada@example.com" } });
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
-  });
-
-  it("accepts a custom message from a { value, message } pair and stays inert when disabled", () => {
-    const custom = render(
-      <InputHarness
-        overrides={{
-          validator: {
-            email: { value: true, message: "That is not an email." },
-          },
-        }}
-      />,
-    );
-    const customControl = custom.getByRole("textbox", { name: "Name" });
-    fireEvent.change(customControl, { target: { value: "nope" } });
-    fireEvent.blur(customControl);
-    expect(errorParagraph(customControl)).toHaveTextContent(
-      "That is not an email.",
-    );
-    custom.unmount();
-
-    const bareDisabled = render(
-      <InputHarness overrides={{ validator: { email: false } }} />,
-    );
-    const bareControl = bareDisabled.getByRole("textbox", { name: "Name" });
-    fireEvent.change(bareControl, { target: { value: "nope" } });
-    fireEvent.blur(bareControl);
-    expect(errorParagraph(bareControl)).toHaveTextContent("");
-    expect(bareControl).not.toHaveAttribute("aria-invalid");
-    bareDisabled.unmount();
-
-    const pairedDisabled = render(
-      <InputHarness
-        overrides={{
-          validator: {
-            email: { value: false, message: "Never shown." },
-          },
-        }}
-      />,
-    );
-    const pairedControl = pairedDisabled.getByRole("textbox", { name: "Name" });
-    fireEvent.change(pairedControl, { target: { value: "nope" } });
-    fireEvent.blur(pairedControl);
-    expect(errorParagraph(pairedControl)).toHaveTextContent("");
-    expect(pairedControl).not.toHaveAttribute("aria-invalid");
-  });
-
-  it("lets required short-circuit ahead of it while the value is Empty", () => {
-    render(
-      <InputHarness overrides={{ validator: { required: true, email: true } }} />,
-    );
-
-    const control = requiredControl("Name");
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_REQUIRED_MESSAGE);
-
-    // Non-Empty garbage hands control to the email rule.
-    fireEvent.change(control, { target: { value: "ada at example dot com" } });
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
-  });
-
-  it("evaluates after maxLength — an over-long value reports length before format", () => {
-    render(
-      <InputHarness
-        overrides={{ validator: { maxLength: 5, email: true } }}
-      />,
-    );
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-    fireEvent.change(control, { target: { value: "way-too-long" } });
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(
-      "Must be at most 5 characters.",
-    );
-
-    // Once length passes, the email rule takes its turn.
-    fireEvent.change(control, { target: { value: "a@b" } });
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
-  });
-
-  it("evaluates before regex — first violation wins when both fail", () => {
-    render(
-      <InputHarness
-        overrides={{ validator: { email: true, regex: /^[a-z]+$/ } }}
-      />,
-    );
-
-    const control = screen.getByRole("textbox", { name: "Name" });
-
-    // Fails both; the email message wins because regex runs last.
-    fireEvent.change(control, { target: { value: "a@b" } });
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent(DEFAULT_EMAIL_MESSAGE);
-
-    // A value satisfying email still reaches regex afterwards.
-    fireEvent.change(control, { target: { value: "Ada@example.com" } });
-    expect(errorParagraph(control)).toHaveTextContent("Invalid format.");
-  });
-
-  it("fits non-number inputs only and ignores misplacement with the existing dev-only warn", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const emailWarning = () =>
-        warnSpy.mock.calls.find(
-          (call) =>
-            typeof call[0] === "string" && call[0].includes('"email"'),
-        )![0] as string;
-
-      const numeric = render(
-        <InputHarness
-          overrides={{ inputType: "number", label: "Age", validator: { min: 0, email: true } }}
-        />,
-      );
-      const ageControl = numeric.getByRole("spinbutton", { name: "Age" });
-      fireEvent.change(ageControl, { target: { value: "42" } });
-      fireEvent.blur(ageControl);
-      expect(errorParagraph(ageControl)).toHaveTextContent("");
-      expect(emailWarning()).toContain('"Age"');
-      numeric.unmount();
-      warnSpy.mockClear();
-
-      const bio = render(
-      <TextareaHarness
-        overrides={{ label: "Bio", validator: { email: true } }}
-      />,
-      );
-      const bioControl = bio.getByRole("textbox", { name: "Bio" });
-      fireEvent.change(bioControl, { target: { value: "words" } });
-      fireEvent.blur(bioControl);
-      expect(errorParagraph(bioControl)).toHaveTextContent("");
-      expect(emailWarning()).toContain('"Bio"');
-    } finally {
-      warnSpy.mockRestore();
-    }
-  });
-});
-
 /**
  * jsdom sanitizes number-input values like real browsers do (badInput → ""),
  * so deliver the raw string by temporarily flipping to a text input — this
@@ -953,41 +497,6 @@ describe("Field number coercion", () => {
     fireRawChange(control, "abc");
 
     expect(received).toEqual(["", 42, -3.5, 7, 1000, NaN]);
-  });
-
-  it("counts coerced NaN as Empty so required catches it", () => {
-    render(
-      <InputHarness
-        overrides={{ inputType: "number", label: "Age" }}
-      />,
-    );
-
-    const control = screen.getByRole("spinbutton", {
-      name: "Age (required)",
-    });
-    fireRawChange(control, "abc");
-    fireEvent.blur(control);
-
-    expect(errorParagraph(control)).toHaveTextContent(
-      DEFAULT_REQUIRED_MESSAGE,
-    );
-  });
-
-  it("skips min and max evaluation while the value is Empty or NaN", () => {
-    render(
-      <InputHarness
-        overrides={{ inputType: "number", label: "Age", validator: { min: 0 } }}
-      />,
-    );
-
-    const control = screen.getByRole("spinbutton", { name: "Age" });
-    fireRawChange(control, "abc");
-    fireEvent.blur(control);
-    expect(errorParagraph(control)).toHaveTextContent("");
-
-    fireRawChange(control, "   ");
-    expect(errorParagraph(control)).toHaveTextContent("");
-    expect(control).not.toHaveAttribute("aria-invalid");
   });
 
   it("leaves textual kinds uncoerced", () => {
@@ -1540,6 +1049,19 @@ describe("Field select popup", () => {
     expect(selectTrigger("Country")).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("shows a visible placeholder on the popup's search input", () => {
+    render(<SelectHarness overrides={SELECT_OVERRIDES} />);
+    fireEvent.click(selectTrigger("Country"));
+    expect(
+      screen.getByRole("textbox", { name: "Search options" }),
+    ).toHaveAttribute("placeholder", "Search options");
+  });
+
+  it("stands as tall as the multi-select strips when closed", () => {
+    render(<SelectHarness overrides={SELECT_OVERRIDES} />);
+    expect(selectTrigger("Country")).toHaveClass("min-h-11");
+  });
+
   it("shares the multi-select's popup structure: search outside a legend-named group of rows", () => {
     render(<SelectHarness overrides={SELECT_OVERRIDES} />);
 
@@ -2042,13 +1564,17 @@ function politeRegion(): HTMLElement {
 }
 
 describe("Field multi-select closed face", () => {
-  it("renders a label-named group of chips beside a separate open button with synced expanded state", () => {
-    render(<MultiSelectHarness overrides={tagOverrides()} />);
+  it("renders a label-named group whose text face itself is the open trigger with synced expanded state", () => {
+    const { container } = render(<MultiSelectHarness overrides={tagOverrides()} />);
 
     // The group is named by the visible field label via aria-labelledby.
     expect(screen.getByRole("group", { name: "Tags" })).toBeInTheDocument();
 
+    // No separate toggle button beside the strip: the strip is the trigger.
     const openButton = screen.getByRole("button", { name: "Show options" });
+    expect(container.querySelector(".field-selection-text")).toBe(
+      openButton,
+    );
     expect(openButton).toHaveAttribute("aria-expanded", "false");
     const panelId = openButton.getAttribute("aria-controls");
     expect(panelId).not.toBe("");
@@ -2088,6 +1614,11 @@ describe("Field multi-select closed face", () => {
 
     const face = container.querySelector<HTMLElement>(".field-selection-text");
     expect(face).not.toBeNull();
+    // Button-reset: labels sit at the left edge, and the chevron rides the
+    // right edge exactly like the select kind's closed face.
+    expect(face).toHaveClass("text-left");
+    expect(face).toHaveClass("justify-between");
+    expect(face!.querySelector("svg")).not.toBeNull();
     const line = within(face!).getByText("Design, Research");
     expect(line).toHaveAttribute("title", "Design, Research");
     expect(line).toHaveClass("truncate");
@@ -2168,6 +1699,29 @@ describe("Field multi-select closed face", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a visible placeholder on the popup's search input", () => {
+    render(<MultiSelectHarness overrides={tagOverrides()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    expect(
+      screen.getByRole("textbox", { name: "Search options" }),
+    ).toHaveAttribute("placeholder", "Search options");
+  });
+
+  it("keeps a separate open button beside the strip when the Selection display is chips", () => {
+    const { container } = render(
+      <MultiSelectHarness overrides={chipTagOverrides()} />,
+    );
+
+    const strip = container.querySelector(".field-chip-strip");
+    expect(strip).not.toBeNull();
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    expect(openButton).not.toBe(strip);
+    // The toggle holds the control's base height and never grows with the
+    // strip, even when the chips wrap onto extra rows.
+    expect(openButton).toHaveClass("h-11");
+    expect(openButton).toHaveClass("self-start");
+  });
+
   it("grows the chips strip vertically instead of scrolling horizontally, capping at about three rows", () => {
     const { container } = render(
       <MultiSelectHarness
@@ -2185,6 +1739,9 @@ describe("Field multi-select closed face", () => {
     expect(strip).toHaveClass("min-h-11");
     expect(strip).toHaveClass("max-h-24");
     expect(strip).toHaveClass("overflow-y-auto");
+    // No align-content override: the default stretch lets items-center center
+    // the single-row case instead of packing chips against the top edge.
+    expect(strip).not.toHaveClass("content-start");
     expect(strip).not.toHaveClass("overflow-x-auto");
     expect(strip).not.toHaveClass("h-11");
   });
@@ -3425,7 +2982,7 @@ describe("DateField — engine value model", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -3448,7 +3005,7 @@ describe("DateField — engine value model", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2025-12-31T00:00:00Z" as any } }}
+        overrides={{ validator: { max: "2025-12-31T00:00:00Z" } }}
       />,
     );
 
@@ -3543,7 +3100,7 @@ describe("DateTimeField — engine value model", () => {
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" } }}
       />,
     );
 
@@ -3636,8 +3193,8 @@ describe("DateRangeField — engine value model", () => {
         handleRef={handle}
         overrides={{
           validator: {
-            min: "2025-06-01T00:00:00Z" as any,
-            max: "2025-12-31T00:00:00Z" as any,
+            min: "2025-06-01T00:00:00Z",
+            max: "2025-12-31T00:00:00Z",
           },
         }}
       />,
@@ -3690,7 +3247,7 @@ describe("DateRangeField — engine value model", () => {
     render(<DateRangeHarness handleRef={handle} />);
 
     act(() =>
-      handle.current!.setValue({ from: "bad", to: "also-bad" } as any),
+      handle.current!.setValue({ from: "bad", to: "also-bad" }),
     );
     expect(handle.current!.getValue()).toEqual({
       from: undefined,
@@ -3761,8 +3318,8 @@ describe("DateTimeRangeField — engine value model", () => {
         handleRef={handle}
         overrides={{
           validator: {
-            min: "2025-06-01T00:00:00Z" as any,
-            max: "2025-12-31T23:59:59Z" as any,
+            min: "2025-06-01T00:00:00Z",
+            max: "2025-12-31T23:59:59Z",
           },
         }}
       />,
@@ -3848,6 +3405,57 @@ describe("DateField — calendar widget", () => {
 
     const trigger = screen.getByRole("button", { name: /Birthday/i });
     expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+  });
+
+  it("shows the in-progress draft on the trigger face while the calendar is open", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick a different day: the face previews the draft while the popup is
+    // open, and nothing is committed yet.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2025/ }));
+    });
+    expect(trigger).toHaveTextContent(/Mar 20, 2025/);
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+
+    // Cancel discards: the face reverts to the committed value.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Cancel" }));
+    });
+    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+  });
+
+  it("previews datetime drafts (day and time slices) on the trigger face", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T10:00:00Z"));
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick a different day and set the minute: the face shows the combined
+    // draft while the popup stays open, and nothing is committed yet.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2025/ }));
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "45" } });
+    });
+    expect(trigger).toHaveTextContent(/Mar 20, 2025/);
+    expect(trigger).toHaveTextContent(/45/);
+    expect(handle.current!.getValue()).toBe("2025-03-15T10:00:00Z");
   });
 
   it("picking a day and clicking Apply commits the value", async () => {
@@ -3972,7 +3580,7 @@ describe("DateField — calendar widget", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01T00:00:00Z" as any } }}
+        overrides={{ validator: { min: "2025-06-01T00:00:00Z" } }}
       />,
     );
 
@@ -4668,7 +4276,7 @@ describe("DateField — month panel", () => {
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
     // Header should reflect the selected month/year
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("header label remains visible and clickable after month selection", async () => {
@@ -4701,15 +4309,16 @@ describe("DateField — month panel", () => {
       fireEvent.mouseDown(monthButton);
     });
 
-    // Header should still be visible and clickable
-    expect(headerButton).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    // Header should still be visible and clickable — fresh query, because toggling
+    // the overlay replaces the header node and the earlier reference goes stale.
+    const freshHeader = screen.getByRole("button", { name: "Choose year" });
+    expect(freshHeader).toBeInTheDocument();
+    expect(freshHeader).toHaveTextContent("March 2024");
 
     // Click header to re-open year panel
     await act(async () => {
-      fireEvent.mouseDown(headerButton);
+      fireEvent.mouseDown(freshHeader);
     });
-
     expect(screen.getByRole("grid", { name: "Choose year" })).toBeInTheDocument();
   });
 
@@ -4872,7 +4481,7 @@ describe("DateField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
 
     // Focus should move to the selected day button within the day grid
     const selectedDay = screen.getByRole("gridcell", { name: /March 15, 2024/ });
@@ -4953,7 +4562,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -4991,7 +4600,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2026-06-01" as any } }}
+        overrides={{ validator: { max: "2026-06-01" } }}
       />,
     );
 
@@ -5026,7 +4635,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -5060,7 +4669,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2016-01-01" as any } }}
+        overrides={{ validator: { min: "2016-01-01" } }}
       />,
     );
 
@@ -5089,7 +4698,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2027-01-01" as any } }}
+        overrides={{ validator: { max: "2027-01-01" } }}
       />,
     );
 
@@ -5118,7 +4727,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -5191,7 +4800,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -5229,7 +4838,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -5253,7 +4862,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
     render(
       <DateHarness
         handleRef={handle}
-        overrides={{ validator: { max: "2025-06-30" as any } }}
+        overrides={{ validator: { max: "2025-06-30" } }}
       />,
     );
 
@@ -5273,7 +4882,7 @@ describe("DateField — min/max constraints on year and month panels", () => {
   });
 });
 
-import { resolveCalendarPlacement } from "./Field";
+import { resolveCalendarPlacement } from "./calendar/calendarShared";
 
 describe("resolveCalendarPlacement", () => {
   it("opens below when there is enough space under the field", () => {
@@ -5344,13 +4953,64 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day20);
     });
 
-    // Should commit but calendar stays open for Apply
-    expect(spy).toHaveBeenCalled();
+    // Picks preview only — nothing commits until Apply.
+    expect(spy).not.toHaveBeenCalled();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
 
     // Draft range should remain highlighted in the grid after completion
     expect(screen.getByRole("gridcell", { name: /August 10, 2026/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Apply commits the completed pair.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].from).toBeDefined();
+    expect(spy.mock.calls[0][0].to).toBeDefined();
+  });
+
+  it("picking does not commit: Cancel rolls back to the committed value", async () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-10", to: "2025-03-12" }),
+    );
+    // Seeding legitimately fires the observer; only picks must not.
+    spy.mockClear();
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Two-step pick: anchor then complete.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 15, 2025/ }));
+    });
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 25, 2025/ }));
+    });
+
+    // Picks only preview; the Field's committed value is untouched.
+    expect(spy).not.toHaveBeenCalled();
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-10T00:00:00Z",
+      to: "2025-03-12T00:00:00Z",
+    });
+
+    // Cancel discards the draft and the face reverts to the committed value.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Cancel" }));
+    });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(spy).not.toHaveBeenCalled();
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-10T00:00:00Z",
+      to: "2025-03-12T00:00:00Z",
+    });
   });
 
   it("draft range stays highlighted after the second click (no reset)", async () => {
@@ -5383,8 +5043,8 @@ describe("DateRangeField — calendar widget", () => {
     });
     expect(screen.getByRole("gridcell", { name: /August 12, 2026/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).not.toHaveAttribute("aria-selected", "true");
-    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
-    expect(lastCall.to).toBeUndefined();
+    // Re-anchoring is still draft-only: nothing has committed.
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("out-of-order picking swaps ends so from <= to", async () => {
@@ -5408,8 +5068,11 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day10);
     });
 
-    // Should commit with from <= to
-    expect(spy).toHaveBeenCalled();
+    // Picks stay in the draft; Apply commits with from <= to.
+    expect(spy).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
     const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
     expect(lastCall.from).toBeDefined();
     expect(lastCall.to).toBeDefined();
@@ -5483,7 +5146,7 @@ describe("DateRangeField — calendar widget", () => {
     expect(dialog.className).toContain("top-full");
   });
 
-  it("half-picks stream live with undefined ends", async () => {
+  it("half-picks preview live but never commit", async () => {
     const spy = vi.fn();
     render(<DateRangeHarness onChangeSpy={spy} />);
 
@@ -5498,11 +5161,10 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day10);
     });
 
-    // The value should stream with only from set
-    expect(spy).toHaveBeenCalled();
-    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
-    expect(lastCall.from).toBeDefined();
-    expect(lastCall.to).toBeUndefined();
+    // The half-pick previews on the trigger face but commits nothing.
+    expect(trigger).toHaveTextContent(/Aug 10, 2026/);
+    expect(spy).not.toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 
   it("required rejects a half-pick", async () => {
@@ -5556,8 +5218,8 @@ describe("DateRangeField — calendar widget", () => {
         handleRef={handle}
         overrides={{
           validator: {
-            min: "2025-06-01T00:00:00Z" as any,
-            max: "2025-12-31T00:00:00Z" as any,
+            min: "2025-06-01T00:00:00Z",
+            max: "2025-12-31T00:00:00Z",
           },
         }}
       />,
@@ -5732,7 +5394,10 @@ describe("DateTimeRangeField — calendar widget", () => {
       fireEvent.mouseDown(day20);
     });
 
-    // Should commit with time (may be UTC-converted)
+    // Apply commits the draft with time (may be UTC-converted)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
     expect(spy).toHaveBeenCalled();
     const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
     // Verify time was included (may be UTC-converted from local)
@@ -5823,7 +5488,10 @@ describe("DateTimeRangeField — calendar widget", () => {
     expect(screen.getByLabelText("End hour")).toHaveValue("17");
     expect(screen.getByLabelText("End minute")).toHaveValue("00");
 
-    // Committed values carry the user's local times converted to UTC
+    // Apply commits; the committed values carry the user's local times converted to UTC
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
     const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
     const expectedFrom = new Date(2026, 7, 10, 9, 30, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
     const expectedTo = new Date(2026, 7, 20, 17, 0, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -6153,7 +5821,7 @@ describe("DateTimeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("Escape from month panel closes the calendar popup", async () => {
@@ -6282,7 +5950,7 @@ describe("DateTimeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 });
 
@@ -6294,7 +5962,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -6326,7 +5994,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -6367,7 +6035,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -6399,7 +6067,7 @@ describe("DateTimeField — min/max constraints on year and month panels", () =>
     render(
       <DateTimeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -6713,7 +6381,7 @@ describe("DateRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("Escape from month panel closes the calendar popup", async () => {
@@ -6800,7 +6468,7 @@ describe("DateRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 });
 
@@ -6812,7 +6480,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -6847,7 +6515,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -6891,7 +6559,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -6926,7 +6594,7 @@ describe("DateRangeField — min/max constraints on year and month panels", () =
     render(
       <DateRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 
@@ -7243,7 +6911,7 @@ describe("DateTimeRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     expect(screen.getByRole("grid")).toBeInTheDocument();
 
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 
   it("Escape from month panel closes the calendar popup", async () => {
@@ -7330,7 +6998,7 @@ describe("DateTimeRangeField — month panel", () => {
     expect(screen.queryByRole("grid", { name: "Choose month" })).not.toBeInTheDocument();
     const dayGrid = screen.getByRole("grid");
     expect(dayGrid).toBeInTheDocument();
-    expect(headerButton).toHaveTextContent("March 2024");
+    expect(screen.getByRole("button", { name: "Choose year" })).toHaveTextContent("March 2024");
   });
 });
 
@@ -7342,7 +7010,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2020-03-15" as any, max: "2030-08-20" as any } }}
+        overrides={{ validator: { min: "2020-03-15", max: "2030-08-20" } }}
       />,
     );
 
@@ -7377,7 +7045,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-05-01" as any, max: "2025-09-30" as any } }}
+        overrides={{ validator: { min: "2025-05-01", max: "2025-09-30" } }}
       />,
     );
 
@@ -7421,7 +7089,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2022-01-01" as any } }}
+        overrides={{ validator: { min: "2022-01-01" } }}
       />,
     );
 
@@ -7456,7 +7124,7 @@ describe("DateTimeRangeField — min/max constraints on year and month panels", 
     render(
       <DateTimeRangeHarness
         handleRef={handle}
-        overrides={{ validator: { min: "2025-06-01" as any } }}
+        overrides={{ validator: { min: "2025-06-01" } }}
       />,
     );
 

@@ -119,7 +119,7 @@ The disclosure panel shared by select and multi-select: a search box filtering r
 _Avoid_: dropdown list, options menu, picker
 
 **Selection display**:
-How a multi-select Field renders its selected Options inside the control, declared as `selectionDisplay`: `chips` or `text`, defaulting to `text`. `chips` lays out one removable Chip per selected Option; `text` joins the labels into one comma-separated line that truncates with an ellipsis, the full string exposed via the native tooltip. Only exists on the multi-select kind.
+How a multi-select Field renders its selected Options inside the control, declared as `selectionDisplay`: `chips` or `text`, defaulting to `text`. `chips` lays out one removable Chip per selected Option, with a separate "Show options" button beside the strip opening the Options popup. `text` joins the labels into one comma-separated line that truncates with an ellipsis, the full string exposed via the native tooltip — and the whole strip itself is the disclosure trigger opening the Options popup, exactly like the select kind's closed face (no separate toggle button). Only exists on the multi-select kind.
 _Avoid_: view mode, display mode, appearance
 
 **Matching**:
@@ -155,7 +155,7 @@ The optional declarative rule set in a `FieldConfig`: `required`, numeric `min`/
 _Avoid_: rules, schema, validation config, Validator
 
 **Placeholder**:
-Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select, the empty trigger-face text on the date kinds; checkbox has none. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
+Muted hint text shown by a Field while it holds nothing: the native attribute on input and textarea kinds, the closed-face text on select, the empty chip strip's text on multi-select, the empty trigger-face text on the date kinds; checkbox has none. The shared Options popup's search box carries its own fixed native placeholder, "Search options", mirroring its sr-only label. Purely visual — never choosable, hidden from assistive tech, and never affects the value or Empty detection.
 _Avoid_: ghost, hint
 
 **Empty**:
@@ -191,7 +191,7 @@ The second screen of the Month/year picker overlay. Displays 12 months in a 3×4
 _Avoid_: month selector, month grid
 
 **Draft**:
-The temporary value state inside a Calendar popup before Apply commits it. For single dates, the draft is the selected day (and time, for datetime kinds). For ranges, the draft accumulates across two clicks: first click anchors one end, second click completes the other. The draft is visible in the popup's summary pane but not yet in the Field's value or emitted to the parent. Cancel or Escape discards the draft without changing the Field.
+The temporary value state inside a Calendar popup before Apply commits it. For single dates, the draft is the selected day (and time, for datetime kinds). For ranges, the draft accumulates across two clicks: first click anchors one end, second click completes the other. The draft is visible in the popup's summary pane and, while the popup is open, streamed to the parent (via onDraftPreview) so the trigger face previews it in place of the committed value — a preview only; the Field's value does not change until Commit. Closing the popup clears the preview and the face falls back to the committed value. Cancel or Escape discards the draft without changing the Field.
 _Avoid_: pending value, staged value, uncommitted pick
 
 **Commit**:

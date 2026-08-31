@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { normalizeDateInput, type DateInputKind } from "./date-normalize";
+import {
+  normalizeDateInput,
+  pad2,
+  utcDateParts,
+} from "./date";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -170,5 +174,39 @@ describe("normalizeDateInput", () => {
         "[Field] Invalid date input — value ignored.",
       );
     });
+  });
+});
+
+describe("utcDateParts", () => {
+  it("extracts parts from a bare YYYY-MM-DD string", () => {
+    expect(utcDateParts("2025-03-15")).toEqual({
+      year: 2025,
+      month: 3,
+      day: 15,
+    });
+  });
+
+  it("extracts parts from a full Z-terminated ISO string", () => {
+    expect(utcDateParts("2025-03-15T14:30:00Z")).toEqual({
+      year: 2025,
+      month: 3,
+      day: 15,
+    });
+  });
+
+  it("returns null for a string without a leading date", () => {
+    expect(utcDateParts("not-a-date")).toBeNull();
+  });
+});
+
+describe("pad2", () => {
+  it("pads single digits to two characters", () => {
+    expect(pad2(3)).toBe("03");
+    expect(pad2(0)).toBe("00");
+  });
+
+  it("leaves two-digit numbers unchanged", () => {
+    expect(pad2(15)).toBe("15");
+    expect(pad2(59)).toBe("59");
   });
 });

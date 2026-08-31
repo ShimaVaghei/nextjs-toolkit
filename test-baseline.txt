@@ -1,0 +1,1113 @@
+
+> nextjs-toolkit@0.1.0 test D:\CAC\Projects\nextjs-toolkit
+> vitest run
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/CAC/Projects/nextjs-toolkit[39m
+
+ [32m✓[39m lib/field-validation.test.ts [2m([22m[2m39 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m lib/date.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m components/AppLayout.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField checkbox kind[2m > [22m[2mexposes validate() through the handle, revealing the consent Error while pristine
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mFieldHandle.validate()[2m > [22m[2mforce-runs every rule regardless of Touched, reveals any Error, and reports invalid
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mFieldHandle.validate()[2m > [22m[2mreturns true for a valid field that was never Touched, without revealing an Error
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mFieldHandle.validate()[2m > [22m[2mre-validates against the current internal value after fixes clear the Error
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mFieldHandle value control[2m > [22m[2msetValue() installs the value through the same pipeline: DOM updates, observer fires
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mFieldHandle value control[2m > [22m[2msetValue() re-evaluates the Error when Touched but never reveals one while pristine
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mFieldHandle value control[2m > [22m[2mfires the observer once per change for user edits and imperative sets alike — one honest stream
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mfires the loader exactly once on mount, then renders resolved Options and enables choosing
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mblocks choosing while Pending with 'Loading options…' in the hint slot and keeps any selection visible
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mshows 'Couldn't load options.' with a Retry that re-fires the loader successfully
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mshows 'Couldn't load options.' with a Retry that re-fires the loader successfully
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mkeeps the popup closed through Pending and Rejected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mkeeps the popup closed through Pending and Rejected
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mstyles Rejected distinctly from validation Error — no aria-invalid and the error slot stays untouched
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField async options[2m > [22m[2mnever fires the stale-value warn for an absent selection while a load is in flight
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ [32m✓[39m components/AppLayout.test.tsx [2m([22m[2m63 tests[22m[2m)[22m[33m 1486[2mms[22m[39m
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField multi-select Empty, placeholder, and stale chips[2m > [22m[2mstays quiet while a load is Pending — held selections are expected-absent, not stale
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField multi-select async options[2m > [22m[2mfires the loader exactly once on mount; Pending disables the widget while chips stay visible
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField multi-select async options[2m > [22m[2mkeeps the popup closed through Pending and Rejected, then Retry recovers it to fully usable
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField multi-select async options[2m > [22m[2mkeeps the popup closed through Pending and Rejected, then Retry recovers it to fully usable
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField multi-select async options[2m > [22m[2mkeeps held fallback chips visible through Rejected until Retry resolves them to their labels
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField multi-select async options[2m > [22m[2mkeeps held fallback chips visible through Rejected until Retry resolves them to their labels
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mField object-valued Options[2m > [22m[2minstalls an object value imperatively and resolves its label on the closed face
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2maccepts a bare YYYY-MM-DD and stores with fixed-zero UTC midnight
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2maccepts a full Z-terminated ISO string and extracts the UTC calendar date
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2maccepts a no-Z ISO string and normalizes to UTC calendar date
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2mstreams the normalized value through onValueChange
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2mrequired validates a date field
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2mmin validates the date string via lexicographic comparison
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — engine value model[2m > [22m[2mmax validates the date string via lexicographic comparison
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — engine value model[2m > [22m[2maccepts a full Z-terminated ISO string as-is
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — engine value model[2m > [22m[2maccepts a no-Z string and converts from local to UTC
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — engine value model[2m > [22m[2maccepts a bare YYYY-MM-DD and treats as local midnight
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — engine value model[2m > [22m[2mstreams the normalized value through onValueChange
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — engine value model[2m > [22m[2mmin validates the datetime string via lexicographic comparison
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2mstores both ends as fixed-zero UTC midnight strings
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2mpreserves undefined ends for half-picks
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2mswaps out-of-order ends so from <= to
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2ma range is Empty unless both ends hold values
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2mmin tests from and max tests to via string comparison
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2mstreams range progress live with undefined ends
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — engine value model[2m > [22m[2mrejects invalid range input with a dev warning
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — engine value model[2m > [22m[2mstores both ends as fixed-width UTC datetime strings
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — engine value model[2m > [22m[2mswaps out-of-order datetime ends
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — engine value model[2m > [22m[2mrequired rejects a datetime range half-pick
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — engine value model[2m > [22m[2mmin tests from and max tests to for datetime ranges
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mopens the calendar popup on trigger click
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mcloses the calendar on Escape
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mshows the formatted date value on the trigger face when filled
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mpicking a day and clicking Apply commits the value
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mCancel discards the draft and closes the calendar
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mcalendar shows month grid with weekday headers
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mnavigates months with Previous/Next month buttons
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mrequired validation shows error after validate()
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — calendar widget[2m > [22m[2mmin/max validators work with the calendar
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — calendar widget[2m > [22m[2mopens calendar with time inputs for datetime kind
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — calendar widget[2m > [22m[2mdatetime Apply commits with time
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — calendar widget[2m > [22m[2mdatetime shows formatted value on trigger face
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — calendar widget[2m > [22m[2mminutes type freely and clamp on blur
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — calendar widget[2m > [22m[2mEscape closes the datetime calendar from time input
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — keyboard accessibility[2m > [22m[2marrow keys navigate days in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — keyboard accessibility[2m > [22m[2mPageDown navigates to next month
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — keyboard accessibility[2m > [22m[2mEnter selects the focused day and commits
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — keyboard accessibility[2m > [22m[2mSpace selects the focused day and commits
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mprev/next decade buttons navigate between decades
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mprev/next decade buttons navigate between decades
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mprev/next decade buttons navigate between decades
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mcurrently selected year is visually highlighted
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mcurrently selected year is visually highlighted
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowLeft moves focus to the previous year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowLeft moves focus to the previous year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowDown moves focus one row down in the year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowDown moves focus one row down in the year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowUp moves focus one row up in the year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mArrowUp moves focus one row up in the year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+ [32m✓[39m components/Table.test.tsx [2m([22m[2m94 tests[22m[2m)[22m[33m 3375[2mms[22m[39m
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2marrow keys are trapped within the year grid bounds
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — year panel[2m > [22m[2marrow keys are trapped within the year grid bounds
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mcurrently selected month is visually highlighted
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mcurrently selected month is visually highlighted
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mcurrently selected month is visually highlighted
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mheader label remains visible and clickable after month selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mheader label remains visible and clickable after month selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mheader label remains visible and clickable after month selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mheader label remains visible and clickable after month selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowLeft moves focus to the previous month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowLeft moves focus to the previous month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowLeft moves focus to the previous month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowDown moves focus one row down in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowDown moves focus one row down in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowDown moves focus one row down in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowUp moves focus one row up in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowUp moves focus one row up in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mArrowUp moves focus one row up in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2marrow keys are trapped within the month grid bounds
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2marrow keys are trapped within the month grid bounds
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2marrow keys are trapped within the month grid bounds
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mfocus moves to selected month when month panel opens
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mfocus moves to selected month when month panel opens
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mfocus moves to selected month when month panel opens
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mfocus moves to selected year when year panel opens
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — month panel[2m > [22m[2mfocus moves to selected year when year panel opens
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2myears beyond max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2myears beyond max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mprev decade arrow is disabled when earliest displayed year is at or before min year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mprev decade arrow is disabled when earliest displayed year is at or before min year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mnext decade arrow is disabled when latest displayed year is at or after max year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mnext decade arrow is disabled when latest displayed year is at or after max year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mprev month arrow is disabled when current month is at min boundary
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateField — min/max constraints on year and month panels[2m > [22m[2mnext month arrow is disabled when current month is at max boundary
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mopens the calendar popup on trigger click
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mtwo-step picking: first click sets anchor, second click completes range
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mdraft range stays highlighted after the second click (no reset)
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mout-of-order picking swaps ends so from <= to
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mhover preview clears when the pointer leaves the calendar grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mopens above the field when there is no space below
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mopens below the field when there is enough space below
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mhalf-picks stream live with undefined ends
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mrequired rejects a half-pick
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mclosed face joins with ' – ' for complete ranges
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mclosed face shows set end plus trailing dash for half-picks
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mmin/max validators work with the calendar
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mEscape closes the calendar without committing
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mreopening with a committed range highlights start, end, and intermediate dates
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — calendar widget[2m > [22m[2mreopening with a half-picked range highlights only the anchor date
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mopens calendar with independent start/end time controls
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mtwo-step picking with datetime-range commits both ends with time
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mseeds start/end time controls with the field's displayed (local) times
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mopening without a value seeds all time fields to now
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mpicking days does not reset the start/end time controls
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mapply after changing only times keeps both dates
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mclosed face joins datetime range with ' – '
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — calendar widget[2m > [22m[2mhalf-pick shows set end plus trailing dash
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowLeft moves focus to the previous month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowLeft moves focus to the previous month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowLeft moves focus to the previous month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowDown moves focus one row down in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowDown moves focus one row down in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mArrowDown moves focus one row down in the month grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mheader click opens year panel with 12-year grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2myear grid renders 12 years derived from draftYear
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mclicking a year sets overlay to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mEscape from year panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2moverlay resets to none when calendar closes
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mArrowRight moves focus to the next year in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — year panel[2m > [22m[2mEnter selects the focused year and transitions to month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mmonth panel renders after year selection
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mmonth grid renders 12 months in a 3×4 grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mclicking a month returns to day grid with correct month/year
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEscape from month panel closes the calendar popup
+[22m[39mThe current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mArrowRight moves focus to the next month in the grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — month panel[2m > [22m[2mEnter selects the focused month and returns to day grid
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2myears outside min/max range render as disabled in the year panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mmonths outside min/max range render as disabled in the month panel
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled years cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+[90mstderr[2m | components/Field.test.tsx[2m > [22m[2mDateTimeRangeField — min/max constraints on year and month panels[2m > [22m[2mdisabled months cannot be clicked/selected
+[22m[39mThe current testing environment is not configured to support act(...)
+
+ [32m✓[39m components/Field.test.tsx [2m([22m[2m266 tests[22m[2m)[22m[33m 8044[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m494 passed[39m[22m[90m (494)[39m
+[2m   Start at [22m 18:26:43
+[2m   Duration [22m 14.56s[2m (transform 1.73s, setup 0ms, import 3.28s, tests 12.95s, environment 8.32s)[22m
+
