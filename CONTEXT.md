@@ -197,3 +197,7 @@ _Avoid_: pending value, staged value, uncommitted pick
 **Commit**:
 The action that lands a Calendar popup's draft into the Field's value, triggered by clicking Apply or pressing Enter on the Apply button. Commit normalizes the draft through the same pipeline as a user edit: the observer fires, Error re-evaluates when Touched, and the closed face updates. For datetime ranges, Commit ensures both ends carry complete instants (picking a date without a time seeds midnight).
 _Avoid_: apply, confirm, save
+
+**Clear**:
+The footer action in the Options popup and Calendar popup that commits emptiness to the Field's value through the normal pipeline (observer fires, Error re-evaluates when Touched) while the popup stays open. In the Calendar popup it also resets the Draft's selection state (including range anchoring), so a fresh pick can begin; Apply after a Clear closes without re-committing the stale draft. In the Options popup it empties the selection for both select kinds — a deliberate exception to the single-select rule that a pick closes the popup. Clear is disabled when the value is already empty. Distinct from Cancel (discards without committing) and Apply (commits the current draft).
+_Avoid_: reset, clear all, wipe

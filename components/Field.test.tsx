@@ -2127,6 +2127,62 @@ describe("Field multi-select removal announcements", () => {
   });
 });
 
+describe("Field Clear in the options popup", () => {
+  it("single select: commits emptiness, keeps the popup open, and shows the ghost face", () => {
+    const received: FieldValue[] = [];
+    render(
+      <SelectHarness
+        onChangeSpy={(value) => received.push(value)}
+        overrides={{ ...SELECT_OVERRIDES, placeholder: "Choose a country" }}
+      />,
+    );
+
+    const trigger = selectTrigger("Country");
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Japan" }));
+    expect(received).toEqual(["jp"]);
+    // A pick closes the popup; reopen for the Clear.
+    fireEvent.click(trigger);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(received).toEqual(["jp", ""]);
+    // Clear's contract: emptiness commits, the popup stays open, and the
+    // closed face falls back to the placeholder ghost.
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveTextContent("Choose a country");
+  });
+
+  it("single select: Clear is disabled while nothing is selected", () => {
+    render(<SelectHarness overrides={SELECT_OVERRIDES} />);
+    fireEvent.click(selectTrigger("Country"));
+    expect(screen.getByRole("button", { name: "Clear" })).toBeDisabled();
+  });
+
+  it("multi-select: unchecks every Option, commits [], and announces", () => {
+    const received: FieldValue[] = [];
+    render(
+      <MultiSelectHarness
+        onChangeSpy={(value) => received.push(value as unknown as FieldValue)}
+        overrides={tagOverrides()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Design" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Research" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(received.at(-1)).toEqual([]);
+    expect(
+      (screen.getByRole("checkbox", { name: "Design" }) as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+    expect(politeRegion()).toHaveTextContent("All selections cleared.");
+  });
+});
+
 describe("Field multi-select Empty, placeholder, and stale chips", () => {
   it("shows the placeholder inside the empty chip strip and drops it while a Chip exists", () => {
     render(

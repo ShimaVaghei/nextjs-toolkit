@@ -16,6 +16,7 @@ import {
   CALENDAR_ACTIONS_CLASS,
   CALENDAR_APPLY_CLASS,
   CALENDAR_CANCEL_CLASS,
+  CALENDAR_CLEAR_CLASS,
   CALENDAR_DAY_CLASS,
   CALENDAR_DAY_DISABLED_CLASS,
   CALENDAR_DAY_IN_RANGE_CLASS,
@@ -65,6 +66,12 @@ export type CalendarPopupProps = {
    * Apply still routes through onCommit.
    */
   onDraftPreview?: (rawDraft: string | FieldDateRangeValue) => void;
+  /**
+   * Clear: commits emptiness to the Field through the parent's normal
+   * pipeline. The popup stays open; the draft's selection state resets so a
+   * fresh pick can begin. Optional — the button only renders when provided.
+   */
+  onClear?: () => void;
   /** Accessibility plumbing: the panel id the trigger references via aria-controls. */
   panelId: string;
   gridId: string;
@@ -79,6 +86,7 @@ export function CalendarPopup({
   onClose,
   onCommit,
   onDraftPreview,
+  onClear,
   panelId,
   gridId,
 }: CalendarPopupProps) {
@@ -101,6 +109,12 @@ export function CalendarPopup({
 
   const [showOverlay, setShowOverlay] = useState(false);
   const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
+
+  // Cleared state: set by the Clear button after committing emptiness. The
+  // draft date is kept for grid navigation, but no day renders as selected
+  // until the next pick, and Apply becomes a plain close (emptiness is
+  // already committed; re-committing the stale draft would resurrect it).
+  const [draftCleared, setDraftCleared] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const calendarPanelRef = useRef<HTMLDivElement>(null);
@@ -188,7 +202,10 @@ export function CalendarPopup({
 // Seed the Draft whenever the popup opens. `seedFromValue` is stable for a
   // given kind, so a mid-open value change (range streaming) does not re-seed.
   useEffect(() => {
-    if (open) seedFromValue();
+    if (open) {
+      seedFromValue();
+      setDraftCleared(false);
+    }
   }, [open, seedFromValue]);
 
   // Build the raw draft value for the kind — the single source of truth for
@@ -381,6 +398,7 @@ const headerLabel = formatMonthYear(draftYear, draftMonth);
   // trigger face. Nothing lands in the Field until Apply — Cancel/Escape
   // discards the whole draft without changing the committed value.
   const handleDayRangeSelect = (dateStr: string) => {
+    setDraftCleared(false);
     if (!rangeAnchor || rangeEndDate) {
       setRangeAnchor(dateStr);
       setRangeEndDate(undefined);
@@ -402,11 +420,26 @@ const headerLabel = formatMonthYear(draftYear, draftMonth);
     setHoverDate(undefined);
   };
 
-  // Build the raw draft value for the kind and commit it.
+  // Build the raw draft value for the kind and commit it. After a Clear the
+  // emptiness is already committed, so Apply just closes instead of
+  // resurrecting the stale draft.
   const handleApply = () => {
-    const raw = buildDraftValue();
-    if (raw !== null) onCommit(raw);
+    if (!draftCleared) {
+      const raw = buildDraftValue();
+      if (raw !== null) onCommit(raw);
+    }
     onClose();
+  };
+
+  // Clear: commit emptiness through the parent and reset the draft's
+  // selection state. The popup stays open so a fresh pick can begin; the
+  // draft date is kept only for grid navigation.
+  const handleClear = () => {
+    setRangeAnchor(undefined);
+    setRangeEndDate(undefined);
+    setHoverDate(undefined);
+    setDraftCleared(true);
+    onClear?.();
   };
 
   const sanitizeDigits = (v: string): string => v.replace(/\D/g, "").slice(0, 2);
@@ -552,7 +585,7 @@ const handleGridKeyDown = (e: React.KeyboardEvent) => {
 
   const renderDay = (day: number, isCurrentMonth: boolean, cellYear: number, cellMonth: number) => {
     const dateStr = `${cellYear}-${pad2(cellMonth)}-${pad2(day)}`;
-    const isSelected = dateStr === draft;
+    const isSelected = !draftCleared && dateStr === draft;
     const isTodayCell = cellYear === todayYear && cellMonth === todayMonth && day === todayDay;
 
     let outOfMonth = false;
@@ -596,6 +629,7 @@ const handleGridKeyDown = (e: React.KeyboardEvent) => {
 
     const handleMouseDown = (e: React.MouseEvent) => {
       e.preventDefault();
+      setDraftCleared(false);
       if (range) {
         handleDayRangeSelect(dateStr);
       } else {
@@ -880,6 +914,16 @@ return (
       )}
 
       <div className={CALENDAR_ACTIONS_CLASS}>
+        {onClear && (
+          <button
+            type="button"
+            className={CALENDAR_CLEAR_CLASS}
+            disabled={(isRangeKind && !rangeAnchor) || undefined}
+            onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
+          >
+            Clear
+          </button>
+        )}
         <button
           type="button"
           className={CALENDAR_CANCEL_CLASS}

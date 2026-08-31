@@ -88,6 +88,11 @@ export const CALENDAR_CANCEL_CLASS =
   CALENDAR_ACTION_BUTTON_CLASS +
   " text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800";
 
+export const CALENDAR_CLEAR_CLASS =
+  CALENDAR_ACTION_BUTTON_CLASS +
+  " mr-auto text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 " +
+  "disabled:cursor-not-allowed disabled:opacity-50";
+
 export const CALENDAR_YEAR_GRID_CLASS = "grid grid-cols-3 gap-1.5";
 
 export const CALENDAR_YEAR_BUTTON_CLASS =
