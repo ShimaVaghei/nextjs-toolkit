@@ -105,9 +105,10 @@ export function CalendarPopup({
   const gridRef = useRef<HTMLDivElement>(null);
   const calendarPanelRef = useRef<HTMLDivElement>(null);
 
-  // Seeding reads the latest committed `value`, but must not re-seed when the
-  // value changes mid-open (range streaming updates it), so the value rides a
-  // ref rather than the seed's dependency list.
+  // Seeding reads the latest committed `value`, but must not re-seed on
+  // incidental value updates mid-open (defensive: the draft lives here, so
+  // the Field's value should not change while the popup is open), so the
+  // value rides a ref rather than the seed's dependency list.
   const valueRef = useRef(value);
   // The latest value lands in the ref in an effect (refs stay read-only during
   // render), declared before the seed effect so an open-transition render
@@ -365,27 +366,18 @@ const headerLabel = formatMonthYear(draftYear, draftMonth);
     if (e.key === "ArrowRight") { e.preventDefault(); nextMonth(); }
   };
 
-  // Two-step range picking: stream partial/full commits exactly as before.
+  // Two-step range picking: picks edit the draft only. Apply commits via
+  // buildDraftValue; the onDraftPreview effect streams each pick to the
+  // trigger face. Nothing lands in the Field until Apply — Cancel/Escape
+  // discards the whole draft without changing the committed value.
   const handleDayRangeSelect = (dateStr: string) => {
     if (!rangeAnchor || rangeEndDate) {
       setRangeAnchor(dateStr);
       setRangeEndDate(undefined);
       setDraft(dateStr);
-      if (kind === "datetime-range") {
-        onCommit({ from: `${dateStr}T${startTimeHour}:${startTimeMinute}:00`, to: undefined });
-      } else {
-        onCommit({ from: dateStr, to: undefined });
-      }
     } else {
       const from = rangeAnchor < dateStr ? rangeAnchor : dateStr;
       const to = rangeAnchor < dateStr ? dateStr : rangeAnchor;
-      let fromValue: string | undefined = from;
-      let toValue: string | undefined = to;
-      if (kind === "datetime-range") {
-        fromValue = `${from}T${startTimeHour}:${startTimeMinute}:00`;
-        toValue = `${to}T${endTimeHour}:${endTimeMinute}:00`;
-      }
-      onCommit({ from: fromValue, to: toValue });
       setRangeEndDate(to);
       setDraft(dateStr);
       setHoverDate(undefined);

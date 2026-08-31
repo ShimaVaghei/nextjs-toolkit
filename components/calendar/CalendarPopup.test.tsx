@@ -166,17 +166,17 @@ describe("CalendarPopup — commit and cancel flows", () => {
 describe("CalendarPopup — range picking", () => {
   afterEach(cleanup);
 
-  it("date-range: two-step pick streams the half-pick, then Apply commits both ends", () => {
+  it("date-range: two-step pick stays draft-only; Apply commits both ends", () => {
     // Seed a complete (degenerate) range so the day grid lands on March 2024
     // and the next click starts a fresh two-step pick.
     const { onCommit } = openPopup("date-range", { from: "2024-03-15", to: "2024-03-15" });
-    // First click sets a fresh anchor and streams the half-pick.
+    // First click sets a fresh anchor and previews the half-pick — no commit.
     fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2024/ }));
-    expect(onCommit).toHaveBeenCalledWith({ from: "2024-03-20", to: undefined });
-    // Second click completes the range; the streamed commit carries both ends.
+    expect(onCommit).not.toHaveBeenCalled();
+    // Second click completes the draft; still nothing commits.
     fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 25, 2024/ }));
-    expect(onCommit).toHaveBeenLastCalledWith({ from: "2024-03-20", to: "2024-03-25" });
-    // Apply commits the completed pair again for Field's normalization.
+    expect(onCommit).not.toHaveBeenCalled();
+    // Apply commits the completed pair.
     fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
     expect(onCommit).toHaveBeenLastCalledWith({ from: "2024-03-20", to: "2024-03-25" });
   });

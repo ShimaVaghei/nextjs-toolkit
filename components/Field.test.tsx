@@ -4905,13 +4905,64 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day20);
     });
 
-    // Should commit but calendar stays open for Apply
-    expect(spy).toHaveBeenCalled();
+    // Picks preview only — nothing commits until Apply.
+    expect(spy).not.toHaveBeenCalled();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
 
     // Draft range should remain highlighted in the grid after completion
     expect(screen.getByRole("gridcell", { name: /August 10, 2026/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /August 20, 2026/ })).toHaveAttribute("aria-selected", "true");
+
+    // Apply commits the completed pair.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].from).toBeDefined();
+    expect(spy.mock.calls[0][0].to).toBeDefined();
+  });
+
+  it("picking does not commit: Cancel rolls back to the committed value", async () => {
+    const spy = vi.fn();
+    const handle = createRef<FieldHandle<FieldDateRangeValue>>();
+    render(<DateRangeHarness onChangeSpy={spy} handleRef={handle} />);
+
+    act(() =>
+      handle.current!.setValue({ from: "2025-03-10", to: "2025-03-12" }),
+    );
+    // Seeding legitimately fires the observer; only picks must not.
+    spy.mockClear();
+
+    const trigger = screen.getByRole("button", { name: /Booking/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Two-step pick: anchor then complete.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 15, 2025/ }));
+    });
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 25, 2025/ }));
+    });
+
+    // Picks only preview; the Field's committed value is untouched.
+    expect(spy).not.toHaveBeenCalled();
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-10T00:00:00Z",
+      to: "2025-03-12T00:00:00Z",
+    });
+
+    // Cancel discards the draft and the face reverts to the committed value.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Cancel" }));
+    });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(spy).not.toHaveBeenCalled();
+    expect(handle.current!.getValue()).toEqual({
+      from: "2025-03-10T00:00:00Z",
+      to: "2025-03-12T00:00:00Z",
+    });
   });
 
   it("draft range stays highlighted after the second click (no reset)", async () => {
@@ -4944,8 +4995,8 @@ describe("DateRangeField — calendar widget", () => {
     });
     expect(screen.getByRole("gridcell", { name: /August 12, 2026/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /August 5, 2026/ })).not.toHaveAttribute("aria-selected", "true");
-    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
-    expect(lastCall.to).toBeUndefined();
+    // Re-anchoring is still draft-only: nothing has committed.
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("out-of-order picking swaps ends so from <= to", async () => {
@@ -4969,8 +5020,11 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day10);
     });
 
-    // Should commit with from <= to
-    expect(spy).toHaveBeenCalled();
+    // Picks stay in the draft; Apply commits with from <= to.
+    expect(spy).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
     const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
     expect(lastCall.from).toBeDefined();
     expect(lastCall.to).toBeDefined();
@@ -5044,7 +5098,7 @@ describe("DateRangeField — calendar widget", () => {
     expect(dialog.className).toContain("top-full");
   });
 
-  it("half-picks stream live with undefined ends", async () => {
+  it("half-picks preview live but never commit", async () => {
     const spy = vi.fn();
     render(<DateRangeHarness onChangeSpy={spy} />);
 
@@ -5059,11 +5113,10 @@ describe("DateRangeField — calendar widget", () => {
       fireEvent.mouseDown(day10);
     });
 
-    // The value should stream with only from set
-    expect(spy).toHaveBeenCalled();
-    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
-    expect(lastCall.from).toBeDefined();
-    expect(lastCall.to).toBeUndefined();
+    // The half-pick previews on the trigger face but commits nothing.
+    expect(trigger).toHaveTextContent(/Aug 10, 2026/);
+    expect(spy).not.toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 
   it("required rejects a half-pick", async () => {
@@ -5293,7 +5346,10 @@ describe("DateTimeRangeField — calendar widget", () => {
       fireEvent.mouseDown(day20);
     });
 
-    // Should commit with time (may be UTC-converted)
+    // Apply commits the draft with time (may be UTC-converted)
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
     expect(spy).toHaveBeenCalled();
     const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
     // Verify time was included (may be UTC-converted from local)
@@ -5384,7 +5440,10 @@ describe("DateTimeRangeField — calendar widget", () => {
     expect(screen.getByLabelText("End hour")).toHaveValue("17");
     expect(screen.getByLabelText("End minute")).toHaveValue("00");
 
-    // Committed values carry the user's local times converted to UTC
+    // Apply commits; the committed values carry the user's local times converted to UTC
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    });
     const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
     const expectedFrom = new Date(2026, 7, 10, 9, 30, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
     const expectedTo = new Date(2026, 7, 20, 17, 0, 0).toISOString().replace(/\.\d{3}Z$/, "Z");
