@@ -33,6 +33,7 @@ function PopupHarness({
   onCommit = vi.fn(),
   onClose = vi.fn(),
   onDraftPreview,
+  onClear,
   open = true,
 }: {
   kind: DateInputKind;
@@ -42,6 +43,7 @@ function PopupHarness({
   onCommit?: (raw: string | { from?: string; to?: string }) => void;
   onClose?: () => void;
   onDraftPreview?: (raw: string | { from?: string; to?: string }) => void;
+  onClear?: () => void;
   open?: boolean;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -60,6 +62,7 @@ function PopupHarness({
         onClose={onClose}
         onCommit={onCommit as never}
         onDraftPreview={onDraftPreview as never}
+        onClear={onClear}
         panelId="panel"
         gridId="grid"
       />
@@ -76,6 +79,89 @@ function openPopup(
   render(<PopupHarness kind={kind} value={value} open onCommit={onCommit} onClose={onClose} />);
   return { onCommit, onClose };
 }
+
+describe("CalendarPopup — Clear", () => {
+  afterEach(cleanup);
+
+  it("date: Clear hands emptiness to the parent and the popup stays open", () => {
+    const onClear = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PopupHarness kind="date" value="2024-03-15" open onClear={onClear} onClose={onClose} />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Clear" }));
+
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    // The popup stays open: no day is selected anymore.
+    expect(screen.queryByRole("gridcell", { selected: true })).toBeNull();
+  });
+
+  it("range: Clear is disabled while no anchor is set, enabled once picking has started", () => {
+    const onClear = vi.fn();
+    // Mount with no committed value: no anchor, so Clear is inert.
+    const { unmount } = render(
+      <PopupHarness kind="date-range" open onClear={onClear} />,
+    );
+    expect(screen.getByRole("button", { name: "Clear" })).toBeDisabled();
+    unmount();
+
+    // Mount with a committed range: the draft seeds an anchor, so Clear arms.
+    render(
+      <PopupHarness
+        kind="date-range"
+        value={{ from: "2024-03-10" }}
+        open
+        onClear={onClear}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Clear" })).toBeEnabled();
+  });
+
+  it("range: after a Clear, Apply closes without resurrecting the stale draft", () => {
+    const onCommit = vi.fn();
+    const onClear = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PopupHarness
+        kind="date-range"
+        value={{ from: "2024-03-10", to: "2024-03-20" }}
+        open
+        onCommit={onCommit}
+        onClear={onClear}
+        onClose={onClose}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Clear" }));
+    expect(onClear).toHaveBeenCalledTimes(1);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("date: a pick after a Clear re-arms Apply with the fresh pick", () => {
+    const onCommit = vi.fn();
+    const onClear = vi.fn();
+    render(
+      <PopupHarness
+        kind="date"
+        value="2024-03-15"
+        open
+        onCommit={onCommit}
+        onClear={onClear}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2024/ }));
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Apply" }));
+
+    expect(onCommit).toHaveBeenCalledWith("2024-03-20");
+  });
+});
 
 describe("CalendarPopup — seeding (date kinds)", () => {
   afterEach(cleanup);

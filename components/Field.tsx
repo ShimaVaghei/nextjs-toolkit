@@ -280,6 +280,13 @@ const PANEL_CLASS =
   "absolute left-0 right-0 top-full z-10 mt-1.5 space-y-3 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
   "dark:border-neutral-700 dark:bg-neutral-900";
 
+/** The Options popup's Clear footer button: muted, like the calendar's Cancel. */
+const OPTIONS_CLEAR_BUTTON_CLASS =
+  "cursor-pointer rounded-md px-2 py-1 text-sm font-medium text-neutral-600 " +
+  "hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+  "disabled:cursor-not-allowed disabled:opacity-50 " +
+  "dark:text-neutral-400 dark:hover:bg-neutral-800 dark:focus:ring-neutral-400/30";
+
 /** Shared layout of one toggleable multi-select row inside the Options popup; styled for parity with the select kind's rows. */
 const ROW_LABEL_CLASS =
   "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-neutral-900 dark:text-neutral-100";
@@ -546,6 +553,8 @@ function OptionsPopup({
   search,
   onSearchChange,
   searchInputRef,
+  onClear,
+  clearDisabled,
   children,
 }: {
   panelId: string;
@@ -554,6 +563,13 @@ function OptionsPopup({
   search: string;
   onSearchChange: (next: string) => void;
   searchInputRef: RefObject<HTMLInputElement | null>;
+  /**
+   * Clear: commits emptiness through the parent's pipeline. Optional — the
+   * footer only renders when provided. The popup stays open (Clear's
+   * uniform contract across both popups).
+   */
+  onClear?: () => void;
+  clearDisabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -576,6 +592,18 @@ function OptionsPopup({
           {children}
         </div>
       </fieldset>
+      {onClear && (
+        <div className="flex justify-end border-t border-neutral-200 pt-2 dark:border-neutral-700">
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={clearDisabled || undefined}
+            className={OPTIONS_CLEAR_BUTTON_CLASS}
+          >
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -768,6 +796,21 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const handleCalendarCommit = (rawDraft: string | FieldDateRangeValue) => {
     commitValue(rawDraft);
     touchAndValidate();
+  };
+
+  /**
+   * Calendar Clear: installs emptiness directly — the date normalizer rejects
+   * "" as invalid input, but Clear's contract is to commit Empty — then runs
+   * the same Touched + Error pipeline and drops the draft preview so the face
+   * falls back to the committed (empty) value. The popup stays open.
+   */
+  const handleCalendarClear = () => {
+    const empty = isRangeKind ? {} : "";
+    valueRef.current = empty;
+    setValueState(empty);
+    (configRef.current.onValueChange as ((value: unknown) => void) | undefined)?.(empty);
+    touchAndValidate();
+    setCalendarDraftPreview(undefined);
   };
 
 
@@ -1258,6 +1301,11 @@ function Field<K extends FieldKind = "input", T = unknown>({
               search={search}
               onSearchChange={setSearch}
               searchInputRef={searchRef}
+              onClear={() => {
+                setAnnouncement("All selections cleared.");
+                commitValue([]);
+              }}
+              clearDisabled={selectedValues.length === 0 || multiDisabled}
             >
               {panelRows.map(({ option, index }) => (
                 <label
@@ -1351,6 +1399,10 @@ function Field<K extends FieldKind = "input", T = unknown>({
               search={search}
               onSearchChange={setSearch}
               searchInputRef={searchRef}
+              onClear={() => commitValue("")}
+              clearDisabled={
+                disabled || value === "" || value === undefined || value === null
+              }
             >
               {panelRows.map(({ option, index }) => (
                 <button
@@ -1493,6 +1545,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   open={calendarOpen}
                   onClose={closeCalendar}
                   onCommit={handleCalendarCommit}
+                  onClear={handleCalendarClear}
                   onDraftPreview={setCalendarDraftPreview}
                   panelId={calendarId}
                   gridId={calendarGridId}
