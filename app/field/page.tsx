@@ -105,6 +105,21 @@ const tagsConfig: FieldMultiSelectConfig<string> = {
   ],
 };
 
+const tagChipsConfig: FieldMultiSelectConfig<string> = {
+  label: "Tags (chips)",
+  placeholder: "Pick some tags",
+  hint: "Chips Selection display: one removable chip per selected Option in a strip that grows to about three rows; the separate Show options button opens the same popup.",
+  initialValue: ["design", "research", "a11y"],
+  selectionDisplay: "chips",
+  options: [
+    { label: "Design", value: "design" },
+    { label: "Research", value: "research" },
+    { label: "Engineering", value: "engineering" },
+    { label: "Documentation", value: "docs" },
+    { label: "Accessibility", value: "a11y" },
+  ],
+};
+
 const legacyPlanConfig: FieldSelectConfig<string> = {
   label: "Plan",
   initialValue: "starter",
@@ -401,6 +416,7 @@ export default function FieldDemoPage() {
           </p>
         </div>
         <MultiSelectField config={tagsConfig} />
+        <MultiSelectField config={tagChipsConfig} />
       </section>
 
       <section className="space-y-6">
