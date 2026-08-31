@@ -251,7 +251,7 @@ const CHIP_STRIP_CLASS =
  * strip is the disclosure trigger (like the select kind's closed face).
  */
 const SELECTION_TEXT_STRIP_CLASS =
-  "field-selection-text flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden rounded-md border border-neutral-300 bg-white px-2 py-1 text-left text-sm text-neutral-900 dark:text-neutral-100 " +
+  "field-selection-text flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden rounded-md border border-neutral-300 bg-white px-3 py-1 text-left text-sm text-neutral-900 dark:text-neutral-100 " +
   "dark:border-neutral-700 dark:bg-neutral-900";
 
 /** The truncating text face itself; the full string rides the native title. */
@@ -270,7 +270,7 @@ const CHIP_REMOVE_CLASS =
   "dark:disabled:hover:bg-transparent";
 
 const OPEN_BUTTON_CLASS =
-  "flex w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-neutral-300 bg-white " +
+  "flex h-11 w-9 shrink-0 cursor-pointer items-center justify-center self-start rounded-md border border-neutral-300 bg-white " +
   "text-neutral-500 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
   "disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 disabled:hover:bg-white " +
   "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 " +
@@ -295,7 +295,7 @@ const ROW_LABEL_DISABLED_CLASS = " cursor-not-allowed opacity-60";
 
 /** Closed-face trigger of the select disclosure; the whole face opens the shared Options popup. */
 const SELECT_TRIGGER_CLASS =
-  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 " +
+  "flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 " +
   "text-left text-sm text-neutral-900 shadow-sm " +
   "focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
   "disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 " +

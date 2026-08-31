@@ -1057,6 +1057,11 @@ describe("Field select popup", () => {
     ).toHaveAttribute("placeholder", "Search options");
   });
 
+  it("stands as tall as the multi-select strips when closed", () => {
+    render(<SelectHarness overrides={SELECT_OVERRIDES} />);
+    expect(selectTrigger("Country")).toHaveClass("min-h-11");
+  });
+
   it("shares the multi-select's popup structure: search outside a legend-named group of rows", () => {
     render(<SelectHarness overrides={SELECT_OVERRIDES} />);
 
@@ -1711,6 +1716,10 @@ describe("Field multi-select closed face", () => {
     expect(strip).not.toBeNull();
     const openButton = screen.getByRole("button", { name: "Show options" });
     expect(openButton).not.toBe(strip);
+    // The toggle holds the control's base height and never grows with the
+    // strip, even when the chips wrap onto extra rows.
+    expect(openButton).toHaveClass("h-11");
+    expect(openButton).toHaveClass("self-start");
   });
 
   it("grows the chips strip vertically instead of scrolling horizontally, capping at about three rows", () => {
