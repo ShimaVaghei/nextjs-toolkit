@@ -242,7 +242,7 @@ const CHECKBOX_LABEL_CLASS =
  * to about three rows, scrolling internally past that — no horizontal scrollbar.
  */
 const CHIP_STRIP_CLASS =
-  "field-chip-strip flex max-h-24 min-h-11 min-w-0 flex-1 flex-wrap content-start items-center gap-1.5 overflow-y-auto rounded-md border border-neutral-300 bg-white px-2 py-1 " +
+  "field-chip-strip flex max-h-24 min-h-11 min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border border-neutral-300 bg-white px-2 py-1 " +
   "dark:border-neutral-700 dark:bg-neutral-900";
 
 /**
@@ -251,12 +251,12 @@ const CHIP_STRIP_CLASS =
  * strip is the disclosure trigger (like the select kind's closed face).
  */
 const SELECTION_TEXT_STRIP_CLASS =
-  "field-selection-text flex min-h-11 min-w-0 flex-1 items-center overflow-hidden rounded-md border border-neutral-300 bg-white px-2 py-1 " +
+  "field-selection-text flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden rounded-md border border-neutral-300 bg-white px-2 py-1 text-left text-sm text-neutral-900 dark:text-neutral-100 " +
   "dark:border-neutral-700 dark:bg-neutral-900";
 
 /** The truncating text face itself; the full string rides the native title. */
 const SELECTION_TEXT_CLASS =
-  "block w-full truncate text-sm text-neutral-900 dark:text-neutral-100";
+  "block min-w-0 flex-1 truncate text-sm text-neutral-900 dark:text-neutral-100";
 
 const CHIP_CLASS =
   "inline-flex shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-neutral-100 py-0.5 pl-2.5 pr-0.5 " +
@@ -1204,6 +1204,20 @@ function Field<K extends FieldKind = "input", T = unknown>({
                       {joinedSelection}
                     </span>
                   )}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
+                  >
+                    <path
+                      d="M4 6l4 4 4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </button>
               )}
               {selectionDisplay === "chips" && (

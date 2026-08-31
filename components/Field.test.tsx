@@ -1601,6 +1601,11 @@ describe("Field multi-select closed face", () => {
 
     const face = container.querySelector<HTMLElement>(".field-selection-text");
     expect(face).not.toBeNull();
+    // Button-reset: labels sit at the left edge, and the chevron rides the
+    // right edge exactly like the select kind's closed face.
+    expect(face).toHaveClass("text-left");
+    expect(face).toHaveClass("justify-between");
+    expect(face!.querySelector("svg")).not.toBeNull();
     const line = within(face!).getByText("Design, Research");
     expect(line).toHaveAttribute("title", "Design, Research");
     expect(line).toHaveClass("truncate");
@@ -1709,6 +1714,9 @@ describe("Field multi-select closed face", () => {
     expect(strip).toHaveClass("min-h-11");
     expect(strip).toHaveClass("max-h-24");
     expect(strip).toHaveClass("overflow-y-auto");
+    // No align-content override: the default stretch lets items-center center
+    // the single-row case instead of packing chips against the top edge.
+    expect(strip).not.toHaveClass("content-start");
     expect(strip).not.toHaveClass("overflow-x-auto");
     expect(strip).not.toHaveClass("h-11");
   });
