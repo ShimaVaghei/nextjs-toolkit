@@ -3359,6 +3359,33 @@ describe("DateField — calendar widget", () => {
     expect(trigger).toHaveTextContent(/Mar 15, 2025/);
   });
 
+  it("shows the in-progress draft on the trigger face while the calendar is open", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15"));
+
+    const trigger = screen.getByRole("button", { name: /Birthday/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick a different day: the face previews the draft while the popup is
+    // open, and nothing is committed yet.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2025/ }));
+    });
+    expect(trigger).toHaveTextContent(/Mar 20, 2025/);
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+
+    // Cancel discards: the face reverts to the committed value.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("button", { name: "Cancel" }));
+    });
+    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+    expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
+  });
+
   it("picking a day and clicking Apply commits the value", async () => {
     const spy = vi.fn();
     render(<DateHarness onChangeSpy={spy} />);

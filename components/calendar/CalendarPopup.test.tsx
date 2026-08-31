@@ -32,6 +32,7 @@ function PopupHarness({
   max,
   onCommit = vi.fn(),
   onClose = vi.fn(),
+  onDraftPreview,
   open = true,
 }: {
   kind: DateInputKind;
@@ -40,6 +41,7 @@ function PopupHarness({
   max?: string;
   onCommit?: (raw: string | { from?: string; to?: string }) => void;
   onClose?: () => void;
+  onDraftPreview?: (raw: string | { from?: string; to?: string }) => void;
   open?: boolean;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -57,6 +59,7 @@ function PopupHarness({
         open={open}
         onClose={onClose}
         onCommit={onCommit as never}
+        onDraftPreview={onDraftPreview as never}
         panelId="panel"
         gridId="grid"
       />
@@ -239,5 +242,62 @@ describe("CalendarPopup — disclosure mechanics", () => {
     // jsdom reports zero geometry, so this only asserts the wiring; the flip
     // decision itself is covered by the resolveCalendarPlacement unit tests.
     expect(screen.getByRole("dialog", { name: "Choose date" })).toHaveAttribute("data-placement");
+  });
+});
+
+
+
+// ─── CalendarPopup — draft preview streaming ────────────────────────────
+
+describe("CalendarPopup — draft preview", () => {
+  afterEach(cleanup);
+
+  it("streams the seeded draft immediately on open", () => {
+    const onDraftPreview = vi.fn();
+    render(<PopupHarness kind="date" value="2024-03-15" open onDraftPreview={onDraftPreview} />);
+    expect(onDraftPreview).toHaveBeenCalledWith("2024-03-15");
+  });
+
+  it("streams the new draft when a day is picked (date kind), without committing", () => {
+    const onDraftPreview = vi.fn();
+    const onCommit = vi.fn();
+    render(
+      <PopupHarness kind="date" value="2024-03-15" open onCommit={onCommit} onDraftPreview={onDraftPreview} />,
+    );
+    fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2024/ }));
+    expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-20");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("streams the datetime draft when the time slices change", () => {
+    const onDraftPreview = vi.fn();
+    render(<PopupHarness kind="datetime" value="2024-03-15T14:30:00Z" open onDraftPreview={onDraftPreview} />);
+    // Set both slices so the expectation is timezone-independent (the seed
+    // derives hour/minute from local wall-clock time).
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "22" } });
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "30" } });
+    expect(onDraftPreview).toHaveBeenLastCalledWith("2024-03-15T22:30:00");
+  });
+
+  it("does not stream while closed", () => {
+    const onDraftPreview = vi.fn();
+    render(<PopupHarness kind="date" value="2024-03-15" open={false} onDraftPreview={onDraftPreview} />);
+    expect(onDraftPreview).not.toHaveBeenCalled();
+  });
+
+  it("streams range drafts: half-pick, then complete pair", () => {
+    const onDraftPreview = vi.fn();
+    render(
+      <PopupHarness
+        kind="date-range"
+        value={{ from: "2024-03-15", to: "2024-03-15" }}
+        open
+        onDraftPreview={onDraftPreview}
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2024/ }));
+    expect(onDraftPreview).toHaveBeenLastCalledWith({ from: "2024-03-20", to: undefined });
+    fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 25, 2024/ }));
+    expect(onDraftPreview).toHaveBeenLastCalledWith({ from: "2024-03-20", to: "2024-03-25" });
   });
 });

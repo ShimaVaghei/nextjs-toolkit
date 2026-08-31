@@ -682,10 +682,18 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   // ─── Calendar state (date kinds only) ──────────────────────────────
   const [calendarOpen, setCalendarOpen] = useState(false);
+  // The popup's in-progress draft, streamed while the calendar is open. The
+  // trigger face shows this instead of the last committed value so the user
+  // sees what they are selecting; closing clears it and the face falls back
+  // to the committed value (Apply commits, Cancel/Escape discards).
+  const [calendarDraftPreview, setCalendarDraftPreview] = useState<
+    string | FieldDateRangeValue | undefined
+  >(undefined);
   const isRangeKind = kind === "date-range" || kind === "datetime-range";
 
   const closeCalendar = useCallback(() => {
     setCalendarOpen(false);
+    setCalendarDraftPreview(undefined);
   }, []);
 
   const toggleCalendar = useCallback(() => {
@@ -1087,6 +1095,15 @@ function Field<K extends FieldKind = "input", T = unknown>({
         ? value
         : "";
 
+  // The value the trigger face displays: while the calendar is open, the
+  // popup's in-progress draft; otherwise the committed value.
+  const faceValue =
+    calendarOpen && calendarDraftPreview !== undefined
+      ? calendarDraftPreview
+      : isRangeKind
+        ? value
+        : displayValue;
+
   // The composite multi-select has no single native control to host failure
   // state, so the named closed-face group anchors it. Spread deliberately:
   // jsx-a11y's role map has no entry for these on `group`, but the DOM/a11y
@@ -1378,13 +1395,13 @@ function Field<K extends FieldKind = "input", T = unknown>({
                 >
                   <span
                     className={
-                      !(isRangeKind ? value : displayValue) ? SELECT_FACE_GHOST_CLASS : undefined
+                      !faceValue ? SELECT_FACE_GHOST_CLASS : undefined
                     }
                   >
                     {isRangeKind ? (
-                      typeof value === "object" && value !== null && "from" in value ? (
+                      typeof faceValue === "object" && faceValue !== null && "from" in faceValue ? (
                         (() => {
-                          const rangeVal = value as FieldDateRangeValue;
+                          const rangeVal = faceValue as FieldDateRangeValue;
                           const formatSingle = (iso: string | undefined) => {
                             if (!iso) return "";
                             return kind === "date-range" 
@@ -1399,11 +1416,11 @@ function Field<K extends FieldKind = "input", T = unknown>({
                           return "";
                         })()
                       ) : null
-                    ) : displayValue ? (
+                    ) : faceValue ? (
                       kind === "date" ? (
-                        DATE_DISPLAY_FORMAT.format(new Date(String(displayValue)))
+                        DATE_DISPLAY_FORMAT.format(new Date(String(faceValue)))
                       ) : (
-                        DATETIME_DISPLAY_FORMAT.format(new Date(String(displayValue)))
+                        DATETIME_DISPLAY_FORMAT.format(new Date(String(faceValue)))
                       )
                     ) : null}
                     {!isRangeKind && !displayValue && placeholder}
@@ -1433,6 +1450,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   open={calendarOpen}
                   onClose={closeCalendar}
                   onCommit={handleCalendarCommit}
+                  onDraftPreview={setCalendarDraftPreview}
                   panelId={calendarId}
                   gridId={calendarGridId}
                 />

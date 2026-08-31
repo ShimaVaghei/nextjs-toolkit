@@ -58,6 +58,13 @@ export type CalendarPopupProps = {
   onClose: () => void;
   /** Raw draft value; Field normalizes and runs its observer/Error pipeline. */
   onCommit: (rawDraft: string | FieldDateRangeValue) => void;
+  /**
+   * Streams the raw draft whenever the in-progress selection changes while
+   * open. Optional: the parent uses it to show the draft on the closed face
+   * instead of the last committed value. Nothing is committed by this —
+   * Apply still routes through onCommit.
+   */
+  onDraftPreview?: (rawDraft: string | FieldDateRangeValue) => void;
   /** Accessibility plumbing: the panel id the trigger references via aria-controls. */
   panelId: string;
   gridId: string;
@@ -71,6 +78,7 @@ export function CalendarPopup({
   open,
   onClose,
   onCommit,
+  onDraftPreview,
   panelId,
   gridId,
 }: CalendarPopupProps) {
@@ -181,6 +189,52 @@ export function CalendarPopup({
   useEffect(() => {
     if (open) seedFromValue();
   }, [open, seedFromValue]);
+
+  // Draft preview: while open, stream the current raw draft to the parent so
+  // its trigger face can display the in-progress selection instead of the
+  // last committed value. Built from the same state handleApply commits, so
+  // the previewed value is exactly what Apply would emit. Range kinds skip
+  // emission until an anchor exists, mirroring the two-step pick commits.
+  useEffect(() => {
+    if (!open || !onDraftPreview) return;
+    // The seed effect runs first, but until it lands the draft is empty —
+    // skip emission rather than previewing an unbuildable value.
+    if (!utcDateParts(draft)) return;
+    if (isRangeKind) {
+      if (!rangeAnchor) return;
+      const from = rangeAnchor < draft ? rangeAnchor : draft;
+      const to = rangeAnchor < draft ? draft : rangeAnchor;
+      let fromValue: string | undefined = from;
+      let toValue: string | undefined = to;
+      if (kind === "datetime-range") {
+        fromValue = `${from}T${startTimeHour}:${startTimeMinute}:00`;
+        toValue = rangeEndDate
+          ? `${to}T${endTimeHour}:${endTimeMinute}:00`
+          : undefined;
+      } else if (!rangeEndDate) {
+        toValue = undefined;
+      }
+      onDraftPreview({ from: fromValue, to: toValue });
+      return;
+    }
+    onDraftPreview(
+      kind === "datetime" ? `${draft}T${timeHour}:${timeMinute}:00` : draft,
+    );
+  }, [
+    open,
+    kind,
+    isRangeKind,
+    draft,
+    timeHour,
+    timeMinute,
+    rangeAnchor,
+    rangeEndDate,
+    startTimeHour,
+    startTimeMinute,
+    endTimeHour,
+    endTimeMinute,
+    onDraftPreview,
+  ]);
 
   // Reset the overlay when the popup closes. Derived-state pattern: the reset
   // happens during render when `open` flips, which the compiler rules accept.
