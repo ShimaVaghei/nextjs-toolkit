@@ -1423,7 +1423,7 @@ function Field<K extends FieldKind = "input", T = unknown>({
                         DATETIME_DISPLAY_FORMAT.format(new Date(String(faceValue)))
                       )
                     ) : null}
-                    {!isRangeKind && !displayValue && placeholder}
+                    {!isRangeKind && !faceValue && placeholder}
                   </span>
                   <svg
                     aria-hidden="true"

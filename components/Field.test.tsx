@@ -3386,6 +3386,30 @@ describe("DateField — calendar widget", () => {
     expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
   });
 
+  it("previews datetime drafts (day and time slices) on the trigger face", async () => {
+    const handle = createRef<FieldHandle<string>>();
+    render(<DateTimeHarness handleRef={handle} />);
+
+    act(() => handle.current!.setValue("2025-03-15T10:00:00Z"));
+
+    const trigger = screen.getByRole("button", { name: /Appointment/i });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    // Pick a different day and set the minute: the face shows the combined
+    // draft while the popup stays open, and nothing is committed yet.
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2025/ }));
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "45" } });
+    });
+    expect(trigger).toHaveTextContent(/Mar 20, 2025/);
+    expect(trigger).toHaveTextContent(/45/);
+    expect(handle.current!.getValue()).toBe("2025-03-15T10:00:00Z");
+  });
+
   it("picking a day and clicking Apply commits the value", async () => {
     const spy = vi.fn();
     render(<DateHarness onChangeSpy={spy} />);

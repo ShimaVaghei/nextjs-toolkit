@@ -191,7 +191,7 @@ The second screen of the Month/year picker overlay. Displays 12 months in a 3×4
 _Avoid_: month selector, month grid
 
 **Draft**:
-The temporary value state inside a Calendar popup before Apply commits it. For single dates, the draft is the selected day (and time, for datetime kinds). For ranges, the draft accumulates across two clicks: first click anchors one end, second click completes the other. The draft is visible in the popup's summary pane but not yet in the Field's value or emitted to the parent. Cancel or Escape discards the draft without changing the Field.
+The temporary value state inside a Calendar popup before Apply commits it. For single dates, the draft is the selected day (and time, for datetime kinds). For ranges, the draft accumulates across two clicks: first click anchors one end, second click completes the other. The draft is visible in the popup's summary pane and, while the popup is open, streamed to the parent (via onDraftPreview) so the trigger face previews it in place of the committed value — a preview only; the Field's value does not change until Commit. Closing the popup clears the preview and the face falls back to the committed value. Cancel or Escape discards the draft without changing the Field.
 _Avoid_: pending value, staged value, uncommitted pick
 
 **Commit**:

@@ -190,51 +190,48 @@ export function CalendarPopup({
     if (open) seedFromValue();
   }, [open, seedFromValue]);
 
-  // Draft preview: while open, stream the current raw draft to the parent so
-  // its trigger face can display the in-progress selection instead of the
-  // last committed value. Built from the same state handleApply commits, so
-  // the previewed value is exactly what Apply would emit. Range kinds skip
-  // emission until an anchor exists, mirroring the two-step pick commits.
-  useEffect(() => {
-    if (!open || !onDraftPreview) return;
-    // The seed effect runs first, but until it lands the draft is empty —
-    // skip emission rather than previewing an unbuildable value.
-    if (!utcDateParts(draft)) return;
+  // Build the raw draft value for the kind — the single source of truth for
+  // both what Apply commits and what the preview streams, so the two can
+  // never drift. Returns null while the draft is unbuildable (pre-seed, or
+  // a range pick with no anchor yet).
+  const buildDraftValue = useCallback((): string | FieldDateRangeValue | null => {
+    if (!utcDateParts(draft)) return null;
     if (isRangeKind) {
-      if (!rangeAnchor) return;
+      if (!rangeAnchor) return null;
       const from = rangeAnchor < draft ? rangeAnchor : draft;
       const to = rangeAnchor < draft ? draft : rangeAnchor;
-      let fromValue: string | undefined = from;
-      let toValue: string | undefined = to;
       if (kind === "datetime-range") {
-        fromValue = `${from}T${startTimeHour}:${startTimeMinute}:00`;
-        toValue = rangeEndDate
-          ? `${to}T${endTimeHour}:${endTimeMinute}:00`
-          : undefined;
-      } else if (!rangeEndDate) {
-        toValue = undefined;
+        return {
+          from: `${from}T${startTimeHour}:${startTimeMinute}:00`,
+          to: rangeEndDate ? `${to}T${endTimeHour}:${endTimeMinute}:00` : undefined,
+        };
       }
-      onDraftPreview({ from: fromValue, to: toValue });
-      return;
+      return { from, to: rangeEndDate ? to : undefined };
     }
-    onDraftPreview(
-      kind === "datetime" ? `${draft}T${timeHour}:${timeMinute}:00` : draft,
-    );
+    return kind === "datetime" ? `${draft}T${timeHour}:${timeMinute}:00` : draft;
   }, [
-    open,
+    draft,
     kind,
     isRangeKind,
-    draft,
-    timeHour,
-    timeMinute,
     rangeAnchor,
     rangeEndDate,
     startTimeHour,
     startTimeMinute,
     endTimeHour,
     endTimeMinute,
-    onDraftPreview,
+    timeHour,
+    timeMinute,
   ]);
+
+  // Draft preview: while open, stream the current raw draft to the parent so
+  // its trigger face can display the in-progress selection instead of the
+  // last committed value. Built by the same builder Apply commits, so the
+  // previewed value is exactly what Apply would emit.
+  useEffect(() => {
+    if (!open || !onDraftPreview) return;
+    const raw = buildDraftValue();
+    if (raw !== null) onDraftPreview(raw);
+  }, [open, onDraftPreview, buildDraftValue]);
 
   // Reset the overlay when the popup closes. Derived-state pattern: the reset
   // happens during render when `open` flips, which the compiler rules accept.
@@ -405,23 +402,8 @@ const headerLabel = formatMonthYear(draftYear, draftMonth);
 
   // Build the raw draft value for the kind and commit it.
   const handleApply = () => {
-    if (kind === "date") {
-      onCommit(draft);
-    } else if (kind === "datetime") {
-      onCommit(`${draft}T${timeHour}:${timeMinute}:00`);
-    } else if (isRangeKind && rangeAnchor) {
-      const from = rangeAnchor < draft ? rangeAnchor : draft;
-      const to = rangeAnchor < draft ? draft : rangeAnchor;
-      let fromValue: string | undefined = from;
-      let toValue: string | undefined = to;
-      if (kind === "datetime-range") {
-        fromValue = `${from}T${startTimeHour}:${startTimeMinute}:00`;
-        toValue = `${to}T${endTimeHour}:${endTimeMinute}:00`;
-      }
-      onCommit({ from: fromValue, to: toValue });
-      setRangeAnchor(undefined);
-      setHoverDate(undefined);
-    }
+    const raw = buildDraftValue();
+    if (raw !== null) onCommit(raw);
     onClose();
   };
 
