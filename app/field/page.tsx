@@ -388,12 +388,14 @@ export default function FieldDemoPage() {
             The Selection display picks the closed face. By default the labels
             join into one comma-separated line that truncates with an
             ellipsis — hover it for the whole string; removal happens inside
-            the popup. Opting into{" "}
+            the popup, and the strip itself opens it, like the select kind.
+            Opting into{" "}
             <code className="font-mono">selectionDisplay: &quot;chips&quot;</code>{" "}
             renders removable chips instead, in a strip that grows to about
-            three rows and scrolls past that. &ldquo;Show options&rdquo; opens
-            a plain disclosure popup: a search box filters the rows above a
-            group of native checkboxes. Opening lands focus on the search box,
+            three rows and scrolls past that, with a separate &ldquo;Show
+            options&rdquo; button opening a plain disclosure popup: a search
+            box filters the rows above a group of native checkboxes. Opening
+            lands focus on the search box,
             Escape returns it to the button, clicking outside closes quietly,
             and removing the focused chip hops focus to its neighbour.
           </p>

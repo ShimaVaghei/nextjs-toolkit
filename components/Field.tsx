@@ -247,7 +247,8 @@ const CHIP_STRIP_CLASS =
 
 /**
  * Text Selection display strip: one line of comma-joined labels inside the
- * same bordered control, clipped to a single row with an ellipsis.
+ * same bordered control, clipped to a single row with an ellipsis. The whole
+ * strip is the disclosure trigger (like the select kind's closed face).
  */
 const SELECTION_TEXT_STRIP_CLASS =
   "field-selection-text flex min-h-11 min-w-0 flex-1 items-center overflow-hidden rounded-md border border-neutral-300 bg-white px-2 py-1 " +
@@ -1175,7 +1176,24 @@ function Field<K extends FieldKind = "input", T = unknown>({
                   ))}
                 </div>
               ) : (
-                <div className={SELECTION_TEXT_STRIP_CLASS}>
+                // Text display: the whole strip is the disclosure trigger,
+                // exactly like the select kind's closed face — no separate
+                // toggle button beside it.
+                <button
+                  type="button"
+                  ref={triggerRef}
+                  onClick={toggleOpen}
+                  disabled={multiDisabled || undefined}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  aria-label="Show options"
+                  className={
+                    SELECTION_TEXT_STRIP_CLASS +
+                    " cursor-pointer focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
+                    "disabled:cursor-not-allowed disabled:bg-neutral-100 dark:disabled:bg-neutral-800 " +
+                    "dark:focus:ring-neutral-400/30"
+                  }
+                >
                   {chips.length === 0 ? (
                     emptySelectionFace
                   ) : (
@@ -1186,33 +1204,35 @@ function Field<K extends FieldKind = "input", T = unknown>({
                       {joinedSelection}
                     </span>
                   )}
-                </div>
+                </button>
               )}
-              <button
-                type="button"
-                ref={triggerRef}
-                onClick={toggleOpen}
-                disabled={multiDisabled || undefined}
-                aria-expanded={open}
-                aria-controls={panelId}
-                aria-label="Show options"
-                className={OPEN_BUTTON_CLASS}
-              >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="size-4"
+              {selectionDisplay === "chips" && (
+                <button
+                  type="button"
+                  ref={triggerRef}
+                  onClick={toggleOpen}
+                  disabled={multiDisabled || undefined}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  aria-label="Show options"
+                  className={OPEN_BUTTON_CLASS}
                 >
-                  <path
-                    d="M4 6l4 4 4-4"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="size-4"
+                  >
+                    <path
+                      d="M4 6l4 4 4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {/* Plain disclosure popup: no dialog/listbox role, no focus trap. */}

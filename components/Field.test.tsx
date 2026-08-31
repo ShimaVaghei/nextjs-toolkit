@@ -1551,13 +1551,17 @@ function politeRegion(): HTMLElement {
 }
 
 describe("Field multi-select closed face", () => {
-  it("renders a label-named group of chips beside a separate open button with synced expanded state", () => {
-    render(<MultiSelectHarness overrides={tagOverrides()} />);
+  it("renders a label-named group whose text face itself is the open trigger with synced expanded state", () => {
+    const { container } = render(<MultiSelectHarness overrides={tagOverrides()} />);
 
     // The group is named by the visible field label via aria-labelledby.
     expect(screen.getByRole("group", { name: "Tags" })).toBeInTheDocument();
 
+    // No separate toggle button beside the strip: the strip is the trigger.
     const openButton = screen.getByRole("button", { name: "Show options" });
+    expect(container.querySelector(".field-selection-text")).toBe(
+      openButton,
+    );
     expect(openButton).toHaveAttribute("aria-expanded", "false");
     const panelId = openButton.getAttribute("aria-controls");
     expect(panelId).not.toBe("");
@@ -1675,6 +1679,17 @@ describe("Field multi-select closed face", () => {
     expect(
       screen.getByRole("button", { name: "Remove Design" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps a separate open button beside the strip when the Selection display is chips", () => {
+    const { container } = render(
+      <MultiSelectHarness overrides={chipTagOverrides()} />,
+    );
+
+    const strip = container.querySelector(".field-chip-strip");
+    expect(strip).not.toBeNull();
+    const openButton = screen.getByRole("button", { name: "Show options" });
+    expect(openButton).not.toBe(strip);
   });
 
   it("grows the chips strip vertically instead of scrolling horizontally, capping at about three rows", () => {

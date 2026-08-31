@@ -119,7 +119,7 @@ The disclosure panel shared by select and multi-select: a search box filtering r
 _Avoid_: dropdown list, options menu, picker
 
 **Selection display**:
-How a multi-select Field renders its selected Options inside the control, declared as `selectionDisplay`: `chips` or `text`, defaulting to `text`. `chips` lays out one removable Chip per selected Option; `text` joins the labels into one comma-separated line that truncates with an ellipsis, the full string exposed via the native tooltip. Only exists on the multi-select kind.
+How a multi-select Field renders its selected Options inside the control, declared as `selectionDisplay`: `chips` or `text`, defaulting to `text`. `chips` lays out one removable Chip per selected Option, with a separate "Show options" button beside the strip opening the Options popup. `text` joins the labels into one comma-separated line that truncates with an ellipsis, the full string exposed via the native tooltip — and the whole strip itself is the disclosure trigger opening the Options popup, exactly like the select kind's closed face (no separate toggle button). Only exists on the multi-select kind.
 _Avoid_: view mode, display mode, appearance
 
 **Matching**:
