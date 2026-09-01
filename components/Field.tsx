@@ -59,6 +59,14 @@ export type FieldOption<T = unknown> = {
 export type FieldValue = string | number | boolean | string[];
 
 /**
+ * The range value shape a number-range Field carries: two individually
+ * optional numeric bounds. Mirrors the date-range shape (`{ from?, to? }`)
+ * but numeric, so open-ended ranges are first-class and a range with no
+ * bounds has each end simply absent.
+ */
+export type FieldNumberRangeValue = { from?: number; to?: number };
+
+/**
  * The value shape each Field kind carries: what Initial seeds, the observer
  * emits, and the Handle reads and installs. Choice kinds take it from the
  * config's T; the rest is fixed.
@@ -72,8 +80,10 @@ type FieldValueOf<K extends FieldKind, T> = [K] extends ["select"]
       : [K] extends ["textarea" | "date" | "datetime"]
         ? string
           : [K] extends ["date-range" | "datetime-range"]
-          ? FieldDateRangeValue
-          : string | number;
+            ? FieldDateRangeValue
+            : [K] extends ["number-range"]
+              ? FieldNumberRangeValue
+              : string | number;
 
 export type { FieldDateRangeValue };
 
@@ -334,6 +344,36 @@ function isNumberInput(
  */
 function coerceNumberInput(raw: string): FieldValue {
   return raw.trim() === "" ? "" : Number(raw);
+}
+
+/**
+ * Number-range end coercion (the plural of the number-input matrix, applied
+ * to one bound at a time): blank or whitespace-only raw input becomes the
+ * absent end (`undefined`), anything else maps through `Number` so non-numeric
+ * garbage becomes NaN — which the emptiness predicate reads as a missing
+ * bound at validation time.
+ */
+function coerceNumberRangeEnd(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  return Number(trimmed);
+}
+
+/**
+ * The number-range commit normalizer: the ends arrive already coerced by the
+ * caller, so the only transform here is the range swap invariant — when both
+ * bounds are present and `from > to`, they are swapped so `from <= to` always
+ * holds. Matches the date-range kinds exactly; never an ordering error. NaN
+ * compares false, so a garbage end never triggers a swap.
+ */
+function normalizeNumberRange(
+  value: FieldNumberRangeValue,
+): FieldNumberRangeValue {
+  const { from, to } = value;
+  if (from !== undefined && to !== undefined && from > to) {
+    return { from: to, to: from };
+  }
+  return { from, to };
 }
 
 /**
@@ -658,6 +698,8 @@ function Field<K extends FieldKind = "input", T = unknown>({
 
   const baseId = useId();
   const controlId = `${baseId}-control`;
+  const fromId = `${baseId}-from`;
+  const toId = `${baseId}-to`;
   const hintId = `${baseId}-hint`;
   const errorId = `${baseId}-error`;
   const labelId = `${baseId}-label`;
@@ -763,7 +805,14 @@ function Field<K extends FieldKind = "input", T = unknown>({
     if (isDateKind(kind) && normalized === undefined) {
       return;
     }
-    const finalValue = isDateKind(kind) ? normalized : next;
+    // Number-range kinds: enforce the from <= to swap invariant on every
+    // committed change, imperative or user-edit, so a caller can never hold
+    // or install an out-of-order pair.
+    const finalValue = isDateKind(kind)
+      ? normalized
+      : kind === "number-range"
+        ? normalizeNumberRange(next as FieldNumberRangeValue)
+        : next;
     valueRef.current = finalValue;
     setValueState(finalValue);
     (
@@ -980,6 +1029,36 @@ function Field<K extends FieldKind = "input", T = unknown>({
     setError(evaluate(kind, inputType, config.validator, value, true));
   };
 
+  /**
+   * One end edited: commit a fresh range preserving the other bound. The
+   * preserved end comes from valueRef (the latest committed value) rather
+   * than the render closure so rapid edits never drop an earlier commit's
+   * other end. commitValue enforces the from <= to swap.
+   */
+  const handleRangeFromChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const current =
+      (valueRef.current as FieldNumberRangeValue | undefined) ?? {};
+    commitValue({
+      from: coerceNumberRangeEnd(event.target.value),
+      to: current.to,
+    });
+  };
+
+  const handleRangeToChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const current =
+      (valueRef.current as FieldNumberRangeValue | undefined) ?? {};
+    commitValue({
+      from: current.from,
+      to: coerceNumberRangeEnd(event.target.value),
+    });
+  };
+
+  const handleRangeBlur = () => {
+    // Evaluate the committed value; range commits have already normalized + swapped.
+    setTouched(true);
+    setError(evaluate(kind, inputType, config.validator, valueRef.current, true));
+  };
+
   const toggleOption = (option: FieldOption) => {
     // In-panel toggles announce nothing extra — clear any pending removal
     // message so a repeated removal re-announces with fresh text.
@@ -1148,6 +1227,22 @@ function Field<K extends FieldKind = "input", T = unknown>({
       : isRangeKind
         ? value
         : displayValue;
+
+  // Number-range end display: each bound renders its number, with both an
+  // absent end and NaN (garbage/empty) showing as an empty control — pass ""
+  // to the input rather than NaN so React never warns about a NaN value.
+  const rangeValue =
+    kind === "number-range"
+      ? (value as FieldNumberRangeValue | undefined) ?? {}
+      : undefined;
+  const rangeFromDisplay =
+    rangeValue && rangeValue.from !== undefined && !Number.isNaN(rangeValue.from)
+      ? rangeValue.from
+      : "";
+  const rangeToDisplay =
+    rangeValue && rangeValue.to !== undefined && !Number.isNaN(rangeValue.to)
+      ? rangeValue.to
+      : "";
 
   // The composite multi-select has no single native control to host failure
   // state, so the named closed-face group anchors it. Spread deliberately:
@@ -1433,6 +1528,54 @@ function Field<K extends FieldKind = "input", T = unknown>({
             {requiredMarker}
           </label>
         </div>
+      ) : kind === "number-range" ? (
+        <>
+          {/* The visible label names the two-input pair via aria-labelledby, so the
+              pair reads as one labelled control with the hint spanning both. */}
+          <label id={labelId} className={LABEL_CLASS}>
+            {label}
+            {requiredMarker}
+          </label>
+
+          <div
+            className="mt-1.5 flex items-stretch gap-2"
+            role="group"
+            aria-labelledby={labelId}
+            aria-describedby={`${hintId} ${errorId}`}
+            {...groupStatusAttributes}
+          >
+            <div className="flex min-w-0 flex-1 flex-col">
+              <label htmlFor={fromId} className="sr-only">
+                From
+              </label>
+              <input
+                id={fromId}
+                type="number"
+                value={rangeFromDisplay}
+                placeholder="From"
+                disabled={disabled || undefined}
+                onChange={handleRangeFromChange}
+                onBlur={handleRangeBlur}
+                className={CONTROL_CLASS}
+              />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <label htmlFor={toId} className="sr-only">
+                To
+              </label>
+              <input
+                id={toId}
+                type="number"
+                value={rangeToDisplay}
+                placeholder="To"
+                disabled={disabled || undefined}
+                onChange={handleRangeToChange}
+                onBlur={handleRangeBlur}
+                className={CONTROL_CLASS}
+              />
+            </div>
+          </div>
+        </>
       ) : (
         <>
           <label htmlFor={controlId} className={LABEL_CLASS}>
@@ -1658,6 +1801,14 @@ export type FieldDateRangeConfig = FieldCommonConfig<FieldDateRangeValue> &
 export type FieldDateTimeRangeConfig = FieldCommonConfig<FieldDateRangeValue> &
   FieldPlaceholderConfig;
 
+/**
+ * The config for a NumberRangeField: value shape fixed at
+ * `FieldNumberRangeValue`. Both ends are individually optional so open-ended
+ * ranges are representable. The From/To placeholders are fixed by the kind —
+ * no config surface for them.
+ */
+export type FieldNumberRangeConfig = FieldCommonConfig<FieldNumberRangeValue>;
+
 /** An input Field: one labeled single-line control, narrowed by Input type. */
 export function InputField({
   config,
@@ -1773,6 +1924,22 @@ export function DateTimeRangeField({
   return (
     <Field<"datetime-range">
       config={{ ...config, kind: "datetime-range" }}
+      ref={ref}
+    />
+  );
+}
+
+/** A number-range Field: one labelled control for a from and to numeric bound. */
+export function NumberRangeField({
+  config,
+  ref,
+}: {
+  config: FieldNumberRangeConfig;
+  ref?: Ref<FieldHandle<FieldNumberRangeValue>>;
+}) {
+  return (
+    <Field<"number-range">
+      config={{ ...config, kind: "number-range" }}
       ref={ref}
     />
   );

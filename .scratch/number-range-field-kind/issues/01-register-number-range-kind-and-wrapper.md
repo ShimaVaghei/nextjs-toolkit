@@ -10,11 +10,11 @@ returns/installs that range shape.
 
 **Blocked by:** None - can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A NumberRangeField wrapper and a FieldNumberRangeConfig type exist; no caller writes the kind literal.
-- [ ] The number-range kind joins the Field vocabulary type,and the value mapping resolves to the range value type.
-- [ ] The Field renders two adjacent number inputs with accessible From/To labels; editing either commits a from?/to?
+- [x] A NumberRangeField wrapper and a FieldNumberRangeConfig type exist; no caller writes the kind literal.
+- [x] The number-range kind joins the Field vocabulary type, and the value mapping resolves to the range value type.
+- [x] The Field renders two adjacent number inputs with accessible From/To labels; editing either commits a from/to
   value preserving the other end.
-- [ ] A ref-typed FieldHandle exposes getValue/setValue for the range value.
-- [ ] Tests assert external behavior only: render, type into From/To, committed value shape, andle get/set.
+- [x] A ref-typed FieldHandle exposes getValue/setValue for the range value.
+- [x] Tests assert external behavior only: render, type into From/To, committed value shape, and get/set.
