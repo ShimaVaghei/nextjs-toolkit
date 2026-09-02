@@ -85,7 +85,7 @@ function requiredConstraint(
 
 // ─── Rule-kind fitting ─────────────────────────────────────────────────
 
-function isNumberInput(
+export function isNumberInput(
   kind: FieldKind,
   inputType: FieldInputType | undefined,
 ): boolean {
@@ -109,7 +109,7 @@ function fitsEmailRule(
 }
 
 /** Whether the kind is one of the four date kinds. */
-function isDateKind(kind: FieldKind): boolean {
+export function isDateKind(kind: FieldKind): boolean {
   return (
     kind === "date" ||
     kind === "datetime" ||
