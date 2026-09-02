@@ -49,7 +49,7 @@ import {
   type FieldHandle,
   type FieldValue,
 } from "../Field";
-import { resolveCalendarPlacement } from "../../calendar";
+import { resolveCalendarPlacement } from "../../calendar/calendarShared";
 
 afterEach(() => {
   cleanup();
