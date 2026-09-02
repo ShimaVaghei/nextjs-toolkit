@@ -12,7 +12,7 @@ import {
   type FieldDateRangeValue,
 } from "@/lib/date";
 
-import { CalendarPopup } from "./calendar/CalendarPopup";
+import { CalendarPopup } from "../calendar";
 
 import {
   evaluate,

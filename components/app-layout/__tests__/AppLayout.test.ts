@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeActiveRoute, type RoutesSection } from "./AppLayout";
+import { computeActiveRoute, type RoutesSection } from "../AppLayout";
 
 const routes: RoutesSection[] = [
   {

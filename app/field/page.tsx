@@ -22,7 +22,7 @@ import {
   type FieldOption,
   type FieldSelectConfig,
   type FieldTextareaConfig,
-} from "@/components/Field";
+} from "@/components/field";
 
 // Configs are plain data: each Field owns its value internally, so none of
 // these carry live state or change callbacks. The per-kind config types pin

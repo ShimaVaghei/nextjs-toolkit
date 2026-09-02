@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Table, type TableConfig } from "@/components/Table";
+import { Table, type TableConfig } from "@/components/table";
 import {
   projectColumns,
   queryProjects,

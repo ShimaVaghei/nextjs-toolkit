@@ -9,8 +9,8 @@ import {
   screen,
   fireEvent,
   within,
-} from "./__test__/field-test-utils";
-import { type FieldHandle, type FieldDateRangeValue } from "./Field";
+} from "./field-test-utils";
+import { type FieldHandle, type FieldDateRangeValue } from "../Field";
 
 afterEach(() => { cleanup(); });
 

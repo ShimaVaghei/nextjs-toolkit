@@ -8,8 +8,8 @@ import {
   screen,
   fireEvent,
   within,
-} from "./__test__/field-test-utils";
-import { type FieldHandle } from "./Field";
+} from "./field-test-utils";
+import { type FieldHandle } from "../Field";
 
 afterEach(() => {
   cleanup();

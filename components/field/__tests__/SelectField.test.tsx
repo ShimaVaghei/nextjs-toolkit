@@ -21,8 +21,8 @@ import {
   KEPLER,
   HOPPER,
   trainOverrides,
-} from "./__test__/field-test-utils";
-import type { FieldValue, FieldOption, FieldSelectConfig, FieldHandle } from "./Field";
+} from "./field-test-utils";
+import type { FieldValue, FieldOption, FieldSelectConfig, FieldHandle } from "../Field";
 
 afterEach(() => { cleanup(); });
 

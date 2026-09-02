@@ -6,8 +6,8 @@ import {
   render,
   screen,
   fireEvent,
-} from "./__test__/field-test-utils";
-import { type FieldHandle, type FieldNumberRangeValue } from "./Field";
+} from "./field-test-utils";
+import { type FieldHandle, type FieldNumberRangeValue } from "../Field";
 
 afterEach(() => {
   cleanup();

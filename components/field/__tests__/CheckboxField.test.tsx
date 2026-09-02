@@ -13,8 +13,8 @@ import {
   within,
   createRef,
   act,
-} from "./__test__/field-test-utils";
-import { CheckboxField, type FieldHandle, type FieldValue } from "./Field";
+} from "./field-test-utils";
+import { CheckboxField, type FieldHandle, type FieldValue } from "../Field";
 
 afterEach(() => {
   cleanup();

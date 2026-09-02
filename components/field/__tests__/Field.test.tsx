@@ -34,7 +34,7 @@ import {
   screen,
   fireEvent,
   within,
-} from "./__test__/field-test-utils";
+} from "./field-test-utils";
 import {
   CheckboxField,
   InputField,
@@ -48,8 +48,8 @@ import {
   type FieldOption,
   type FieldHandle,
   type FieldValue,
-} from "./Field";
-import { resolveCalendarPlacement } from "./calendar/calendarShared";
+} from "../Field";
+import { resolveCalendarPlacement } from "../../calendar";
 
 afterEach(() => {
   cleanup();

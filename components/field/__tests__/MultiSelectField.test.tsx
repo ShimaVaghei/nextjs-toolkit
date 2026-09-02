@@ -21,8 +21,8 @@ import {
   within,
   act,
   createRef,
-} from "./__test__/field-test-utils";
-import { type FieldMultiSelectConfig, type FieldOption, type FieldValue } from "./Field";
+} from "./field-test-utils";
+import { type FieldMultiSelectConfig, type FieldOption, type FieldValue } from "../Field";
 
 afterEach(() => {
   cleanup();

@@ -1,5 +1,5 @@
 import { describe, it, afterEach } from "vitest";
-import { cleanup } from "./__test__/field-test-utils";
+import { cleanup } from "./field-test-utils";
 
 afterEach(() => {
   cleanup();

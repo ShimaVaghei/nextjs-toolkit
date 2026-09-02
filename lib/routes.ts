@@ -1,4 +1,4 @@
-import type { RoutesSection } from "@/components/AppLayout";
+import type { RoutesSection } from "@/components/app-layout";
 
 export const appRoutes: RoutesSection[] = [
   {
