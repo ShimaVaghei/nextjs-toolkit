@@ -1,18 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import type { ChangeEvent, FocusEvent, KeyboardEvent, ReactNode, Ref, RefObject } from "react";
 import {
-  DATE_DISPLAY_FORMAT,
-  DATETIME_DISPLAY_FORMAT,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import type { ReactNode, Ref } from "react";
+import {
   normalizeDateInput,
-  pad2,
-  utcDateParts,
   type DateInputKind,
   type FieldDateRangeValue,
 } from "@/lib/date";
-
-import { CalendarPopup } from "../calendar";
 
 import {
   evaluate,
@@ -28,46 +29,31 @@ import {
 
 import {
   coerceNumberInput,
-  coerceNumberRangeEnd,
-  normalizeNumberRange,
-  resolveChips,
-  resolveSelectFace,
-  sameInitial,
-  isOptionsLoader,
-  chipIdFor,
-  describedStaleValue,
   IDENTITY_MATCH,
   LABEL_CLASS,
-  CONTROL_CLASS,
   HINT_CLASS,
   ERROR_CLASS,
   REJECTED_MESSAGE_CLASS,
   RETRY_BUTTON_CLASS,
   OPTION_LOAD_SPINNER,
-  CHECKBOX_ROW_CLASS,
-  CHECKBOX_CLASS,
-  CHECKBOX_LABEL_CLASS,
-  CHIP_STRIP_CLASS,
-  SELECTION_TEXT_STRIP_CLASS,
-  SELECTION_TEXT_CLASS,
-  CHIP_CLASS,
-  CHIP_REMOVE_CLASS,
-  OPEN_BUTTON_CLASS,
-  PANEL_CLASS,
-  OPTIONS_CLEAR_BUTTON_CLASS,
-  ROW_LABEL_CLASS,
-  ROW_LABEL_ENABLED_CLASS,
-  ROW_LABEL_DISABLED_CLASS,
-  SELECT_TRIGGER_CLASS,
-  SELECT_FACE_GHOST_CLASS,
-  ROW_BUTTON_CLASS,
+  isOptionsLoader,
+  normalizeNumberRange,
+  resolveChips,
+  resolveSelectFace,
+  sameInitial,
+  describedStaleValue,
   type FieldOption,
   type FieldNumberRangeValue,
   type MatchFn,
-  type Chip,
-  type SelectFace,
   type OptionLoadStatus,
 } from "./fieldShared";
+
+import { TextualFieldControl } from "./controls/TextualFieldControl";
+import { CheckboxFieldControl } from "./controls/CheckboxFieldControl";
+import { NumberRangeFieldControl } from "./controls/NumberRangeFieldControl";
+import { SelectFieldControl } from "./controls/SelectFieldControl";
+import { MultiSelectFieldControl } from "./controls/MultiSelectFieldControl";
+import { DateFieldControl } from "./controls/DateFieldControl";
 
 export type { FieldOption, FieldNumberRangeValue } from "./fieldShared";
 
@@ -161,8 +147,7 @@ type FieldChoiceConfig<T> = {
 /**
  * Muted hint text a Field shows while it holds nothing: the native attribute
  * on input and textarea kinds, the closed-face text on select, the empty
- * chip strip's text on multi-select. Checkbox has none. Purely visual —
- * inert, aria-hidden, never part of the value pipeline.
+ * chip strip's text on multi-select. Checkbox has none.
  */
 type FieldPlaceholderConfig = {
   placeholder?: string;
@@ -201,84 +186,6 @@ export type FieldHandle<V = FieldValue> = {
   setValue(value: V): void;
 };
 
-type ControlAttributes = {
-  id: string;
-  disabled?: boolean;
-  "aria-required"?: boolean;
-  "aria-invalid"?: boolean;
-  "aria-describedby"?: string;
-};
-
-/**
- * The Options popup shared by both choice kinds: a plain disclosure panel
- * with a search box filtering rows above them. Opening moves focus to the
- * search box; every close path (Escape, outside click, focus loss) resets
- * the query via the parent's closePanel. The rows themselves differ per kind.
- */
-function OptionsPopup({
-  panelId,
-  searchId,
-  open,
-  search,
-  onSearchChange,
-  searchInputRef,
-  onClear,
-  clearDisabled,
-  children,
-}: {
-  panelId: string;
-  searchId: string;
-  open: boolean;
-  search: string;
-  onSearchChange: (next: string) => void;
-  searchInputRef: RefObject<HTMLInputElement | null>;
-  /**
-   * Clear: commits emptiness through the parent's pipeline. Optional — the
-   * footer only renders when provided. The popup stays open (Clear's
-   * uniform contract across both popups).
-   */
-  onClear?: () => void;
-  clearDisabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div id={panelId} hidden={!open} className={PANEL_CLASS}>
-      <label htmlFor={searchId} className="sr-only">
-        Search options
-      </label>
-      <input
-        ref={searchInputRef}
-        id={searchId}
-        type="text"
-        value={search}
-        placeholder="Search options"
-        onChange={(event) => onSearchChange(event.target.value)}
-        className={`${CONTROL_CLASS} mt-0`}
-      />
-      <fieldset className="min-w-0 border-0 p-0">
-        <legend className="sr-only">Options</legend>
-        <div className="max-h-60 space-y-1 overflow-y-auto p-0.5">
-          {children}
-        </div>
-      </fieldset>
-      {onClear && (
-        <div className="flex justify-end border-t border-neutral-200 pt-2 dark:border-neutral-700">
-          <button
-            type="button"
-            onClick={onClear}
-            disabled={clearDisabled || undefined}
-            className={OPTIONS_CLEAR_BUTTON_CLASS}
-          >
-            Clear
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
 /**
  * A date kind's Min/Max rule value as the ISO date string the calendar module
  * consumes — rules may be a bare string or an object carrying the value.
@@ -294,10 +201,13 @@ function coerceDateBound(
 }
 
 /**
- * The shared engine behind the five public Field components: renders exactly
- * one labeled control for the stamped kind and owns the value lifecycle.
- * Not exported — callers pick a wrapper (InputField, SelectField, …), which
- * fixes the kind.
+ * The shared engine behind the nine public Field wrapper components. The
+ * engine owns the value lifecycle — ownership of the committed value,
+ * **Commit**, the Touched lifecycle, the imperative `FieldHandle`, and the
+ * async Options loader — and delegates the actual rendering of the labeled
+ * control to a per-kind adapter (`controls/*FieldControl`) behind one
+ * `FieldControl` seam. Adding a new kind means writing one adapter; the
+ * engine never has to grow a new branch in a switch.
  */
 function Field<K extends FieldKind = "input", T = unknown>({
   config,
@@ -334,8 +244,8 @@ function Field<K extends FieldKind = "input", T = unknown>({
   const labelId = `${baseId}-label`;
   const panelId = `${baseId}-panel`;
   const searchId = `${baseId}-search`;
-  const calendarId = `${baseId}-calendar`;
-  const calendarGridId = `${baseId}-calendar-grid`;
+
+  const describedBy = `${hintId} ${errorId}`;
 
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -365,42 +275,19 @@ function Field<K extends FieldKind = "input", T = unknown>({
     );
   }, [initialValue, label, matches]);
 
-  // Multi-select popup state: disclosure visibility plus the client-side
-  // search query; the query resets whenever the panel closes.
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [announcement, setAnnouncement] = useState<string | null>(null);
-
-  const widgetRef = useRef<HTMLDivElement>(null);
-  // Set while a row press is being absorbed: its dissolved focus must not
-  // read as leaving the widget (see handleWidgetBlur).
-  const absorbedPressRef = useRef(false);
-  // Whichever control opens the popup: the multi-select's chevron button or
-  // the select's closed face. Escape and focus hops return here.
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const chipRemoveRefs = useRef(new Map<string, HTMLButtonElement>());
-
-  // ─── Calendar state (date kinds only) ──────────────────────────────
+  // Calendar state (date kinds only): the popup's open state plus the
+  // Draft preview streamed while the popup is open. The trigger face
+  // shows the draft instead of the committed value so the user sees what
+  // they are selecting; closing clears it and the face falls back to the
+  // committed value (Apply commits, Cancel/Escape discards).
   const [calendarOpen, setCalendarOpen] = useState(false);
-  // The popup's in-progress draft, streamed while the calendar is open. The
-  // trigger face shows this instead of the last committed value so the user
-  // sees what they are selecting; closing clears it and the face falls back
-  // to the committed value (Apply commits, Cancel/Escape discards).
   const [calendarDraftPreview, setCalendarDraftPreview] = useState<
     string | FieldDateRangeValue | undefined
   >(undefined);
   const isRangeKind = kind === "date-range" || kind === "datetime-range";
 
-  const closeCalendar = useCallback(() => {
-    setCalendarOpen(false);
-    setCalendarDraftPreview(undefined);
-  }, []);
-
-  const toggleCalendar = useCallback(() => {
-    setCalendarOpen((wasOpen) => !wasOpen);
-  }, []);
-
+  // Shared polite region for chip-removal announcements.
+  const [announcement, setAnnouncement] = useState<string | null>(null);
 
   // Async Option load lifecycle (loader-form configs only): Pending until the
   // mount-fired loader settles, then Resolved with the Options or Rejected.
@@ -426,9 +313,12 @@ function Field<K extends FieldKind = "input", T = unknown>({
    */
   const commitValue = useCallback((next: unknown) => {
     // Date kinds: normalize input through the serialization pipeline.
-    // This handles input normalization, output serialization, and range swap.
     const normalized = isDateKind(kind)
-      ? normalizeDateInput(kind as DateInputKind, next as string | FieldDateRangeValue, configRef.current.label)
+      ? normalizeDateInput(
+          kind as DateInputKind,
+          next as string | FieldDateRangeValue,
+          configRef.current.label,
+        )
       : next;
     // If normalization returned undefined (invalid input), ignore the change.
     if (isDateKind(kind) && normalized === undefined) {
@@ -455,45 +345,46 @@ function Field<K extends FieldKind = "input", T = unknown>({
   }, [kind, inputType]);
 
   /**
-   * The blur-equivalent: mark Touched and re-evaluate the Error against the
-   * latest committed value (date commits run through commitValue above first,
-   * so valueRef already carries the normalized result).
+   * Adapter blur handler — single native/textarea/range/checkbox blur path,
+   * and the choice-kind widget's blur funnel (which calls it on focus
+   * genuinely leaving the widget). Uses refs so a stale closure never beats
+   * the latest committed value/config.
    */
-  const touchAndValidate = () => {
+  const handleBlur = useCallback(() => {
     setTouched(true);
     setError(
-      evaluate(kind, inputType, configRef.current.validator, valueRef.current, true),
+      evaluate(
+        kind,
+        inputType,
+        configRef.current.validator,
+        valueRef.current,
+        true,
+      ),
     );
-  };
+  }, [kind, inputType]);
 
   /**
-   * Calendar commit: the popup hands back the raw draft; Field runs it
-   * through the same pipeline as a user edit — normalization inside
-   * commitValue, then the Touched + Error re-evaluation a blur performs.
-   */
-  const handleCalendarCommit = (rawDraft: string | FieldDateRangeValue) => {
-    commitValue(rawDraft);
-    touchAndValidate();
-  };
-
-  /**
-   * Calendar Clear: installs emptiness directly — the date normalizer rejects
-   * "" as invalid input, but Clear's contract is to commit Empty — then runs
-   * the same Touched + Error pipeline and drops the draft preview so the face
-   * falls back to the committed (empty) value. The popup stays open.
+   * Calendar Clear: installs emptiness directly through the same pipeline,
+   * then resets the draft preview so the face falls back to the committed
+   * (empty) value. The popup stays open — Clear's contract.
    */
   const handleCalendarClear = () => {
     const empty = isRangeKind ? {} : "";
     valueRef.current = empty;
     setValueState(empty);
     (configRef.current.onValueChange as ((value: unknown) => void) | undefined)?.(empty);
-    touchAndValidate();
+    handleBlur();
     setCalendarDraftPreview(undefined);
   };
 
+  const closeCalendar = useCallback(() => {
+    setCalendarOpen(false);
+    setCalendarDraftPreview(undefined);
+  }, []);
 
-
-
+  const toggleCalendar = useCallback(() => {
+    setCalendarOpen((wasOpen) => !wasOpen);
+  }, []);
 
   // Retry always re-fires the newest loader the parent passed.
   const loaderRef = useRef(options);
@@ -563,67 +454,16 @@ function Field<K extends FieldKind = "input", T = unknown>({
     warnUnfittedRules(kind, inputType, validator, label);
   }, [validator, kind, inputType, label]);
 
-  // Select closed-face resolution: the held value Matched against Options,
-  // with the stale flag driving the dev-only warn. Under a loader, Options
-  // only become authoritative once a load has resolved.
-  const optionsAuthoritative = !optionsIsLoader || loadStatus === "resolved";
+  // Choices' options array: under a loader, Options only become
+  // authoritative once a load has resolved.
   const selectOptions: FieldOption[] = optionsIsLoader
     ? loadedOptions
     : options;
-  const { face, isStale } = resolveSelectFace(
-    selectOptions,
-    kind === "select" ? value : undefined,
-    matches,
-    keepDisabledSelection,
-    optionsAuthoritative,
-  );
+  const optionsAuthoritative = !optionsIsLoader || loadStatus === "resolved";
 
-  // The description is computed during render so the effect's dependencies
-  // stay primitive — it re-fires only when the unmatched value changes.
-  const staleDescription =
-    isStale && face.kind === "fallback"
-      ? describedStaleValue(face.value)
-      : null;
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && staleDescription !== null) {
-      console.warn(
-        `[Field] Value ${staleDescription} of select "${label}" does not match any Option and is shown as a fallback.`,
-      );
-    }
-  }, [staleDescription, label]);
-
-  // Multi-select resolution: Chips in Options order plus fallback Chips for
-  // values Matching nothing; the joined descriptions keep the dev-warn
-  // effect stable.
-  const selectedValues: unknown[] =
-    kind === "multi-select" && Array.isArray(value) ? value : [];
-  const { entries: chips, staleValues } = resolveChips(
-    selectOptions,
-    selectedValues,
-    matches,
-    keepDisabledSelection,
-    optionsAuthoritative,
-  );
-  const staleDescriptions = staleValues.map(describedStaleValue).join('", "');
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && staleDescriptions !== "") {
-      console.warn(
-        `[Field] Value(s) ${staleDescriptions} of multi-select "${label}" do not match any Option and are shown as fallbacks.`,
-      );
-    }
-  }, [staleDescriptions, label]);
-
-  // Closed-face pieces shared by both Selection displays: the ghost while
-  // empty, and the comma-joined label string for the text display (matched
-  // Options in Options order, then Fallback labels).
-  const emptySelectionFace =
-    chips.length === 0 && placeholder ? (
-      <span aria-hidden="true" className={SELECT_FACE_GHOST_CLASS}>
-        {placeholder}
-      </span>
-    ) : null;
-  const joinedSelection = chips.map((chip) => chip.label).join(", ");
+  // Pending/Rejected block choosing on choice kinds; the parent's own
+  // disabled flag still applies independently.
+  const optionsLoadBlocked = optionsIsLoader && loadStatus !== "resolved";
 
   const rule = validator?.required;
   const isRequired =
@@ -639,699 +479,187 @@ function Field<K extends FieldKind = "input", T = unknown>({
     </>
   );
 
-  const handleChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const next =
-      kind === "checkbox"
-        ? // Only a checkbox input renders this branch, so the target carries checked.
-          (event.target as HTMLInputElement).checked
-        : isNumberInput(kind, inputType)
-          ? coerceNumberInput(event.target.value)
-          : event.target.value;
-    commitValue(next);
-  };
-
-  const handleBlur = () => {
-    // Evaluate the committed (already coerced) value, never the raw event string.
-    setTouched(true);
-    setError(evaluate(kind, inputType, config.validator, value, true));
-  };
-
-  /**
-   * One end edited: commit a fresh range preserving the other bound. The
-   * preserved end comes from valueRef (the latest committed value) rather
-   * than the render closure so rapid edits never drop an earlier commit's
-   * other end. commitValue enforces the from <= to swap.
-   */
-  const handleRangeFromChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const current =
-      (valueRef.current as FieldNumberRangeValue | undefined) ?? {};
-    commitValue({
-      from: coerceNumberRangeEnd(event.target.value),
-      to: current.to,
-    });
-  };
-
-  const handleRangeToChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const current =
-      (valueRef.current as FieldNumberRangeValue | undefined) ?? {};
-    commitValue({
-      from: current.from,
-      to: coerceNumberRangeEnd(event.target.value),
-    });
-  };
-
-  const handleRangeBlur = () => {
-    // Evaluate the committed value; range commits have already normalized + swapped.
-    setTouched(true);
-    setError(evaluate(kind, inputType, config.validator, valueRef.current, true));
-  };
-
-  const toggleOption = (option: FieldOption) => {
-    // In-panel toggles announce nothing extra — clear any pending removal
-    // message so a repeated removal re-announces with fresh text.
-    setAnnouncement(null);
-    const kept = selectedValues.filter(
-      (value) => !matches(option.value, value),
-    );
-    commitValue(
-      kept.length === selectedValues.length
-        ? [...selectedValues, option.value]
-        : kept,
-    );
-  };
-
-  const removeChip = (chip: Chip, index: number) => {
-    const next = selectedValues.filter((value) => !matches(chip.value, value));
-    commitValue(next);
-
-    // Closed-face removals announce through the shared always-mounted polite
-    // region; last message wins. In-panel toggles never reach this path.
-    setAnnouncement(`Removed ${chip.label}. ${next.length} selected.`);
-
-    // Focus hop over the post-removal chip list so focus never rests on a
-    // removed node: the chip that took its slot, the last chip, or the open button.
-    const { entries: remaining } = resolveChips(
-      selectOptions,
-      next,
-      matches,
-      keepDisabledSelection,
-      optionsAuthoritative,
-    );
-    if (remaining.length === 0) {
-      triggerRef.current?.focus();
-      return;
-    }
-    const hopChip = remaining[Math.min(index, remaining.length - 1)];
-    chipRemoveRefs.current.get(hopChip.key)?.focus();
-  };
-
-  // Every close path funnels here: the panel hides and the search query
-  // resets so reopening starts unfiltered.
-  const closePanel = useCallback(() => {
-    setOpen(false);
-    setSearch("");
-  }, []);
-
-  /** Single-choice pick: commit, close the popup, hand focus back to the trigger. */
-  const pickOption = (option: FieldOption) => {
-    if (option.disabled) {
-      return;
-    }
-    commitValue(option.value);
-    closePanel();
-    triggerRef.current?.focus();
-  };
-
-
-  // Escape anywhere in the widget closes the panel and returns focus to the
-  // trigger that opened it. The calendar popup owns its own Escape handling.
-  const handleWidgetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape" && open) {
-      closePanel();
-      triggerRef.current?.focus();
-    }
-  };
-
-  // Pointer-down outside the widget closes the panel without moving focus.
+  // Dev-only staleness warnings — re-fire only when the joined description
+  // string changes, so a stable held selection stays quiet.
+  const selectFace = resolveSelectFace(
+    selectOptions,
+    kind === "select" ? value : undefined,
+    matches,
+    keepDisabledSelection,
+    optionsAuthoritative,
+  );
+  const staleSelectDescription =
+    kind === "select" && selectFace.isStale && selectFace.face.kind === "fallback"
+      ? describedStaleValue(selectFace.face.value)
+      : null;
   useEffect(() => {
-    if (!open) {
-      return;
+    if (process.env.NODE_ENV !== "production" && staleSelectDescription !== null) {
+      console.warn(
+        `[Field] Value ${staleSelectDescription} of select "${label}" does not match any Option and is shown as a fallback.`,
+      );
     }
-    const handlePointerDown = (event: PointerEvent | Event) => {
-      const target = event.target;
-      if (target instanceof Node && widgetRef.current?.contains(target)) {
-        return;
-      }
-      closePanel();
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [closePanel, open]);
+  }, [staleSelectDescription, label]);
 
-  const toggleOpen = () => {
-    // The popup only ever opens once options are resolved — Pending and
-    // Rejected refuse outright, independent of the disabled open button.
-    if (!open && optionsLoadBlocked) {
-      return;
-    }
-    if (open) {
-      closePanel();
-    } else {
-      setOpen(true);
-    }
-  };
-
-  // Focus leaving the whole widget (Tab-out or otherwise) closes the panel
-  // naturally — no trap — and counts as leaving the field for the Touched
-  // lifecycle. Internal focus moves are ignored. One null-relatedTarget blur
-  // is exempt: a row press absorbed its own mousedown, so focus dissolves
-  // before the click can reach the checkbox — closing there would unmount
-  // the panel and eat the toggle.
-  const handleWidgetBlur = (event: FocusEvent<HTMLDivElement>) => {
-    const next = event.relatedTarget;
-    if (next instanceof Node && widgetRef.current?.contains(next)) {
-      return;
-    }
-    if (open && next === null && absorbedPressRef.current) {
-      absorbedPressRef.current = false;
-      return;
-    }
-    if (open) {
-      closePanel();
-    }
-    touchAndValidate();
-  };
-
-
-  // Opening moves DOM focus to the search input.
+  const { staleValues } = resolveChips(
+    selectOptions,
+    kind === "multi-select" && Array.isArray(value) ? value : [],
+    matches,
+    keepDisabledSelection,
+    optionsAuthoritative,
+  );
+  const staleMultiDescriptions = staleValues
+    .map(describedStaleValue)
+    .join('", "');
   useEffect(() => {
-    if (open) {
-      searchRef.current?.focus();
+    if (process.env.NODE_ENV !== "production" && staleMultiDescriptions !== "") {
+      console.warn(
+        `[Field] Value(s) ${staleMultiDescriptions} of multi-select "${label}" do not match any Option and are shown as fallbacks.`,
+      );
     }
-  }, [open]);
+  }, [staleMultiDescriptions, label]);
 
-  // The search filters resolved Options client-side; filtered rows leave the
-  // accessibility tree because they are not rendered at all. Rows carry their
-  // position in the full Options list as a stable key — unbounded values
-  // cannot key React trees themselves.
-  const query = search.trim().toLowerCase();
-  const panelRows = selectOptions
-    .map((option, index) => ({ option, index }))
-    .filter(({ option }) => option.label.toLowerCase().includes(query));
-
-  // Pending/Rejected block choosing on choice kinds; the parent's own
-  // disabled flag still applies independently.
-  const optionsLoadBlocked =
-    optionsIsLoader && loadStatus !== "resolved";
-  const multiDisabled = disabled || optionsLoadBlocked;
-
-  const controlProps: ControlAttributes = {
+  // ─── Render: pick a kind adapter behind one seam ────────────────────
+  const common = {
     id: controlId,
-    disabled: disabled || (kind === "select" && optionsLoadBlocked) || undefined,
-    "aria-required": isRequired || undefined,
-    "aria-invalid": error ? true : undefined,
-    "aria-describedby": `${hintId} ${errorId}`,
-  };
+    describedBy,
+    required: !!isRequired,
+    error,
+    disabled: !!disabled,
+    onCommit: commitValue,
+    onBlur: handleBlur,
+  } as const;
 
-  // NaN and seeded-nothing display as Empty; React would otherwise stringify
-  // them into the control. Checkboxes render `checked` instead, so booleans
-  // never reach this value — and nothing else an unbounded value could be
-  // (objects, arrays) belongs in a textual control.
-  const displayValue: string | number =
-    typeof value === "number"
-      ? isNumberInput(kind, inputType) && Number.isNaN(value)
-        ? ""
-        : value
-      : typeof value === "string"
-        ? value
-        : "";
+  let control: ReactNode;
+  if (kind === "input" || kind === "textarea") {
+    // NaN and seeded-nothing display as Empty; React would otherwise
+    // stringify them into the control. Checkboxes render `checked` instead.
+    const textualValue: string | number =
+      typeof value === "number"
+        ? isNumberInput(kind, inputType) && Number.isNaN(value)
+          ? ""
+          : value
+        : typeof value === "string"
+          ? value
+          : "";
+    control = (
+      <TextualFieldControl
+        {...common}
+        value={textualValue}
+        inputType={inputType}
+        placeholder={placeholder}
+        multiline={kind === "textarea"}
+        coerce={
+          isNumberInput(kind, inputType) ? coerceNumberInput : undefined
+        }
+      />
+    );
+  } else if (kind === "checkbox") {
+    control = (
+      <CheckboxFieldControl
+        {...common}
+        checked={value === true}
+        label={label}
+      />
+    );
+  } else if (kind === "select") {
+    control = (
+      <SelectFieldControl
+        {...common}
+        value={value}
+        placeholder={placeholder}
+        options={selectOptions}
+        matches={matches}
+        keepDisabledSelection={keepDisabledSelection}
+        optionsAuthoritative={optionsAuthoritative}
+        loadStatus={loadStatus}
+        blocked={optionsLoadBlocked}
+        onRetry={runOptionLoad}
+        panelId={panelId}
+        searchId={searchId}
+      />
+    );
+  } else if (kind === "multi-select") {
+    control = (
+      <MultiSelectFieldControl
+        {...common}
+        value={Array.isArray(value) ? value : []}
+        selectionDisplay={selectionDisplay}
+        placeholder={placeholder}
+        labelId={labelId}
+        options={selectOptions}
+        matches={matches}
+        keepDisabledSelection={keepDisabledSelection}
+        optionsAuthoritative={optionsAuthoritative}
+        loadStatus={loadStatus}
+        blocked={optionsLoadBlocked}
+        onRetry={runOptionLoad}
+        panelId={panelId}
+        searchId={searchId}
+        onAnnounce={setAnnouncement}
+      />
+    );
+  } else if (kind === "number-range") {
+    control = (
+      <NumberRangeFieldControl
+        {...common}
+        fromId={fromId}
+        toId={toId}
+        labelId={labelId}
+        value={(value as FieldNumberRangeValue | undefined) ?? {}}
+      />
+    );
+  } else {
+    // Date kinds: date, datetime, date-range, datetime-range.
+    control = (
+      <DateFieldControl
+        {...common}
+        kind={kind as "date" | "datetime" | "date-range" | "datetime-range"}
+        value={
+          value as string | FieldDateRangeValue | undefined
+        }
+        draftPreview={calendarDraftPreview}
+        calendarOpen={calendarOpen}
+        min={coerceDateBound(validator?.min)}
+        max={coerceDateBound(validator?.max)}
+        placeholder={placeholder}
+        onCloseCalendar={closeCalendar}
+        onToggleCalendar={toggleCalendar}
+        onDraftPreview={setCalendarDraftPreview}
+        onClearCalendar={handleCalendarClear}
+      />
+    );
+  }
 
-  // The value the trigger face displays: while the calendar is open, the
-  // popup's in-progress draft; otherwise the committed value.
-  const faceValue =
-    calendarOpen && calendarDraftPreview !== undefined
-      ? calendarDraftPreview
-      : isRangeKind
-        ? value
-        : displayValue;
-
-  // Number-range end display: each bound renders its number, with both an
-  // absent end and NaN (garbage/empty) showing as an empty control — pass ""
-  // to the input rather than NaN so React never warns about a NaN value.
-  const rangeValue =
-    kind === "number-range"
-      ? (value as FieldNumberRangeValue | undefined) ?? {}
-      : undefined;
-  const rangeFromDisplay =
-    rangeValue && rangeValue.from !== undefined && !Number.isNaN(rangeValue.from)
-      ? rangeValue.from
-      : "";
-  const rangeToDisplay =
-    rangeValue && rangeValue.to !== undefined && !Number.isNaN(rangeValue.to)
-      ? rangeValue.to
-      : "";
-
-  // The composite multi-select has no single native control to host failure
-  // state, so the named closed-face group anchors it. Spread deliberately:
-  // jsx-a11y's role map has no entry for these on `group`, but the DOM/a11y
-  // contract requires aria-invalid while failing and wired aria-required.
-  const groupStatusAttributes = {
-    "aria-required": isRequired || undefined,
-    "aria-invalid": error ? true : undefined,
-  };
+  // Date kinds & select need the label OUTSIDE the adapter (the adapter
+  // renders the trigger). Number-range and multi-select render the label
+  // names themselves via aria-labelledby inside the adapter. For the
+  // textually-controlled kinds (input, textarea, checkbox) we keep the
+  // existing label strategy.
+  const labelIsGroupNamed =
+    kind === "multi-select" || kind === "number-range";
+  const labelIsCheckbox = kind === "checkbox";
 
   return (
     <div className={className}>
-      {kind === "multi-select" ? (
-        <>
-          {/* The visible label names the closed-face group via aria-labelledby — never content-computed. */}
-          <label id={labelId} className={LABEL_CLASS}>
-            {label}
-            {requiredMarker}
-          </label>
-
-          <div
-            ref={widgetRef}
-            className="relative mt-1.5"
-            onBlur={handleWidgetBlur}
-            onKeyDown={handleWidgetKeyDown}
-          >
-            <div
-              role="group"
-              id={controlId}
-              aria-labelledby={labelId}
-              aria-describedby={`${hintId} ${errorId}`}
-              {...groupStatusAttributes}
-              className="flex items-stretch gap-1.5"
-            >
-              {selectionDisplay === "chips" ? (
-                <div className={CHIP_STRIP_CLASS}>
-                  {emptySelectionFace}
-                  {chips.map((chip, index) => (
-                    <span key={chip.key} className={CHIP_CLASS}>
-                      <span className="max-w-40 truncate">{chip.label}</span>
-                      <button
-                        type="button"
-                        ref={(element) => {
-                          if (element) {
-                            chipRemoveRefs.current.set(chip.key, element);
-                          } else {
-                            chipRemoveRefs.current.delete(chip.key);
-                          }
-                        }}
-                        aria-label={`Remove ${chip.label}`}
-                        disabled={multiDisabled || undefined}
-                        onClick={() => removeChip(chip, index)}
-                        className={CHIP_REMOVE_CLASS}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 12 12"
-                          fill="none"
-                          className="size-3"
-                        >
-                          <path
-                            d="M3 3l6 6M9 3l-6 6"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                // Text display: the whole strip is the disclosure trigger,
-                // exactly like the select kind's closed face — no separate
-                // toggle button beside it.
-                <button
-                  type="button"
-                  ref={triggerRef}
-                  onClick={toggleOpen}
-                  disabled={multiDisabled || undefined}
-                  aria-expanded={open}
-                  aria-controls={panelId}
-                  aria-label="Show options"
-                  className={
-                    SELECTION_TEXT_STRIP_CLASS +
-                    " cursor-pointer focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
-                    "disabled:cursor-not-allowed disabled:bg-neutral-100 dark:disabled:bg-neutral-800 " +
-                    "dark:focus:ring-neutral-400/30"
-                  }
-                >
-                  {chips.length === 0 ? (
-                    emptySelectionFace
-                  ) : (
-                    <span
-                      className={SELECTION_TEXT_CLASS}
-                      title={joinedSelection}
-                    >
-                      {joinedSelection}
-                    </span>
-                  )}
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
-                  >
-                    <path
-                      d="M4 6l4 4 4-4"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              )}
-              {selectionDisplay === "chips" && (
-                <button
-                  type="button"
-                  ref={triggerRef}
-                  onClick={toggleOpen}
-                  disabled={multiDisabled || undefined}
-                  aria-expanded={open}
-                  aria-controls={panelId}
-                  aria-label="Show options"
-                  className={OPEN_BUTTON_CLASS}
-                >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    className="size-4"
-                  >
-                    <path
-                      d="M4 6l4 4 4-4"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* Plain disclosure popup: no dialog/listbox role, no focus trap. */}
-            <OptionsPopup
-              panelId={panelId}
-              searchId={searchId}
-              open={open}
-              search={search}
-              onSearchChange={setSearch}
-              searchInputRef={searchRef}
-              onClear={() => {
-                setAnnouncement("All selections cleared.");
-                commitValue([]);
-              }}
-              clearDisabled={selectedValues.length === 0 || multiDisabled}
-            >
-              {panelRows.map(({ option, index }) => (
-                <label
-                  key={index}
-                  className={
-                    ROW_LABEL_CLASS +
-                    (option.disabled
-                      ? ROW_LABEL_DISABLED_CLASS
-                      : ROW_LABEL_ENABLED_CLASS)
-                  }
-                  // Absorb the press: a row is not focusable, so letting the
-                  // mousedown through would dissolve the search input's
-                  // focus mid-press instead of landing it on the checkbox.
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    absorbedPressRef.current = true;
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    className={CHECKBOX_CLASS}
-                    checked={selectedValues.some((value) =>
-                      matches(option.value, value),
-                    )}
-                    disabled={
-                      option.disabled || multiDisabled || undefined
-                    }
-                    onChange={() => toggleOption(option)}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </OptionsPopup>
-          </div>
-        </>
-      ) : kind === "select" ? (
-        <>
-          <label htmlFor={controlId} className={LABEL_CLASS}>
-            {label}
-            {requiredMarker}
-          </label>
-
-          <div
-            ref={widgetRef}
-            className="relative mt-1.5"
-            onBlur={handleWidgetBlur}
-            onKeyDown={handleWidgetKeyDown}
-          >
-            {/* Closed face: the ghost while empty, otherwise the selected Option's label. */}
-            <button
-              {...controlProps}
-              type="button"
-              ref={triggerRef}
-              onClick={toggleOpen}
-              aria-expanded={open}
-              aria-controls={panelId}
-              className={SELECT_TRIGGER_CLASS}
-            >
-              <span
-                className={
-                  face.kind === "ghost" ? SELECT_FACE_GHOST_CLASS : undefined
-                }
-              >
-                {face.kind === "ghost"
-                  ? placeholder
-                  : face.kind === "option"
-                    ? face.option.label
-                    : face.label}
-              </span>
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 16 16"
-                fill="none"
-                className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
-              >
-                <path
-                  d="M4 6l4 4 4-4"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-
-            {/* The same plain-disclosure popup the multi-select opens. */}
-            <OptionsPopup
-              panelId={panelId}
-              searchId={searchId}
-              open={open}
-              search={search}
-              onSearchChange={setSearch}
-              searchInputRef={searchRef}
-              onClear={() => commitValue("")}
-              clearDisabled={
-                disabled || value === "" || value === undefined || value === null
-              }
-            >
-              {panelRows.map(({ option, index }) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => pickOption(option)}
-                  disabled={option.disabled || undefined}
-                  className={ROW_BUTTON_CLASS}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </OptionsPopup>
-          </div>
-        </>
-      ) : kind === "checkbox" ? (
-        <div className={CHECKBOX_ROW_CLASS}>
-          <input
-            {...controlProps}
-            type="checkbox"
-            checked={value === true}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            className={CHECKBOX_CLASS}
-          />
-          <label htmlFor={controlId} className={CHECKBOX_LABEL_CLASS}>
-            {label}
-            {requiredMarker}
-          </label>
-        </div>
-      ) : kind === "number-range" ? (
-        <>
-          {/* The visible label names the two-input pair via aria-labelledby, so the
-              pair reads as one labelled control with the hint spanning both. */}
-          <label id={labelId} className={LABEL_CLASS}>
-            {label}
-            {requiredMarker}
-          </label>
-
-          <div
-            className="mt-1.5 flex items-stretch gap-2"
-            role="group"
-            aria-labelledby={labelId}
-            aria-describedby={`${hintId} ${errorId}`}
-            {...groupStatusAttributes}
-          >
-            <div className="flex min-w-0 flex-1 flex-col">
-              <label htmlFor={fromId} className="sr-only">
-                From
-              </label>
-              <input
-                id={fromId}
-                type="number"
-                value={rangeFromDisplay}
-                placeholder="From"
-                disabled={disabled || undefined}
-                onChange={handleRangeFromChange}
-                onBlur={handleRangeBlur}
-                className={CONTROL_CLASS}
-              />
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <label htmlFor={toId} className="sr-only">
-                To
-              </label>
-              <input
-                id={toId}
-                type="number"
-                value={rangeToDisplay}
-                placeholder="To"
-                disabled={disabled || undefined}
-                onChange={handleRangeToChange}
-                onBlur={handleRangeBlur}
-                className={CONTROL_CLASS}
-              />
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <label htmlFor={controlId} className={LABEL_CLASS}>
-            {label}
-            {requiredMarker}
-          </label>
-
-          {kind === "input" ? (
-            <input
-              {...controlProps}
-              type={inputType}
-              value={displayValue}
-              placeholder={placeholder}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              className={CONTROL_CLASS}
-            />
-          ) : kind === "textarea" ? (
-            <textarea
-              {...controlProps}
-              value={displayValue}
-              placeholder={placeholder}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              rows={4}
-              className={`${CONTROL_CLASS} resize-y`}
-            />
-          ) : (
-            /* Date kinds: calendar widget with draft-with-commit interaction. */
-            <>
-              <div
-                ref={widgetRef}
-                className="relative mt-1.5"
-              >
-                <button
-                  type="button"
-                  id={controlId}
-                  ref={triggerRef}
-                  disabled={disabled || undefined}
-                  aria-required={isRequired || undefined}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={`${hintId} ${errorId}`}
-                  aria-expanded={calendarOpen}
-                  aria-controls={calendarId}
-                  onClick={toggleCalendar}
-                  className={SELECT_TRIGGER_CLASS}
-                >
-                  <span
-                    className={
-                      !faceValue ? SELECT_FACE_GHOST_CLASS : undefined
-                    }
-                  >
-                    {isRangeKind ? (
-                      typeof faceValue === "object" && faceValue !== null && "from" in faceValue ? (
-                        (() => {
-                          const rangeVal = faceValue as FieldDateRangeValue;
-                          const formatSingle = (iso: string | undefined) => {
-                            if (!iso) return "";
-                            const d = new Date(iso);
-                            // Defensive: a mid-edit draft can be unparseable;
-                            // Intl format throws RangeError on invalid dates.
-                            if (Number.isNaN(d.getTime())) return "";
-                            return kind === "date-range"
-                              ? DATE_DISPLAY_FORMAT.format(d)
-                              : DATETIME_DISPLAY_FORMAT.format(d);
-                          };
-                          const fromStr = formatSingle(rangeVal.from);
-                          const toStr = formatSingle(rangeVal.to);
-                          if (fromStr && toStr) return `${fromStr} – ${toStr}`;
-                          if (fromStr) return `${fromStr} –`;
-                          if (toStr) return `– ${toStr}`;
-                          return "";
-                        })()
-                      ) : null
-                    ) : faceValue ? (
-                      (() => {
-                        const d = new Date(String(faceValue));
-                        // Defensive: a mid-edit draft can be unparseable;
-                        // Intl format throws RangeError on invalid dates.
-                        if (Number.isNaN(d.getTime())) return "";
-                        return kind === "date"
-                          ? DATE_DISPLAY_FORMAT.format(d)
-                          : DATETIME_DISPLAY_FORMAT.format(d);
-                      })()
-                    ) : null}
-                    {!isRangeKind && !faceValue && placeholder}
-                  </span>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    className="size-4 shrink-0 text-neutral-500 dark:text-neutral-400"
-                  >
-                    <path
-                      d="M4 6l4 4 4-4"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-
-                <CalendarPopup
-                  kind={kind as DateInputKind}
-                  value={value as string | FieldDateRangeValue | undefined}
-                  min={coerceDateBound(config.validator?.min)}
-                  max={coerceDateBound(config.validator?.max)}
-                  triggerRef={triggerRef}
-                  open={calendarOpen}
-                  onClose={closeCalendar}
-                  onCommit={handleCalendarCommit}
-                  onClear={handleCalendarClear}
-                  onDraftPreview={setCalendarDraftPreview}
-                  panelId={calendarId}
-                  gridId={calendarGridId}
-                />
-              </div>
-            </>
-          )}
-        </>
+      {!labelIsGroupNamed && !labelIsCheckbox && (
+        <label htmlFor={controlId} className={LABEL_CLASS}>
+          {label}
+          {requiredMarker}
+        </label>
       )}
+
+      {labelIsGroupNamed && (
+        <label id={labelId} className={LABEL_CLASS}>
+          {label}
+          {requiredMarker}
+        </label>
+      )}
+
+      {control}
 
       {/* Persistent hint slot: Pending/Rejected status lines swap in without unmounting the node. */}
       <p id={hintId} className={HINT_CLASS}>
-        {(kind === "select" || kind === "multi-select") &&
-        optionsLoadBlocked ? (
+        {(kind === "select" || kind === "multi-select") && optionsLoadBlocked ? (
           loadStatus === "pending" ? (
             <span className="flex items-center gap-1.5">
               {OPTION_LOAD_SPINNER}
@@ -1363,13 +691,17 @@ function Field<K extends FieldKind = "input", T = unknown>({
           </>
         )}
         {/* Multi-select closed-face removal announcements share this polite region, visually hidden. */}
-        {announcement && (
-          <span className="sr-only">{announcement}</span>
-        )}
+        {announcement && <span className="sr-only">{announcement}</span>}
       </p>
     </div>
   );
 }
+
+// ─── Staleness warn helpers ────────────────────────────────────────────
+//
+// The descriptions above are computed during render and consumed by useEffects
+// keyed on the joined description string — so a stable held selection stays
+// quiet, and a new value re-evaluates the warning on the next render.
 
 /**
  * The config for an InputField: value shape fixed at `string | number`,
