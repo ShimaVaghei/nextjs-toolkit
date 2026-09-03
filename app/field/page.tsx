@@ -9,6 +9,7 @@ import {
   DateTimeRangeField,
   InputField,
   MultiSelectField,
+  NumberRangeField,
   SelectField,
   TextareaField,
   type FieldCheckboxConfig,
@@ -19,6 +20,7 @@ import {
   type FieldHandle,
   type FieldInputConfig,
   type FieldMultiSelectConfig,
+  type FieldNumberRangeConfig,
   type FieldOption,
   type FieldSelectConfig,
   type FieldTextareaConfig,
@@ -213,6 +215,16 @@ const sprintConfig: FieldDateTimeRangeConfig = {
     required: { value: true, message: "Set a sprint window." },
   },
   onValueChange: (value) => console.log("Sprint window changed:", value),
+};
+
+const budgetConfig: FieldNumberRangeConfig = {
+  label: "Monthly budget",
+  hint: "The number-range kind: two adjacent number inputs labelled From and To, committed as a numeric `{ from?, to? }` range. Editing one end alone commits an open-ended range (the other bound is `undefined`); required demands both ends, so a half-filled range counts as empty. Out-of-order pairs swap automatically so from ≤ to always holds.",
+  initialValue: { from: 1000, to: 4000 },
+  validator: {
+    required: { value: true, message: "Set a budget range (both ends)." },
+  },
+  onValueChange: (value) => console.log("Budget range changed:", value),
 };
 
 const REF_BUTTON_CLASS =
@@ -508,6 +520,26 @@ export default function FieldDemoPage() {
           </p>
         </div>
         <DateTimeRangeField config={sprintConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            NumberRange
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            The number-range kind: two adjacent number inputs labelled
+            From and To, committed as a numeric <code className="font-mono">{`{ from?, to? }`}</code>{" "}
+            range. Editing one end alone commits an open-ended range (the
+            other bound is <code className="font-mono">undefined</code>); a
+            required Field demands both ends, so a half-filled range counts as
+            empty. Out-of-order pairs swap automatically so{" "}
+            <code className="font-mono">from &le; to</code> always holds.
+
+            The group label names the control.{" "}
+ </p>
+        </div>
+        <NumberRangeField config={budgetConfig} />
       </section>
     </div>
   );
