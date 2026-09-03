@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] `TableColumn.filterable` accepts `string | boolean | TableFilterable`; the compiler rejects `options` on non-choice members and `inputType` on the select member
-- [ ] A select filter renders a SelectField in the popover, lists its Options (static or async, with Pending/Retry behavior inherited from Field), and sends the picked option's value as a scalar under the resolved key
-- [ ] Async filter options are typed as Option sources of filter scalars, not row values; cell-render options remain a separate prop
-- [ ] `filterable: true` on an option column renders a select; `text`/`number` columns still render the legacy input
-- [ ] Legacy `filterable: true` and string request keys produce byte-identical requests to before (existing tests pass unmodified)
-- [ ] Active-filter dot, summary-strip chip, clearing, and the debounced server-mode request all still work through the new path
+- [x] `TableColumn.filterable` accepts `string | boolean | TableFilterable`; the compiler rejects `options` on non-choice members and `inputType` on the select member
+- [x] A select filter renders a SelectField in the popover, lists its Options (static or async, with Pending/Retry behavior inherited from Field), and sends the picked option's value as a scalar under the resolved key
+- [x] Async filter options are typed as Option sources of filter scalars, not row values; cell-render options remain a separate prop
+- [x] `filterable: true` on an option column renders a select; `text`/`number` columns still render the legacy input
+- [x] Legacy `filterable: true` and string request keys produce byte-identical requests to before (existing tests pass unmodified)
+- [x] Active-filter dot, summary-strip chip, clearing, and the debounced server-mode request all still work through the new path
