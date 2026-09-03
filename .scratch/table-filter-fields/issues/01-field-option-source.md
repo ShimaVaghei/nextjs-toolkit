@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] `FieldOptionSource<T>` (Options array or async loader) is defined in the Field's shared vocabulary and exported publicly
-- [ ] `FieldChoiceConfig<T>.options` uses the shared type; select and multi-select behavior unchanged
-- [ ] The Table can import the type from the Field's public surface
-- [ ] Existing Field tests pass unmodified; typecheck and full suite green
+- [x] `FieldOptionSource<T>` (Options array or async loader) is defined in the Field's shared vocabulary and exported publicly
+- [x] `FieldChoiceConfig<T>.options` uses the shared type; select and multi-select behavior unchanged
+- [x] The Table can import the type from the Field's public surface
+- [x] Existing Field tests pass unmodified; typecheck and full suite green
