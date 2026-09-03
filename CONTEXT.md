@@ -51,8 +51,20 @@ The configuration object passed to `Table`. It declares the `dataSource`, the `c
 _Avoid_: DataTableConfig, TableProps
 
 **TableColumn**:
-One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); an option column takes `options` (a `FieldOption[]` of label + value entries, the same vocabulary Field select/multi-select configs use) whose labels the cell values resolve against; `sortable`/`filterable` are `string | boolean` — `true` enables the feature with the column's own key as the request key, a string enables it with a different request key, and `false`/omitted disables it.
+One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); an option column takes `options` (a `FieldOption[]` of label + value entries, the same vocabulary Field select/multi-select configs use) whose labels the cell values resolve against; `sortable` is `string | boolean` — `true` enables sorting with the column's own key as the request key, a string enables it with a different request key, and `false`/omitted disables it; `filterable` is `string | boolean | TableFilterable` (see Filter config).
 _Avoid_: ColumnSpec, field config
+
+**TableFilterable**:
+The configuration object a TableColumn's `filterable` accepts when it is not the legacy shorthand (`string | boolean`). A discriminated union on `kind` — one member per Filter kind — so a prop a kind does not consume (`options` on a date filter, `inputType` on a select) is rejected by the compiler, never silently ignored. Every member optionally takes a Filter key.
+_Avoid_: filter config object, TableFilterConfig
+
+**Filter kind**:
+Which of the filterable Field kinds a column's filter renders as an actual Field: `input`, `select`, `multi-select`, `date`, `datetime`, `date-range`, `datetime-range`, `number-range`. Textarea and checkbox are deliberately excluded — they do not make sense as filters. A range kind's filter value spans two bounds and therefore always resolves to two filter keys.
+_Avoid_: filter variant, filter field type
+
+**Filter key**:
+The request key a column's filter writes its value under in the `filters` record. Resolved from the `filterable` config's `key`: a string is the single request key (as with the legacy string shorthand); a `{ from, to }` pair names the two request keys a range filter writes — used verbatim, never suffixed. When `key` is omitted, a single-bound filter uses the column's own key and a range filter derives `<key or columnKey>.from` / `.to` — so two unnamed range filters in one table would collide, and callers must name their keys instead. `filterable: true` infers the Filter kind from the column's `type` (`text` → input, `number` → input, `option` → select, `date`/`datetime` → the same-named kind).
+_Avoid_: request key override, filter name
 
 **TableColumnType**:
 The set of column renderers: `text`, `date`, `datetime`, `option`, `image`, `number`. An `option` column resolves each cell's value (strictly by `Object.is`) against the column's `options` and renders the matched label; unmatched values render as their string form. Array-valued cells of any type render their elements joined with `", "` — array display is a value-shape behavior, not a renderer.
@@ -63,8 +75,12 @@ The request object passed to `dataSource`: optional `pagination`, `sort`, and `f
 _Avoid_: DataGetRequest, query params
 
 **TableFilterScalar**:
-The scalar filter value a filter control can emit: `string | number`. The active-filters record accepts scalar values only; arrays are reserved for a later multi-value filter feature.
+The scalar filter value a filter control can emit: `string | number`. A multi-value filter (multi-select) emits an array of scalars; a range filter emits two scalars under its two Filter keys.
 _Avoid_: filterValue, scalar
+
+**Filter Field**:
+The actual Field component rendered inside a column's filter popover, one per Filter kind, driven imperatively through a `FieldHandle` — the Table owns the filters record and installs/reads values through the handle; the Field owns its own edit lifecycle (async Options, Pending, Rejected, Retry) inside it. Cell-render `options` on the column and the filter's own `options` are separate props: the former labels displayed cells, the latter feeds the Filter Field's choices as a `FieldOptionSource<TableFilterScalar>`.
+_Avoid_: filter control, filter input, embedded field
 
 **Active filter**:
 A filter applied to a `TableColumn`. A column's filter is active when its key is present in the `filters` record with a defined value — including values typed but not yet applied during the server-mode debounce window. An active filter is signalled by a dot on the column's filter trigger and by a chip in the summary strip.
@@ -143,7 +159,12 @@ The state of a select or multi-select Field whose async Option load failed. Choo
 _Avoid_: error state, failure, crashed
 
 **FieldConfig**:
-The configuration object passed to a Field component. One kindless type per component — `FieldInputConfig`, `FieldTextareaConfig`, `FieldCheckboxConfig`, `FieldSelectConfig<T>`, `FieldMultiSelectConfig<T>` — with no `kind` property: the component fixes the kind, and the type narrows Initial, `onValueChange`, and Options to that kind's value shape (choice kinds carry T, the Option value type). Every config declares label, the optional Initial value, an optional `onValueChange` observer, an optional FieldValidator, and presentation props (hint, disabled, className). Only the input config adds `inputType`; choice kinds add Options (static array or async load) plus a `matchValue` override and `keepDisabledSelection`; every kind except checkbox adds `placeholder`. A prop a kind does not consume is absent from its type — rejected by the compiler, never silently ignored at runtime.
+The configuration object passed to a Field component. One kindless type per component — `FieldInputConfig`, `FieldTextareaConfig`, `FieldCheckboxConfig`, `FieldSelectConfig<T>`, `FieldMultiSelectConfig<T>` — with no `kind` property: the component fixes the kind, and the type narrows Initial, `onValueChange`, and Options to that kind's value shape (choice kinds carry T, the Option value type). Every config declares label, the optional Initial value, an optional `onValueChange` observer, an optional FieldValidator, and presentation props (hint, disabled, className). Only the input config adds `inputType`; choice kinds add Options (a `FieldOptionSource` — static array or async load) plus a `matchValue` override and `keepDisabledSelection`; every kind except checkbox adds `placeholder`. A prop a kind does not consume is absent from its type — rejected by the compiler, never silently ignored at runtime.
+
+**FieldOptionSource**:
+The shared vocabulary for where a choice kind's Options come from: a static array of `FieldOption`s or an async loader fired once on mount and re-fired only by Retry. Used by the Field choice configs' `options` and by a select/multi-select filter's `options` — the same contract, parameterized by what the option values are (Option values for Fields, filter scalars for filters).
+_Avoid_: options provider, options loader, options array
+
 _Avoid_: FieldProps
 
 **Initial value**:
