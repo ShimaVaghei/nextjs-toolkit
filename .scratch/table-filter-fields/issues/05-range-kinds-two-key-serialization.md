@@ -4,10 +4,10 @@
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Each range kind renders its range Field (Calendar or number-range) inside the popover
-- [ ] A `{ from, to }` key pair sends exactly `filters[from]` and `filters[to]` as scalars, verbatim
-- [ ] A string key sends `"<key>.from"`/`"<key>.to"`; an omitted key sends `"<columnKey>.from"`/`"<columnKey>.to"`
-- [ ] Partial (open-ended) range input still produces the two entries with the unfilled bound cleared
-- [ ] Clearing the range omits both entries from the next request
+- [x] Each range kind renders its range Field (Calendar or number-range) inside the popover
+- [x] A `{ from, to }` key pair sends exactly `filters[from]` and `filters[to]` as scalars, verbatim
+- [x] A string key sends `"<key>.from"`/`"<key>.to"`; an omitted key sends `"<columnKey>.from"`/`"<columnKey>.to"`
+- [x] Partial (open-ended) range input still produces the two entries with the unfilled bound cleared
+- [x] Clearing the range omits both entries from the next request

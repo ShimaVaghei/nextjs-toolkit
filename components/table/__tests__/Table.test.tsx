@@ -3154,3 +3154,314 @@ describe("Table filter Fields — input and date/datetime kinds", () => {
   });
 });
 
+describe("Table range filter kinds — two-key serialization", () => {
+  type RangeRow = {
+    id: number;
+    name: string;
+    score: number;
+    joined: string;
+    updated: string;
+  };
+
+  const rangeRows: RangeRow[] = [
+    {
+      id: 1,
+      name: "Ada",
+      score: 10,
+      joined: "2024-03-15",
+      updated: "2024-03-15T10:30:00",
+    },
+    {
+      id: 2,
+      name: "Grace",
+      score: 20,
+      joined: "2024-03-20",
+      updated: "2024-03-21T09:00:00",
+    },
+  ];
+
+  function serverRangeTable(columns: TableConfig<RangeRow>["columns"]) {
+    const dataSource = vi.fn(async () => ({ rows: rangeRows }));
+    render(<Table config={{ dataSource, columns, serverSide: true }} />);
+    return dataSource;
+  }
+
+  async function flushRangeDebounce(
+    dataSource: ReturnType<typeof serverRangeTable>,
+  ) {
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {});
+    return dataSource;
+  }
+
+  it("renders a DateRangeField (Calendar) inside the popover for kind date-range", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        joined: {
+          type: "date",
+          label: "Joined",
+          filterable: { kind: "date-range", key: "joined_range" },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Joined"));
+    const rangeTrigger = screen.getByRole("button", {
+      name: "Filter by Joined",
+    });
+    expect(rangeTrigger).toBeInTheDocument();
+    fireEvent.click(rangeTrigger);
+
+    expect(
+      screen.getByRole("dialog", { name: "Choose date range" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a DateTimeRangeField (Calendar) inside the popover for kind datetime-range", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        updated: {
+          type: "datetime",
+          label: "Updated",
+          filterable: { kind: "datetime-range", key: "updated_range" },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Updated"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter by Updated" }),
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Choose date range" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a NumberRangeField (From/To inputs) inside the popover for kind number-range", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range", key: "score_range" },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Score"));
+
+    expect(
+      screen.getByRole("spinbutton", { name: "From" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "To" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sends an explicit { from, to } key pair verbatim as two scalar entries", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: {
+            kind: "number-range",
+            key: { from: "minScore", to: "maxScore" },
+          },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "To" }),
+        { target: { value: "20" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { minScore: 10, maxScore: 20 },
+        }),
+      );
+      expect(hasActiveDot(filterTrigger("Score"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+it("a string range key sends <key>.from / <key>.to", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range", key: "score" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "To" }),
+        { target: { value: "20" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10, "score.to": 20 },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an omitted range key sends <columnKey>.from / <columnKey>.to", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "To" }),
+        { target: { value: "20" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10, "score.to": 20 },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an open-ended (partial) range sends the filled bound and clears the other entry", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10 },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clearing the range omits both entries from the next request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      const from = screen.getByRole("spinbutton", { name: "From" });
+      const to = screen.getByRole("spinbutton", { name: "To" });
+      fireEvent.change(from, { target: { value: "10" } });
+      fireEvent.change(to, { target: { value: "20" } });
+      await flushRangeDebounce(dataSource);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10, "score.to": 20 },
+        }),
+      );
+
+      fireEvent.change(from, { target: { value: "" } });
+      fireEvent.change(to, { target: { value: "" } });
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("filters local rows by the range bounds resolved across both keys", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: {
+            kind: "number-range",
+            key: { from: "minScore", to: "maxScore" },
+          },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Score"));
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "From" }),
+      { target: { value: "15" } },
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "To" }),
+      { target: { value: "25" } },
+    );
+
+    expect(screen.getByText("20")).toBeInTheDocument();
+    expect(screen.queryByText("10")).not.toBeInTheDocument();
+  });
+});
