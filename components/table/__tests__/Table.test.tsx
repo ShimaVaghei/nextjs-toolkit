@@ -15,7 +15,7 @@ import {
   type TableDataRequest,
   type TableDataResponse,
   type TableHandle,
-} from "./Table";
+} from "../Table";
 
 type Person = {
   id: number;

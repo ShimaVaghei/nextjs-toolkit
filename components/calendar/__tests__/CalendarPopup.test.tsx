@@ -2,8 +2,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { createRef, useRef } from "react";
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { CalendarPopup } from "./CalendarPopup";
-import { resolveCalendarPlacement } from "./calendarShared";
+import { CalendarPopup } from "../CalendarPopup";
+import { resolveCalendarPlacement } from "../calendarShared";
 import type { DateInputKind } from "@/lib/date";
 
 // ─── resolveCalendarPlacement — pure placement decision ────────────────

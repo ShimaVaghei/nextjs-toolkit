@@ -1,6 +1,6 @@
 "use client";
 
-import { Table, type TableConfig } from "@/components/Table";
+import { Table, type TableConfig } from "@/components/table";
 import {
   teamColumns,
   teamMembers,

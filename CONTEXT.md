@@ -201,3 +201,26 @@ _Avoid_: apply, confirm, save
 **Clear**:
 The footer action in the Options popup and Calendar popup that commits emptiness to the Field's value through the normal pipeline (observer fires, Error re-evaluates when Touched) while the popup stays open. In the Calendar popup it also resets the Draft's selection state (including range anchoring), so a fresh pick can begin; Apply after a Clear closes without re-committing the stale draft. In the Options popup it empties the selection for both select kinds — a deliberate exception to the single-select rule that a pick closes the popup. Clear is disabled when the value is already empty. Distinct from Cancel (discards without committing) and Apply (commits the current draft).
 _Avoid_: reset, clear all, wipe
+
+## Field terms
+
+**Field**:
+A form control that owns its value internally: the caller hands it a plain-data config (label, hint, validator, initial value) and never wires change callbacks. Values are read or installed imperatively through the `FieldHandle` exposed via `ref`. Each Field marks itself Touched on blur and evaluates its Validator against its own committed value.
+_Avoid_: form control, input component, controlled input
+
+**Field kind**:
+Which of the Field's distinct value-shape-plus-UI contracts a Field has: `input`, `textarea`, `checkbox`, `select`, `multi-select`, `date`, `datetime`, `date-range`, `datetime-range`, `number-range`. The kind picks the committed value's shape; callers never state a kind — each kind has its own wrapper component that stamps it.
+_Avoid_: field type, variant, mode
+
+**Range value**:
+The object value shape shared by the range kinds: `{ from?, to? }`, with each end optional so open-ended ranges are expressible. `undefined` is the cleared value; a Range value with no bounds is normalized to `undefined`.
+_Avoid_: bounds pair, interval, tuple
+
+**Range swap**:
+The invariant that a Range value's `from` never exceeds its `to`, enforced by coercion: an out-of-order pair is silently swapped so the committed value is always ordered. Ranges never surface an ordering error.
+_Avoid_: reordering, reversal
+
+**Number range field**:
+The `number-range` Field kind: two adjacent number inputs labelled From and To, committed as a Range value of numbers. Editing one end alone commits a partial (open-ended) range; `required` demands both ends — a half-filled range counts as empty.
+_Avoid_: min/max field, range slider, dual input
+

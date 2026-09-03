@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Saira } from "next/font/google";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/app-layout";
 import { appRoutes } from "@/lib/routes";
 import "./globals.css";
 

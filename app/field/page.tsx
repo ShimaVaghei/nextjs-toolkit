@@ -9,6 +9,7 @@ import {
   DateTimeRangeField,
   InputField,
   MultiSelectField,
+  NumberRangeField,
   SelectField,
   TextareaField,
   type FieldCheckboxConfig,
@@ -19,10 +20,11 @@ import {
   type FieldHandle,
   type FieldInputConfig,
   type FieldMultiSelectConfig,
+  type FieldNumberRangeConfig,
   type FieldOption,
   type FieldSelectConfig,
   type FieldTextareaConfig,
-} from "@/components/Field";
+} from "@/components/field";
 
 // Configs are plain data: each Field owns its value internally, so none of
 // these carry live state or change callbacks. The per-kind config types pin
@@ -215,6 +217,15 @@ const sprintConfig: FieldDateTimeRangeConfig = {
   onValueChange: (value) => console.log("Sprint window changed:", value),
 };
 
+const budgetConfig: FieldNumberRangeConfig = {
+  label: "Monthly budget",
+  initialValue: { from: 1000, to: 4000 },
+  validator: {
+    required: { value: true, message: "Set a budget range (both ends)." },
+  },
+  onValueChange: (value) => console.log("Budget range changed:", value),
+};
+
 const REF_BUTTON_CLASS =
   "cursor-pointer rounded-md border border-neutral-300 bg-white px-2 py-1 font-medium " +
   "text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500/30 " +
@@ -280,7 +291,7 @@ export default function FieldDemoPage() {
   };
 
   return (
-    <div className="space-y-10 max-w-4xl mx-auto">
+    <div className="space-y-10 max-w-4xl mx-auto mb-32">
       <header>
         <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
           Field demo
@@ -508,6 +519,26 @@ export default function FieldDemoPage() {
           </p>
         </div>
         <DateTimeRangeField config={sprintConfig} />
+      </section>
+
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            NumberRange
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            The number-range kind: two adjacent number inputs labelled
+            From and To, committed as a numeric <code className="font-mono">{`{ from?, to? }`}</code>{" "}
+            range. Editing one end alone commits an open-ended range (the
+            other bound is <code className="font-mono">undefined</code>); a
+            required Field demands both ends, so a half-filled range counts as
+            empty. Out-of-order pairs swap automatically so{" "}
+            <code className="font-mono">from &le; to</code> always holds.
+
+            The group label names the control.{" "}
+ </p>
+        </div>
+        <NumberRangeField config={budgetConfig} />
       </section>
     </div>
   );

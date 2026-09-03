@@ -5,7 +5,7 @@ import type {
   TableDataResponse,
   TableFilterScalar,
   TableSort,
-} from "@/components/Table";
+} from "@/components/table";
 
 export type Project = {
   id: number;

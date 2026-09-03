@@ -9,7 +9,8 @@ export type FieldKind =
   | "date"
   | "datetime"
   | "date-range"
-  | "datetime-range";
+  | "datetime-range"
+  | "number-range";
 
 export type FieldInputType = "text" | "password" | "number";
 
@@ -84,7 +85,7 @@ function requiredConstraint(
 
 // ─── Rule-kind fitting ─────────────────────────────────────────────────
 
-function isNumberInput(
+export function isNumberInput(
   kind: FieldKind,
   inputType: FieldInputType | undefined,
 ): boolean {
@@ -108,7 +109,7 @@ function fitsEmailRule(
 }
 
 /** Whether the kind is one of the four date kinds. */
-function isDateKind(kind: FieldKind): boolean {
+export function isDateKind(kind: FieldKind): boolean {
   return (
     kind === "date" ||
     kind === "datetime" ||
@@ -199,14 +200,18 @@ export function isEmpty(value: unknown): boolean {
   if (Array.isArray(value)) {
     return value.length === 0;
   }
-  // Date-range objects: Empty unless both ends hold values
+  // Range objects (date-range and number-range): Empty unless both ends hold
+  // values. Each end is tested with the same #isEmpty semantics — an empty
+  // string, undefined, or NaN (number edges) all read as a missing end, while
+  // a legitimately `0` numeric bound does not.
   if (
     typeof value === "object" &&
+    value !== null &&
     "from" in value &&
     "to" in value
   ) {
-    const range = value as { from?: string; to?: string };
-    return !range.from || !range.to;
+    const range = value as { from?: unknown; to?: unknown };
+    return isEmpty(range.from) || isEmpty(range.to);
   }
   return false;
 }

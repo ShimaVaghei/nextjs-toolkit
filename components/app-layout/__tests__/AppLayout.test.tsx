@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { AppLayout } from "./AppLayout";
-import { appRoutes } from "../lib/routes";
-import type { RoutesSection } from "./AppLayout";
+import { AppLayout } from "../AppLayout";
+import { appRoutes } from "../../../lib/routes";
+import type { RoutesSection } from "../AppLayout";
 
 let mockPathname = "/";
 const mockPush = vi.fn();
