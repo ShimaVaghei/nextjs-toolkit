@@ -4,10 +4,10 @@
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] An input filter renders an InputField and preserves today's text/number emission behavior through the request payload
-- [ ] `inputType` accepts only text or number; a password filter is unrepresentable
-- [ ] Date and datetime filters render the Calendar kinds in the popover and send their committed value as a scalar under the resolved key
-- [ ] Clearing any of these filters omits it from the next request; the dot/chip lifecycle is unchanged
-- [ ] Kind inference from `column.type` now routes text/number columns to the input Field and date/datetime columns to their Calendar kind
+- [x] An input filter renders an InputField and preserves today's text/number emission behavior through the request payload
+- [x] `inputType` accepts only text or number; a password filter is unrepresentable
+- [x] Date and datetime filters render the Calendar kinds in the popover and send their committed value as a scalar under the resolved key
+- [x] Clearing any of these filters omits it from the next request; the dot/chip lifecycle is unchanged
+- [x] Kind inference from `column.type` now routes text/number columns to the input Field and date/datetime columns to their Calendar kind

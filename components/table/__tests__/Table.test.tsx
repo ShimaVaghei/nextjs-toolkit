@@ -2597,3 +2597,288 @@ describe("Table filter Fields — select kind", () => {
     }
   });
 });
+
+describe("Table filter Fields — input and date/datetime kinds", () => {
+  type KindRow = {
+    id: number;
+    name: string;
+    joined: string;
+    updated: string;
+    score: number;
+  };
+
+  const kindRows: KindRow[] = [
+    { id: 1, name: "Ada", joined: "2024-03-15", updated: "2024-03-15T10:30:00", score: 10 },
+  ];
+
+  function serverTable(
+    columns: TableConfig<KindRow>["columns"],
+  ) {
+    const dataSource = vi.fn(async () => ({ rows: kindRows }));
+    render(
+      <Table config={{ dataSource, columns, serverSide: true }} />,
+    );
+    return dataSource;
+  }
+
+  async function flushDebounce(dataSource: ReturnType<typeof serverTable>) {
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {});
+    return dataSource;
+  }
+
+  it("renders an InputField for kind input and sends the typed text under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        name: {
+          type: "text",
+          label: "Name",
+          filterable: { kind: "input", key: "name_filter" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Name"));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+      await flushDebounce(dataSource);
+
+      expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { name_filter: "Ada" } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an input filter with inputType number emits a numeric scalar", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "input", inputType: "number" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      const input = screen.getByLabelText("Filter by Score");
+      expect(input).toHaveAttribute("type", "number");
+      fireEvent.change(input, { target: { value: "42" } });
+      await flushDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { score: 42 } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a password input filter is unrepresentable at compile time", () => {
+    const invalid: TableConfig<KindRow>["columns"]["name"]["filterable"] = {
+      kind: "input",
+      // @ts-expect-error password filters are not part of the Filter kind set
+      inputType: "password",
+    };
+    expect(invalid).toBeDefined();
+  });
+
+  it("a date filter renders the Calendar kind in the popover and sends the committed value under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        joined: {
+          type: "date",
+          label: "Joined",
+          filterable: { kind: "date", key: "joined_filter" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Joined"));
+      const popover = screen.getByRole("group");
+      expect(
+        within(popover).queryByRole("dialog", { name: "Choose date" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        within(popover).getByRole("button", { name: /Joined/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("gridcell", { name: /15,/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("button", { name: "Apply" }),
+      );
+
+      expect(hasActiveDot(filterTrigger("Joined"))).toBe(true);
+      await flushDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: {
+            joined_filter: expect.stringMatching(/-15T00:00:00Z$/),
+          },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a datetime filter sends its committed value as a scalar under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        updated: {
+          type: "datetime",
+          label: "Updated",
+          filterable: { kind: "datetime" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Updated"));
+      const popover = screen.getByRole("group");
+      fireEvent.click(
+        within(popover).getByRole("button", { name: /Updated/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("gridcell", { name: /15,/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("button", { name: "Apply" }),
+      );
+
+      await flushDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: {
+            updated: expect.stringMatching(/-15T\d{2}:\d{2}:\d{2}Z$/),
+          },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("kind inference routes filterable: true text/number columns to the input Field and date columns to the Calendar kind", async () => {
+    const columns: TableConfig<KindRow>["columns"] = {
+      name: { type: "text", label: "Name", filterable: true },
+      score: { type: "number", label: "Score", filterable: true },
+      joined: { type: "date", label: "Joined", filterable: true },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: kindRows }),
+      columns,
+    });
+
+    fireEvent.click(filterTrigger("Name"));
+    expect(screen.getByLabelText("Filter by Name")).toHaveAttribute(
+      "type",
+      "text",
+    );
+
+    fireEvent.click(filterTrigger("Score"));
+    expect(screen.getByLabelText("Filter by Score")).toHaveAttribute(
+      "type",
+      "number",
+    );
+
+    fireEvent.click(filterTrigger("Joined"));
+    const popover = screen.getByRole("group");
+    expect(
+      within(popover).queryByRole("dialog", { name: "Choose date" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(popover).getByRole("button", { name: /Joined/ }),
+    );
+    expect(
+      within(popover).getByRole("dialog", { name: "Choose date" }),
+    ).toBeInTheDocument();
+  });
+
+  it("clearing a date filter omits it from the next request and removes the dot", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        joined: {
+          type: "date",
+          label: "Joined",
+          filterable: { kind: "date" },
+        },
+      });
+      await act(async () => {});
+
+      fireEvent.click(filterTrigger("Joined"));
+      const popover = screen.getByRole("group");
+      fireEvent.click(within(popover).getByRole("button", { name: /Joined/ }));
+      fireEvent.mouseDown(
+        within(popover).getByRole("gridcell", { name: /15,/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("button", { name: "Apply" }),
+      );
+      await flushDebounce(dataSource);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Joined" }),
+      );
+      await flushDebounce(dataSource);
+
+      expect(hasActiveDot(filterTrigger("Joined"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clearing an input filter omits it from the next request and removes the dot", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        name: {
+          type: "text",
+          label: "Name",
+          filterable: { kind: "input" },
+        },
+      });
+      await act(async () => {});
+
+      fireEvent.click(filterTrigger("Name"));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+      await flushDebounce(dataSource);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Name" }),
+      );
+      await flushDebounce(dataSource);
+
+      expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+

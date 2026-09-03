@@ -19,6 +19,9 @@ import {
   pad2,
 } from "@/lib/date";
 import {
+  DateField,
+  DateTimeField,
+  InputField,
   SelectField,
   type FieldHandle,
   type FieldOption,
@@ -290,6 +293,24 @@ function resolveFilterKind<T>(column: TableColumn<T>): TableFilterKind {
 }
 
 /**
+ * The Input type an input filter kind renders with: the object config's own
+ * `inputType`, or the column type's number-ness for the inferred shorthand.
+ */
+function resolveFilterInputType<T>(
+  column: TableColumn<T>,
+): TableFilterInputType {
+  const filterable = column.filterable;
+  if (
+    typeof filterable === "object" &&
+    filterable.kind === "input" &&
+    filterable.inputType !== undefined
+  ) {
+    return filterable.inputType;
+  }
+  return column.type === "number" ? "number" : "text";
+}
+
+/**
  * Where a select/multi-select filter's Options come from: the object
  * config's own `options`, or — for the legacy `true` shorthand inferred to
  * select on an option column — the column's cell-render options. Filter
@@ -504,34 +525,44 @@ function FilterControl<T>({
   const onOpenChangeRef = useRef(onOpenChange);
   const label = column.label ?? columnKey;
   const isNumber = column.type === "number";
-  const isSelectKind = resolveFilterKind(column) === "select";
+  const filterKind = resolveFilterKind(column);
+  // The legacy string shorthand keeps the bare input (its number/text typing
+  // derives from the column type); so do the range/multi-select kinds that
+  // no Field rendering covers yet. Every other kind renders its real Field.
+  const usesLegacyInput =
+    filterKind === "input" && typeof column.filterable === "string";
+  const rendersFieldComponent =
+    filterKind === "select" ||
+    filterKind === "date" ||
+    filterKind === "datetime" ||
+    (filterKind === "input" && !usesLegacyInput);
   const inputValue = value === undefined ? "" : String(value);
   const isActive = value !== undefined;
   // The Table owns the filters record; external changes (chip removal,
   // Clear all) are installed into the mounted Field through its handle.
   // A cleared value can't be pushed — setValue holds a defined V — so the
   // Field remounts and re-seeds from Initial instead.
-  const selectHandleRef = useRef<FieldHandle<TableFilterScalar> | null>(null);
-  const [selectResetEpoch, setSelectResetEpoch] = useState(0);
+  const fieldHandleRef = useRef<FieldHandle<TableFilterScalar> | null>(null);
+  const [fieldResetEpoch, setFieldResetEpoch] = useState(0);
 
   useEffect(() => {
-    if (!isSelectKind || !open) {
+    if (!rendersFieldComponent || !open) {
       return;
     }
-    const handle = selectHandleRef.current;
+    const handle = fieldHandleRef.current;
     if (!handle) {
       return;
     }
     if (value === undefined) {
       if (handle.getValue() !== undefined) {
-        setSelectResetEpoch((epoch) => epoch + 1);
+        setFieldResetEpoch((epoch) => epoch + 1);
       }
       return;
     }
     if (!Object.is(handle.getValue(), value)) {
       handle.setValue(value);
     }
-  }, [isSelectKind, open, value]);
+  }, [rendersFieldComponent, open, value]);
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -613,7 +644,7 @@ function FilterControl<T>({
           id={popoverId}
           role="group"
           onKeyDown={
-            isSelectKind
+            rendersFieldComponent
               ? (event) => {
                   if (event.key === "Escape") {
                     closeAndFocus();
@@ -623,10 +654,10 @@ function FilterControl<T>({
           }
           className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
         >
-          {isSelectKind ? (
+          {filterKind === "select" ? (
             <SelectField<TableFilterScalar>
-              key={selectResetEpoch}
-              ref={selectHandleRef}
+              key={fieldResetEpoch}
+              ref={fieldHandleRef}
               config={{
                 label: `Filter by ${label}`,
                 options: filterOptionSource(column),
@@ -635,6 +666,38 @@ function FilterControl<T>({
                   onChange(next === "" ? undefined : next),
               }}
             />
+          ) : filterKind === "input" && !usesLegacyInput ? (
+            <InputField
+              key={fieldResetEpoch}
+              ref={fieldHandleRef}
+              config={{
+                label: `Filter by ${label}`,
+                inputType: resolveFilterInputType(column),
+                initialValue: value,
+                onValueChange: (next) =>
+                  onChange(
+                    next === "" || Number.isNaN(next) ? undefined : next,
+                  ),
+              }}
+            />
+          ) : filterKind === "date" || filterKind === "datetime" ? (
+            (() => {
+              // The date kinds share one Field config; only the component
+              // (and its value-shape-specific ref cast) differs.
+              const dateConfig = {
+                label: `Filter by ${label}`,
+                initialValue: typeof value === "string" ? value : undefined,
+                onValueChange: (next: string) =>
+                  onChange(next === "" ? undefined : next),
+              };
+              const dateRef =
+                fieldHandleRef as unknown as Ref<FieldHandle<string>>;
+              return filterKind === "date" ? (
+                <DateField key={fieldResetEpoch} ref={dateRef} config={dateConfig} />
+              ) : (
+                <DateTimeField key={fieldResetEpoch} ref={dateRef} config={dateConfig} />
+              );
+            })()
           ) : (
             <>
               <label
