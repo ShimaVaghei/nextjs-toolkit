@@ -14,6 +14,14 @@ export type FieldOption<T = unknown> = {
 };
 
 /**
+ * Where a choice kind's Options come from: a static array of `FieldOption`s
+ * or an async loader fired once on mount and re-fired only by Retry.
+ */
+export type FieldOptionSource<T = unknown> =
+  | FieldOption<T>[]
+  | (() => Promise<FieldOption<T>[]>);
+
+/**
  * The range value shape a number-range Field carries: two individually
  * optional numeric bounds. Mirrors the date-range shape (`{ from?, to? }`)
  * but numeric, so open-ended ranges are first-class and a range with no

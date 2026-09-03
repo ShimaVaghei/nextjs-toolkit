@@ -43,6 +43,7 @@ import {
   sameInitial,
   describedStaleValue,
   type FieldOption,
+  type FieldOptionSource,
   type FieldNumberRangeValue,
   type MatchFn,
   type OptionLoadStatus,
@@ -55,7 +56,7 @@ import { SelectFieldControl } from "./controls/SelectFieldControl";
 import { MultiSelectFieldControl } from "./controls/MultiSelectFieldControl";
 import { DateFieldControl } from "./controls/DateFieldControl";
 
-export type { FieldOption, FieldNumberRangeValue } from "./fieldShared";
+export type { FieldOption, FieldOptionSource, FieldNumberRangeValue } from "./fieldShared";
 
 export type {
   FieldInputType,
@@ -129,7 +130,7 @@ type FieldCommonConfig<V> = {
  */
 type FieldChoiceConfig<T> = {
   /** A static array or an async loader fired once on mount and re-fired only by Retry. */
-  options?: FieldOption<T>[] | (() => Promise<FieldOption<T>[]>);
+  options?: FieldOptionSource<T>;
   /**
    * Matching override: replaces Object.is reference identity everywhere
    * consistently — closed-face resolution, popup checkbox states, chip
