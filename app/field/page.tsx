@@ -219,7 +219,6 @@ const sprintConfig: FieldDateTimeRangeConfig = {
 
 const budgetConfig: FieldNumberRangeConfig = {
   label: "Monthly budget",
-  hint: "The number-range kind: two adjacent number inputs labelled From and To, committed as a numeric `{ from?, to? }` range. Editing one end alone commits an open-ended range (the other bound is `undefined`); required demands both ends, so a half-filled range counts as empty. Out-of-order pairs swap automatically so from ≤ to always holds.",
   initialValue: { from: 1000, to: 4000 },
   validator: {
     required: { value: true, message: "Set a budget range (both ends)." },
@@ -292,7 +291,7 @@ export default function FieldDemoPage() {
   };
 
   return (
-    <div className="space-y-10 max-w-4xl mx-auto">
+    <div className="space-y-10 max-w-4xl mx-auto mb-32">
       <header>
         <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
           Field demo
