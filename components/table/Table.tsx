@@ -22,6 +22,7 @@ import {
   DateField,
   DateTimeField,
   InputField,
+  MultiSelectField,
   SelectField,
   type FieldHandle,
   type FieldOption,
@@ -422,8 +423,13 @@ function containsCaseInsensitive(
 function matchesFilter<T>(
   value: unknown,
   column: TableColumn<T>,
-  filter: TableFilterScalar,
+  filter: TableFilterValue,
 ): boolean {
+  // A multi-select filter carries a scalar array: the row matches when any
+  // of its scalars matches (an OR over the same scalar pipeline).
+  if (Array.isArray(filter)) {
+    return filter.some((scalar) => matchesFilter(value, column, scalar));
+  }
   if (isEmptyValue(value)) {
     return false;
   }
@@ -513,8 +519,8 @@ function FilterControl<T>({
 }: {
   columnKey: string;
   column: TableColumn<T>;
-  value: TableFilterScalar | undefined;
-  onChange: (value: TableFilterScalar | undefined) => void;
+  value: TableFilterValue | undefined;
+  onChange: (value: TableFilterValue | undefined) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -527,21 +533,25 @@ function FilterControl<T>({
   const isNumber = column.type === "number";
   const filterKind = resolveFilterKind(column);
   // The legacy string shorthand keeps the bare input (its number/text typing
-  // derives from the column type); so do the range/multi-select kinds that
-  // no Field rendering covers yet. Every other kind renders its real Field.
+  // derives from the column type); so do the range kinds that no Field
+  // rendering covers yet. Every other kind renders its real Field.
   const usesLegacyInput =
     filterKind === "input" && typeof column.filterable === "string";
   const rendersFieldComponent =
     filterKind === "select" ||
+    filterKind === "multi-select" ||
     filterKind === "date" ||
     filterKind === "datetime" ||
     (filterKind === "input" && !usesLegacyInput);
+  const isMultiSelectFilter = filterKind === "multi-select";
   const inputValue = value === undefined ? "" : String(value);
   const isActive = value !== undefined;
   // The Table owns the filters record; external changes (chip removal,
   // Clear all) are installed into the mounted Field through its handle.
   // A cleared value can't be pushed — setValue holds a defined V — so the
-  // Field remounts and re-seeds from Initial instead.
+  // Field remounts and re-seeds from Initial instead. A multi-select's
+  // emptiness is [] (a defined value), so the remount is skipped when the
+  // mounted Field already holds an empty selection.
   const fieldHandleRef = useRef<FieldHandle<TableFilterScalar> | null>(null);
   const [fieldResetEpoch, setFieldResetEpoch] = useState(0);
 
@@ -554,15 +564,34 @@ function FilterControl<T>({
       return;
     }
     if (value === undefined) {
-      if (handle.getValue() !== undefined) {
+      const current = handle.getValue();
+      const currentEmpty = isMultiSelectFilter
+        ? current === undefined ||
+          (Array.isArray(current) && current.length === 0)
+        : current === undefined;
+      if (!currentEmpty) {
         setFieldResetEpoch((epoch) => epoch + 1);
       }
       return;
     }
-    if (!Object.is(handle.getValue(), value)) {
-      handle.setValue(value);
+    if (isMultiSelectFilter) {
+      const arrayHandle = handle as unknown as FieldHandle<
+        TableFilterScalar[]
+      >;
+      const next = Array.isArray(value) ? value : [];
+      const current = arrayHandle.getValue() ?? [];
+      const sameSelection =
+        current.length === next.length &&
+        next.every((scalar, index) => Object.is(current[index], scalar));
+      if (!sameSelection) {
+        arrayHandle.setValue(next);
+      }
+      return;
     }
-  }, [rendersFieldComponent, open, value]);
+    if (!Object.is(handle.getValue(), value)) {
+      handle.setValue(value as TableFilterScalar);
+    }
+  }, [rendersFieldComponent, open, value, isMultiSelectFilter]);
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -654,14 +683,31 @@ function FilterControl<T>({
           }
           className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
         >
-          {filterKind === "select" ? (
+          {filterKind === "multi-select" ? (
+            <MultiSelectField<TableFilterScalar>
+              key={fieldResetEpoch}
+              ref={
+                fieldHandleRef as unknown as Ref<
+                  FieldHandle<TableFilterScalar[]>
+                >
+              }
+              config={{
+                label: `Filter by ${label}`,
+                options: filterOptionSource(column),
+                selectionDisplay: "chips",
+                initialValue: Array.isArray(value) ? value : undefined,
+                onValueChange: (next) =>
+                  onChange(next.length === 0 ? undefined : next),
+              }}
+            />
+          ) : filterKind === "select" ? (
             <SelectField<TableFilterScalar>
               key={fieldResetEpoch}
               ref={fieldHandleRef}
               config={{
                 label: `Filter by ${label}`,
                 options: filterOptionSource(column),
-                initialValue: value,
+                initialValue: Array.isArray(value) ? undefined : value,
                 onValueChange: (next) =>
                   onChange(next === "" ? undefined : next),
               }}
@@ -673,7 +719,7 @@ function FilterControl<T>({
               config={{
                 label: `Filter by ${label}`,
                 inputType: resolveFilterInputType(column),
-                initialValue: value,
+                initialValue: Array.isArray(value) ? undefined : value,
                 onValueChange: (next) =>
                   onChange(
                     next === "" || Number.isNaN(next) ? undefined : next,
@@ -742,7 +788,7 @@ export function Table<T>({
   const serverSide = Boolean(config.serverSide);
   const [rows, setRows] = useState<T[] | null>(null);
   const [sort, setSort] = useState<TableSort | null>(null);
-  const [filters, setFilters] = useState<Record<string, TableFilterScalar>>({});
+  const [filters, setFilters] = useState<Record<string, TableFilterValue>>({});
   const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null);
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [pagination, setPagination] = useState(() => ({
@@ -759,7 +805,7 @@ export function Table<T>({
 
   const updateFilter = (
     key: string,
-    value: TableFilterScalar | undefined,
+    value: TableFilterValue | undefined,
   ) => {
     setFilters((current) => {
       if (value === undefined) {
@@ -938,7 +984,7 @@ export function Table<T>({
   );
 
   const activeFilterChips = useMemo(() => {
-    const chips: Array<[string, TableColumn<T>, TableFilterScalar]> = [];
+    const chips: Array<[string, TableColumn<T>, TableFilterValue]> = [];
     for (const [key, column] of visibleColumns) {
       const value = filters[key];
       if (value !== undefined) {
@@ -1037,12 +1083,15 @@ export function Table<T>({
           {activeFilterChips.map(([key, column, value]) => {
             const label = column.label ?? key;
             const chipOptions = filterOptionSource(column);
-            const chipText =
+            const resolveScalarText = (scalar: TableFilterScalar) =>
               Array.isArray(chipOptions)
                 ? chipOptions.find((option) =>
-                    Object.is(option.value, value),
-                  )?.label ?? String(value)
-                : String(value);
+                    Object.is(option.value, scalar),
+                  )?.label ?? String(scalar)
+                : String(scalar);
+            const chipText = Array.isArray(value)
+              ? value.map(resolveScalarText).join(", ")
+              : resolveScalarText(value);
             return (
               <span
                 key={key}

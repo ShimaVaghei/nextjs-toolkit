@@ -2597,6 +2597,278 @@ describe("Table filter Fields — select kind", () => {
     }
   });
 });
+describe("Table filter Fields — multi-select kind", () => {
+  type TagRow = {
+    id: number;
+    name: string;
+    status: string;
+  };
+
+  const tagRows: TagRow[] = [
+    { id: 1, name: "Ada", status: "p" },
+    { id: 2, name: "Grace", status: "b" },
+  ];
+
+  const TAG_OPTIONS = [
+    { label: "In Progress", value: "p" },
+    { label: "Blocked", value: "b" },
+  ];
+
+  function multiSelectColumns(
+    filterable: TableConfig<TagRow>["columns"]["status"]["filterable"],
+  ): TableConfig<TagRow>["columns"] {
+    return { status: { type: "text", label: "Status", filterable } };
+  }
+
+  function openMultiSelectFilter(columnLabel: string) {
+    fireEvent.click(filterTrigger(columnLabel));
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+  }
+
+  it("renders a MultiSelectField with chips in the popover and sends a scalar array under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: TAG_OPTIONS,
+              key: "status_filter",
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      fireEvent.click(screen.getByLabelText("In Progress"));
+
+      // The picked option shows as a chip inside the strip (plus its popup
+      // row), the trigger dot and summary chip appear, and the payload
+      // carries the scalar array.
+      expect(
+        screen.getAllByText("In Progress").length,
+      ).toBeGreaterThan(0);
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(true);
+      expect(screen.getByText("Status: In Progress")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status_filter: ["p"] } }),
+      );
+
+      // A second pick extends the array rather than replacing it.
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { status_filter: ["p", "b"] },
+        }),
+      );
+      expect(screen.getByText("Status: In Progress, Blocked")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clearing the selection through the popup's Clear omits the filter from the request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: TAG_OPTIONS,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: ["b"] } }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("removing the summary chip omits the multi-select filter from the next request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: TAG_OPTIONS,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+
+      openMultiSelectFilter("Status");
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Status" }),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("loads async options with Pending then usable behavior inherited from Field", async () => {
+    vi.useFakeTimers();
+    try {
+      const optionsDeferred = deferred<FieldOption<TableFilterScalar>[]>();
+      const loader = vi.fn(() => optionsDeferred.promise);
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: loader,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      // Pending: the loader hasn't resolved, so no Options are offered yet.
+      expect(screen.queryByLabelText("In Progress")).not.toBeInTheDocument();
+      expect(loader).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        optionsDeferred.resolve(TAG_OPTIONS);
+      });
+      expect(screen.getByLabelText("In Progress")).toBeInTheDocument();
+      expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: ["b"] } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers from a Rejected option load through Retry and then sends the picked values", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstLoad = deferred<FieldOption<TableFilterScalar>[]>();
+      const retryLoad = deferred<FieldOption<TableFilterScalar>[]>();
+      const loader = vi
+        .fn<() => Promise<FieldOption<TableFilterScalar>[]>>()
+        .mockReturnValueOnce(firstLoad.promise)
+        .mockReturnValueOnce(retryLoad.promise);
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: loader,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      // Rejected: no Options offered, with the failure status beside Retry.
+      await act(async () => {
+        firstLoad.reject(new Error("load failed"));
+      });
+      expect(screen.queryByLabelText("In Progress")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      await act(async () => {
+        retryLoad.resolve(TAG_OPTIONS);
+      });
+      expect(screen.getByLabelText("In Progress")).toBeInTheDocument();
+      expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: ["b"] } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe("Table filter Fields — input and date/datetime kinds", () => {
   type KindRow = {

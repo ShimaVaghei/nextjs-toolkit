@@ -4,9 +4,9 @@
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A multi-select filter renders a MultiSelectField with chip selection in the popover
-- [ ] The request payload carries a scalar array under the resolved key (the existing filters-record array shape — no new wire type)
-- [ ] Clearing the selection via the popup's Clear, or removing the summary chip, omits the filter
-- [ ] Async options inherit Pending/Rejected/Retry behavior from Field
+- [x] A multi-select filter renders a MultiSelectField with chip selection in the popover
+- [x] The request payload carries a scalar array under the resolved key (the existing filters-record array shape — no new wire type)
+- [x] Clearing the selection via the popup's Clear, or removing the summary chip, omits the filter
+- [x] Async options inherit Pending/Rejected/Retry behavior from Field
