@@ -14,8 +14,10 @@ import {
   type TableConfig,
   type TableDataRequest,
   type TableDataResponse,
+  type TableFilterScalar,
   type TableHandle,
 } from "../Table";
+import type { FieldOption } from "@/components/field/Field";
 
 type Person = {
   id: number;
@@ -2408,5 +2410,190 @@ describe("Table option columns", () => {
     });
 
     expect(screen.getByText("p, b")).toBeInTheDocument();
+  });
+});
+
+describe("Table filter Fields — select kind", () => {
+  type StatusRow = {
+    id: number;
+    name: string;
+    status: string;
+  };
+
+  const selectRows: StatusRow[] = [
+    { id: 1, name: "Ada", status: "p" },
+    { id: 2, name: "Grace", status: "b" },
+  ];
+
+  const SELECT_OPTIONS = [
+    { label: "In Progress", value: "p" },
+    { label: "Blocked", value: "b" },
+  ];
+
+  function selectColumns(
+    filterable: TableConfig<StatusRow>["columns"]["status"]["filterable"],
+  ): TableConfig<StatusRow>["columns"] {
+    return { status: { type: "text", label: "Status", filterable } };
+  }
+
+  function openSelectFilter(columnLabel: string) {
+    fireEvent.click(filterTrigger(columnLabel));
+    fireEvent.click(
+      screen.getByRole("button", { name: `Filter by ${columnLabel}` }),
+    );
+  }
+
+  it("renders a SelectField in the popover and sends the picked option's scalar under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: selectRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: selectColumns({
+              kind: "select",
+              options: SELECT_OPTIONS,
+              key: "status_filter",
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openSelectFilter("Status");
+      fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(true);
+      expect(screen.getByText("Status: Blocked")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status_filter: "b" } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("loads async filter options through the Field's own loader and sends the picked value", async () => {
+    vi.useFakeTimers();
+    try {
+      const optionsDeferred = deferred<FieldOption<TableFilterScalar>[]>();
+      const dataSource = vi.fn(async () => ({ rows: selectRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: selectColumns({
+              kind: "select",
+              options: () => optionsDeferred.promise,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Status"));
+      // Pending: the loader hasn't resolved, so no Options are offered yet.
+      expect(
+        screen.queryByRole("button", { name: "Blocked" }),
+      ).not.toBeInTheDocument();
+
+      await act(async () => {
+        optionsDeferred.resolve(SELECT_OPTIONS);
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Filter by Status" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: "b" } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("upgrades filterable: true on an option column to a select while other columns keep the bare input", async () => {
+    const columns: TableConfig<StatusRow>["columns"] = {
+      status: {
+        type: "option",
+        label: "Status",
+        options: SELECT_OPTIONS,
+        filterable: true,
+      },
+      name: { type: "text", label: "Name", filterable: true },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: selectRows }),
+      columns,
+    });
+
+    openSelectFilter("Status");
+    fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+
+    expect(screen.getByText("Status: Blocked")).toBeInTheDocument();
+    expect(screen.getByText("Grace")).toBeInTheDocument();
+    expect(screen.queryByText("Ada")).not.toBeInTheDocument();
+
+    fireEvent.click(filterTrigger("Name"));
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+  });
+
+  it("removing the summary chip clears the select filter from the next request and the dot", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: selectRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: selectColumns({
+              kind: "select",
+              options: SELECT_OPTIONS,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+
+      openSelectFilter("Status");
+      fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Status" }),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

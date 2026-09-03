@@ -18,7 +18,12 @@ import {
   DATETIME_DISPLAY_FORMAT,
   pad2,
 } from "@/lib/date";
-import type { FieldOption } from "@/components/field/Field";
+import {
+  SelectField,
+  type FieldHandle,
+  type FieldOption,
+  type FieldOptionSource,
+} from "@/components/field/Field";
 
 export type TableColumnType =
   | "text"
@@ -34,6 +39,32 @@ export type TableFilterScalar = string | number;
 
 export type TableFilterValue = TableFilterScalar | TableFilterScalar[];
 
+/** The native input type an input filter kind may request. */
+export type TableFilterInputType = "text" | "number";
+
+/**
+ * A column's filter config in object form: a discriminated union on `kind`
+ * over the Filter kind set. Where Options come from is only expressible on
+ * the choice kinds, the input type only on the input kind, and every member
+ * takes an optional Filter key — a string for the single request key, or a
+ * `{ from, to }` pair naming a range's two request keys verbatim.
+ */
+export type TableFilterable = {
+  kind: "select" | "multi-select";
+  options?: FieldOptionSource<TableFilterScalar>;
+  key?: string | { from: string; to: string };
+} | {
+  kind: "input";
+  inputType?: TableFilterInputType;
+  key?: string | { from: string; to: string };
+} | {
+  kind: "date" | "datetime";
+  key?: string | { from: string; to: string };
+} | {
+  kind: "date-range" | "datetime-range" | "number-range";
+  key?: string | { from: string; to: string };
+};
+
 export type TableSort = {
   key: string;
   direction: TableSortDirection;
@@ -47,7 +78,7 @@ export type TableColumn<T> = {
   class?: string | ((row: T) => string);
   hidden?: boolean;
   sortable?: string | boolean;
-  filterable?: string | boolean;
+  filterable?: string | boolean | TableFilterable;
 };
 
 export type TableDataRequest = {
@@ -232,6 +263,73 @@ function resolveRequestKey(
   return typeof requestKey === "string" ? requestKey : columnKey;
 }
 
+type TableFilterKind = TableFilterable["kind"];
+
+/** The kind a legacy `filterable: true` shorthand infers from the column's type. */
+function inferFilterKind<T>(column: TableColumn<T>): TableFilterKind {
+  switch (column.type) {
+    case "option":
+      return "select";
+    case "date":
+      return "date";
+    case "datetime":
+      return "datetime";
+    default:
+      return "input";
+  }
+}
+
+function resolveFilterKind<T>(column: TableColumn<T>): TableFilterKind {
+  const filterable = column.filterable;
+  if (typeof filterable === "object") {
+    return filterable.kind;
+  }
+  // Only the `true` shorthand infers the kind; the string shorthand is a
+  // request-key override that keeps the legacy bare-input behavior.
+  return filterable === true ? inferFilterKind(column) : "input";
+}
+
+/**
+ * Where a select/multi-select filter's Options come from: the object
+ * config's own `options`, or — for the legacy `true` shorthand inferred to
+ * select on an option column — the column's cell-render options. Filter
+ * option values are filter scalars (the wire values), never the row type;
+ * cell-render options remain a separate prop for every other shape.
+ */
+function filterOptionSource<T>(
+  column: TableColumn<T>,
+): FieldOptionSource<TableFilterScalar> | undefined {
+  const filterable = column.filterable;
+  if (typeof filterable === "object") {
+    return filterable.kind === "select" || filterable.kind === "multi-select"
+      ? filterable.options
+      : undefined;
+  }
+  return filterable === true && column.type === "option"
+    ? (column.options as FieldOptionSource<TableFilterScalar>)
+    : undefined;
+}
+/**
+ * The request key a column's filter writes under: the legacy string
+ * shorthand, the object config's string key, or the column's own key.
+ */
+function resolveFilterRequestKey<T>(
+  columnKey: string,
+  column: TableColumn<T> | undefined,
+): string {
+  const filterable = column?.filterable;
+  if (typeof filterable === "string") {
+    return filterable;
+  }
+  if (
+    typeof filterable === "object" &&
+    typeof filterable.key === "string"
+  ) {
+    return filterable.key;
+  }
+  return columnKey;
+}
+
 function toDate(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
@@ -406,8 +504,34 @@ function FilterControl<T>({
   const onOpenChangeRef = useRef(onOpenChange);
   const label = column.label ?? columnKey;
   const isNumber = column.type === "number";
+  const isSelectKind = resolveFilterKind(column) === "select";
   const inputValue = value === undefined ? "" : String(value);
   const isActive = value !== undefined;
+  // The Table owns the filters record; external changes (chip removal,
+  // Clear all) are installed into the mounted Field through its handle.
+  // A cleared value can't be pushed — setValue holds a defined V — so the
+  // Field remounts and re-seeds from Initial instead.
+  const selectHandleRef = useRef<FieldHandle<TableFilterScalar> | null>(null);
+  const [selectResetEpoch, setSelectResetEpoch] = useState(0);
+
+  useEffect(() => {
+    if (!isSelectKind || !open) {
+      return;
+    }
+    const handle = selectHandleRef.current;
+    if (!handle) {
+      return;
+    }
+    if (value === undefined) {
+      if (handle.getValue() !== undefined) {
+        setSelectResetEpoch((epoch) => epoch + 1);
+      }
+      return;
+    }
+    if (!Object.is(handle.getValue(), value)) {
+      handle.setValue(value);
+    }
+  }, [isSelectKind, open, value]);
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -488,27 +612,52 @@ function FilterControl<T>({
         <div
           id={popoverId}
           role="group"
-          className="absolute left-0 top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
+          onKeyDown={
+            isSelectKind
+              ? (event) => {
+                  if (event.key === "Escape") {
+                    closeAndFocus();
+                  }
+                }
+              : undefined
+          }
+          className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
         >
-          <label
-            htmlFor={inputId}
-            className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400"
-          >
-            Filter by {label}
-          </label>
-          <input
-            id={inputId}
-            type={isNumber ? "number" : "text"}
-            value={inputValue}
-            autoFocus
-            onChange={(event) => handleChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                closeAndFocus();
-              }
-            }}
-            className="w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-          />
+          {isSelectKind ? (
+            <SelectField<TableFilterScalar>
+              key={selectResetEpoch}
+              ref={selectHandleRef}
+              config={{
+                label: `Filter by ${label}`,
+                options: filterOptionSource(column),
+                initialValue: value,
+                onValueChange: (next) =>
+                  onChange(next === "" ? undefined : next),
+              }}
+            />
+          ) : (
+            <>
+              <label
+                htmlFor={inputId}
+                className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400"
+              >
+                Filter by {label}
+              </label>
+              <input
+                id={inputId}
+                type={isNumber ? "number" : "text"}
+                value={inputValue}
+                autoFocus
+                onChange={(event) => handleChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    closeAndFocus();
+                  }
+                }}
+                className="w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+              />
+            </>
+          )}
         </div>
       ) : null}
     </div>
@@ -674,7 +823,7 @@ export function Table<T>({
         : {}),
       filters: Object.fromEntries(
         Object.entries(debouncedFilters).map(([key, value]) => [
-          resolveRequestKey(key, columnsRef.current[key]?.filterable),
+          resolveFilterRequestKey(key, columnsRef.current[key]),
           value,
         ]),
       ),
@@ -824,13 +973,20 @@ export function Table<T>({
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {activeFilterChips.map(([key, column, value]) => {
             const label = column.label ?? key;
+            const chipOptions = filterOptionSource(column);
+            const chipText =
+              Array.isArray(chipOptions)
+                ? chipOptions.find((option) =>
+                    Object.is(option.value, value),
+                  )?.label ?? String(value)
+                : String(value);
             return (
               <span
                 key={key}
                 className="flex items-center gap-1 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
               >
                 <span>
-                  {label}: {String(value)}
+                  {label}: {chipText}
                 </span>
                 <button
                   type="button"
