@@ -51,11 +51,11 @@ The configuration object passed to `Table`. It declares the `dataSource`, the `c
 _Avoid_: DataTableConfig, TableProps
 
 **TableColumn**:
-One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); `sortable`/`filterable` are `string | boolean` — `true` enables the feature with the column's own key as the request key, a string enables it with a different request key, and `false`/omitted disables it.
+One column definition inside `TableConfig.columns`, keyed by a data property (or free string) and describing how that column renders, sorts, and filters. `type` picks a `TableColumnType` renderer; an optional `label` supplies the header text (defaulting to the column key); an option column takes `options` (a `FieldOption[]` of label + value entries, the same vocabulary Field select/multi-select configs use) whose labels the cell values resolve against; `sortable`/`filterable` are `string | boolean` — `true` enables the feature with the column's own key as the request key, a string enables it with a different request key, and `false`/omitted disables it.
 _Avoid_: ColumnSpec, field config
 
 **TableColumnType**:
-The set of column renderers: `text`, `date`, `datetime`, `array`, `image`, `number`.
+The set of column renderers: `text`, `date`, `datetime`, `option`, `image`, `number`. An `option` column resolves each cell's value (strictly by `Object.is`) against the column's `options` and renders the matched label; unmatched values render as their string form. Array-valued cells of any type render their elements joined with `", "` — array display is a value-shape behavior, not a renderer.
 _Avoid_: cell kind, column variant
 
 **TableDataRequest**:

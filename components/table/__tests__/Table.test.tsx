@@ -406,7 +406,7 @@ describe("Table column type renderers", () => {
     name: { type: "text", label: "Name" },
     joined: { type: "date", label: "Joined" },
     updated: { type: "datetime", label: "Updated" },
-    tags: { type: "array", label: "Tags" },
+    tags: { type: "text", label: "Tags" },
     avatar: { type: "image", label: "Avatar" },
     score: { type: "number", label: "Score" },
   };
@@ -585,7 +585,7 @@ describe("Table local sort", () => {
     name: { type: "text", label: "Name", sortable: "name" },
     score: { type: "number", label: "Score", sortable: "score" },
     joined: { type: "date", label: "Joined", sortable: "joined" },
-    tags: { type: "array", label: "Tags", sortable: "tags" },
+    tags: { type: "text", label: "Tags", sortable: "tags" },
     avatar: { type: "image", label: "Avatar", sortable: "avatar" },
   };
 
@@ -823,7 +823,7 @@ describe("Table local filter", () => {
     name: { type: "text", label: "Name", filterable: "name" },
     joined: { type: "date", label: "Joined", filterable: "joined" },
     updated: { type: "datetime", label: "Updated", filterable: "updated" },
-    tags: { type: "array", label: "Tags", filterable: "tags" },
+    tags: { type: "text", label: "Tags", filterable: "tags" },
     score: { type: "number", label: "Score", filterable: "score" },
     avatar: { type: "image", label: "Avatar", filterable: "avatar" },
   };
@@ -2227,5 +2227,186 @@ describe("Table sortable/filterable string | boolean keys", () => {
     expect(
       screen.queryByRole("button", { name: "Filter Role" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Table option columns", () => {
+  type StatusItem = {
+    id: number;
+    name: string;
+    status: string | null;
+    codes: string[] | null;
+  };
+
+  const STATUS_OPTIONS = [
+    { label: "In Progress", value: "p" },
+    { label: "Blocked", value: "b" },
+    { label: "Shipped", value: "s" },
+  ];
+
+  const statusRows: StatusItem[] = [
+    { id: 1, name: "Ada", status: "p", codes: ["p", "b"] },
+    { id: 2, name: "Grace", status: "b", codes: ["s"] },
+    { id: 3, name: "Alan", status: "x", codes: ["p"] },
+    { id: 4, name: "Linus", status: null, codes: null },
+  ];
+
+  const statusColumns: TableConfig<StatusItem>["columns"] = {
+    name: { type: "text", label: "Name", sortable: "name" },
+    status: {
+      type: "option",
+      label: "Status",
+      options: STATUS_OPTIONS,
+      sortable: "status",
+      filterable: "status",
+    },
+    codes: {
+      type: "option",
+      label: "Codes",
+      options: STATUS_OPTIONS,
+      sortable: "codes",
+      filterable: "codes",
+    },
+  };
+
+  function statusConfig(
+    rows: StatusItem[] = statusRows,
+    overrides: Partial<TableConfig<StatusItem>> = {},
+  ): TableConfig<StatusItem> {
+    return {
+      dataSource: async () => ({ rows }),
+      columns: statusColumns,
+      ...overrides,
+    };
+  }
+
+  const clickSort = (header: HTMLElement, name: string) =>
+    fireEvent.click(within(header).getByRole("button", { name }));
+
+  it("renders the matched option label instead of the raw coded value", async () => {
+    await renderLocal(statusConfig([statusRows[0]]));
+
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    expect(screen.queryByText("p")).not.toBeInTheDocument();
+  });
+
+  it("renders the raw value as its string form when no option matches", async () => {
+    await renderLocal(statusConfig([statusRows[2]]));
+
+    expect(screen.getByText("x")).toBeInTheDocument();
+  });
+
+  it("renders the muted em-dash for null/undefined option cells", async () => {
+    await renderLocal(statusConfig([statusRows[3]]));
+
+    const dashes = screen.getAllByText("—");
+    expect(dashes).toHaveLength(2);
+    dashes.forEach((dash) => expect(dash).toHaveClass("text-neutral-400"));
+  });
+
+  it("warns in dev and falls back to raw text when an option column has no options", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const columns: TableConfig<StatusItem>["columns"] = {
+        name: { type: "text", label: "Name" },
+        status: { type: "option", label: "Status" },
+      };
+      await renderLocal({
+        dataSource: async () => ({ rows: [statusRows[0]] }),
+        columns,
+      });
+
+      expect(screen.getByText("p")).toBeInTheDocument();
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Table column of type "option" has no options; rendering raw values.',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("maps each element of an array value through the options and joins them", async () => {
+    await renderLocal(statusConfig([statusRows[0]]));
+
+    expect(screen.getByText("In Progress, Blocked")).toBeInTheDocument();
+  });
+
+  it("sorts option columns by the displayed labels, ascending then descending", async () => {
+    await renderLocal(statusConfig());
+
+    const header = screen.getByRole("columnheader", { name: /status/i });
+    const cellTexts = () => {
+      const rows = screen.getAllByRole("row").slice(1);
+      return rows.map(
+        (row) => within(row).getAllByRole("cell")[1].textContent,
+      );
+    };
+
+    clickSort(header, "Status");
+    expect(cellTexts()).toEqual([
+      "Blocked",
+      "In Progress",
+      "x",
+      "—",
+    ]);
+
+    clickSort(header, "Status");
+    expect(cellTexts()).toEqual([
+      "x",
+      "In Progress",
+      "Blocked",
+      "—",
+    ]);
+  });
+
+  it("filters option columns case-insensitively against the displayed labels", async () => {
+    await renderLocal(statusConfig());
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter Status" }));
+    fireEvent.change(screen.getByLabelText("Filter by Status"), {
+      target: { value: "PROGRESS" },
+    });
+
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.queryByText("Grace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alan")).not.toBeInTheDocument();
+  });
+
+  it("sorts and filters array-valued option columns on their joined label text", async () => {
+    await renderLocal(statusConfig());
+
+    const codesHeader = screen.getByRole("columnheader", { name: /codes/i });
+    clickSort(codesHeader, "Codes");
+    const rows = screen.getAllByRole("row").slice(1);
+    const codeTexts = rows.map(
+      (row) => within(row).getAllByRole("cell")[2].textContent,
+    );
+    expect(codeTexts).toEqual([
+      "In Progress",
+      "In Progress, Blocked",
+      "Shipped",
+      "—",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter Codes" }));
+    fireEvent.change(screen.getByLabelText("Filter by Codes"), {
+      target: { value: "shipped" },
+    });
+
+    expect(screen.getByText("Grace")).toBeInTheDocument();
+    expect(screen.queryByText("Ada")).not.toBeInTheDocument();
+  });
+
+  it("renders array values under a text column as comma-joined raw elements", async () => {
+    const columns: TableConfig<StatusItem>["columns"] = {
+      name: { type: "text", label: "Name" },
+      codes: { type: "text", label: "Codes" },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: [statusRows[0]] }),
+      columns,
+    });
+
+    expect(screen.getByText("p, b")).toBeInTheDocument();
   });
 });

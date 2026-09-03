@@ -18,12 +18,13 @@ import {
   DATETIME_DISPLAY_FORMAT,
   pad2,
 } from "@/lib/date";
+import type { FieldOption } from "@/components/field/Field";
 
 export type TableColumnType =
   | "text"
   | "date"
   | "datetime"
-  | "array"
+  | "option"
   | "image"
   | "number";
 
@@ -41,6 +42,7 @@ export type TableSort = {
 export type TableColumn<T> = {
   type: TableColumnType;
   label?: string;
+  options?: FieldOption[];
   transform?: (value: unknown, row: T) => unknown;
   class?: string | ((row: T) => string);
   hidden?: boolean;
@@ -139,13 +141,51 @@ function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined;
 }
 
-function compareRawValues(a: unknown, b: unknown, type: TableColumnType): number {
-  switch (type) {
-    case "array": {
-      const aText = Array.isArray(a) ? a.join(", ") : String(a);
-      const bText = Array.isArray(b) ? b.join(", ") : String(b);
-      return aText.localeCompare(bText, undefined, { sensitivity: "base" });
-    }
+const OPTION_WARNED_COLUMNS = new WeakSet<object>();
+
+function columnOptions<T>(column: TableColumn<T>): FieldOption[] | undefined {
+  return column.type === "option" ? column.options : undefined;
+}
+
+function warnMissingOptions<T>(column: TableColumn<T>): void {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+  if (OPTION_WARNED_COLUMNS.has(column)) {
+    return;
+  }
+  OPTION_WARNED_COLUMNS.add(column);
+  console.warn(
+    'Table column of type "option" has no options; rendering raw values.',
+  );
+}
+
+function resolveOptionLabel(
+  value: unknown,
+  options: FieldOption[] | undefined,
+): string {
+  const match = options?.find((option) => Object.is(option.value, value));
+  return match ? match.label : String(value);
+}
+
+function displayText(
+  value: unknown,
+  options: FieldOption[] | undefined,
+): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((element) => resolveOptionLabel(element, options))
+      .join(", ");
+  }
+  return resolveOptionLabel(value, options);
+}
+
+function compareRawValues<T>(
+  a: unknown,
+  b: unknown,
+  column: TableColumn<T>,
+): number {
+  switch (column.type) {
     case "number": {
       const aNum = Number(a);
       const bNum = Number(b);
@@ -158,11 +198,14 @@ function compareRawValues(a: unknown, b: unknown, type: TableColumnType): number
       return (aDate?.getTime() ?? 0) - (bDate?.getTime() ?? 0);
     }
     case "text":
+    case "option":
     case "image":
     default:
-      return String(a).localeCompare(String(b), undefined, {
-        sensitivity: "base",
-      });
+      return displayText(a, columnOptions(column)).localeCompare(
+        displayText(b, columnOptions(column)),
+        undefined,
+        { sensitivity: "base" },
+      );
   }
 }
 
@@ -267,8 +310,11 @@ function matchesFilter<T>(
   }
   switch (column.type) {
     case "text":
-    case "array":
-      return containsCaseInsensitive(value, filter);
+    case "option":
+      return containsCaseInsensitive(
+        displayText(value, columnOptions(column)),
+        filter,
+      );
     case "date":
       return sameDateParts(value, filter, false);
     case "datetime":
@@ -277,7 +323,11 @@ function matchesFilter<T>(
       return Number(value) === Number(filter);
     case "image":
     default:
-      return false;
+      // Array display is value-shape behavior (see CONTEXT.md): any other
+      // renderer joins array cells, so their filter matches the joined text.
+      return Array.isArray(value)
+        ? containsCaseInsensitive(displayText(value, columnOptions(column)), filter)
+        : false;
   }
 }
 
@@ -320,14 +370,17 @@ function renderCell<T>(value: unknown, column: TableColumn<T>, row: T): ReactNod
       return renderTimeCell(display, false);
     case "datetime":
       return renderTimeCell(display, true);
-    case "array":
-      return Array.isArray(display) ? display.join(", ") : String(display);
     case "image":
       return renderImageCell(display, row);
+    case "option":
     case "number":
     case "text":
-    default:
-      return String(display);
+    default: {
+      if (column.type === "option" && !column.options?.length) {
+        warnMissingOptions(column);
+      }
+      return displayText(display, columnOptions(column));
+    }
   }
 }
 
@@ -723,7 +776,7 @@ export function Table<T>({
         }
         return aEmpty ? 1 : -1;
       }
-      return compareRawValues(aValue, bValue, column.type) * factor;
+      return compareRawValues(aValue, bValue, column) * factor;
     });
   }, [filteredRows, sort, config.columns]);
   const pageRows = sortedRows.slice(start, end);

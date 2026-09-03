@@ -1,11 +1,12 @@
 import type {
   TableColumns,
-  TableColumnType,
+  TableColumn,
   TableDataRequest,
   TableDataResponse,
   TableFilterScalar,
   TableSort,
 } from "@/components/table";
+import type { FieldOption } from "@/components/field/Field";
 
 export type Project = {
   id: number;
@@ -67,7 +68,17 @@ const PROJECT_NAMES = [
   "Talon",
 ];
 
-const PROJECT_STATUSES = ["Active", "Planning", "Paused", "Archived", "Review"];
+export const PROJECT_STATUS_OPTIONS: FieldOption<string>[] = [
+  { label: "Active", value: "act" },
+  { label: "Planning", value: "pln" },
+  { label: "Paused", value: "pau" },
+  { label: "Archived", value: "arc" },
+  { label: "Review", value: "rev" },
+];
+
+const PROJECT_STATUS_CODES = PROJECT_STATUS_OPTIONS.map(
+  (option) => option.value,
+);
 
 const PROJECT_TAGS = [
   "frontend",
@@ -94,8 +105,9 @@ export const projectColumns: TableColumns<Project> = {
     filterable: true,
   },
   status: {
-    type: "text",
+    type: "option",
     label: "Status",
+    options: PROJECT_STATUS_OPTIONS,
     sortable: true,
     filterable: true,
   },
@@ -110,7 +122,7 @@ export const projectColumns: TableColumns<Project> = {
     sortable: true,
   },
   tags: {
-    type: "array",
+    type: "text",
     label: "Tags",
     sortable: true,
     filterable: true,
@@ -124,10 +136,6 @@ export const projectColumns: TableColumns<Project> = {
   },
 };
 
-const PROJECT_TYPES: Record<string, TableColumnType> = Object.fromEntries(
-  Object.entries(projectColumns).map(([key, column]) => [key, column.type]),
-);
-
 export const projects: Project[] = Array.from({ length: 57 }, (_, i) => {
   const year = 2021 + (i % 5);
   const month = (i % 12) + 1;
@@ -136,7 +144,7 @@ export const projects: Project[] = Array.from({ length: 57 }, (_, i) => {
     id: i + 1,
     name: `${PROJECT_NAMES[i % PROJECT_NAMES.length]} ${i + 1}`,
     owner: `Owner ${i + 1}`,
-    status: PROJECT_STATUSES[i % PROJECT_STATUSES.length],
+    status: PROJECT_STATUS_CODES[i % PROJECT_STATUS_CODES.length],
     startDate: `${year}-${pad(month)}-${pad(day)}`,
     lastActive: toLocalDatetime(
       2024 + (i % 2),
@@ -160,7 +168,7 @@ export const teamColumns: TableColumns<TeamMember> = {
     label: "Last seen",
     sortable: true,
   },
-  skills: { type: "array", label: "Skills", sortable: true, filterable: true },
+  skills: { type: "text", label: "Skills", sortable: true, filterable: true },
   avatar: { type: "image", label: "Avatar" },
   projects: {
     type: "number",
@@ -241,6 +249,26 @@ function containsText(value: unknown, filter: TableFilterScalar): boolean {
   return text.toLowerCase().includes(String(filter).toLowerCase());
 }
 
+function resolveOptionLabel(
+  value: unknown,
+  options: FieldOption[] | undefined,
+): string {
+  const match = options?.find((option) => Object.is(option.value, value));
+  return match ? match.label : String(value);
+}
+
+function displayText(
+  value: unknown,
+  options: FieldOption[] | undefined,
+): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((element) => resolveOptionLabel(element, options))
+      .join(", ");
+  }
+  return resolveOptionLabel(value, options);
+}
+
 function toMatchDate(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
@@ -290,21 +318,24 @@ function sameDateParts(
   return true;
 }
 
-function matchesValue<T>(
-  row: T,
-  key: string,
+function columnOptions(
+  column: TableColumn<unknown>,
+): FieldOption[] | undefined {
+  return column.type === "option" ? column.options : undefined;
+}
+
+function matchesValue(
+  value: unknown,
   filter: TableFilterScalar,
-  types: Record<string, TableColumnType>,
+  column: TableColumn<unknown>,
 ): boolean {
-  const type = types[key];
-  const value = (row as Record<string, unknown>)[key];
   if (value === null || value === undefined) {
     return false;
   }
-  switch (type) {
+  switch (column.type) {
     case "text":
-    case "array":
-      return containsText(value, filter);
+    case "option":
+      return containsText(displayText(value, columnOptions(column)), filter);
     case "date":
       return sameDateParts(value, filter, false);
     case "datetime":
@@ -320,7 +351,7 @@ function matchesValue<T>(
 function applyFilters<T>(
   rows: T[],
   filters: TableDataRequest["filters"],
-  types: Record<string, TableColumnType>,
+  columns: TableColumns<T>,
 ): T[] {
   const entries = Object.entries(filters ?? {});
   if (entries.length === 0) {
@@ -329,7 +360,16 @@ function applyFilters<T>(
   return rows.filter((row) =>
     entries.every(([key, filter]) => {
       const values = Array.isArray(filter) ? filter : [filter];
-      return values.length === 0 || values.some((value) => matchesValue(row, key, value, types));
+      return (
+        values.length === 0 ||
+        values.some((value) =>
+          matchesValue(
+            (row as Record<string, unknown>)[key],
+            value,
+            columns[key] as TableColumn<unknown>,
+          ),
+        )
+      );
     }),
   );
 }
@@ -340,8 +380,12 @@ function isSortEmpty(value: unknown): boolean {
   );
 }
 
-function compareRaw(a: unknown, b: unknown, type: TableColumnType): number {
-  switch (type) {
+function compareRaw(
+  a: unknown,
+  b: unknown,
+  column: TableColumn<unknown>,
+): number {
+  switch (column.type) {
     case "number":
       return Number(a) - Number(b);
     case "date":
@@ -350,23 +394,27 @@ function compareRaw(a: unknown, b: unknown, type: TableColumnType): number {
       const bTime = toMatchDate(b)?.getTime() ?? 0;
       return aTime - bTime;
     }
-    case "array":
     case "text":
+    case "option":
     case "image":
     default:
-      return String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
+      return displayText(a, columnOptions(column)).localeCompare(
+        displayText(b, columnOptions(column)),
+        undefined,
+        { sensitivity: "base" },
+      );
   }
 }
 
 function applySort<T>(
   rows: T[],
   sort: TableSort | undefined,
-  types: Record<string, TableColumnType>,
+  columns: TableColumns<T>,
 ): T[] {
   if (!sort) {
     return rows;
   }
-  const type = types[sort.key];
+  const column = columns[sort.key] as TableColumn<unknown> | undefined;
   const factor = sort.direction === "ascending" ? 1 : -1;
   const indexed = rows.map((row, index) => ({ row, index }));
   indexed.sort((a, b) => {
@@ -380,7 +428,12 @@ function applySort<T>(
       }
       return aEmpty ? 1 : -1;
     }
-    const cmp = compareRaw(aValue, bValue, type) * factor;
+    const cmp =
+      compareRaw(
+        aValue,
+        bValue,
+        column ?? ({ type: "text" } as TableColumn<unknown>),
+      ) * factor;
     return cmp !== 0 ? cmp : a.index - b.index;
   });
   return indexed.map(({ row }) => row);
@@ -396,8 +449,8 @@ export async function queryProjects(
   }
   const size = request.pagination?.size ?? 10;
   const page = request.pagination?.page ?? 1;
-  let rows = applyFilters(projects, request.filters, PROJECT_TYPES);
-  rows = applySort(rows, request.sort, PROJECT_TYPES);
+  let rows = applyFilters(projects, request.filters, projectColumns);
+  rows = applySort(rows, request.sort, projectColumns);
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / size));
   const start = (page - 1) * size;
