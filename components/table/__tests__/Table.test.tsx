@@ -2529,7 +2529,7 @@ describe("Table filter Fields — select kind", () => {
     }
   });
 
-  it("upgrades filterable: true on an option column to a select while other columns keep the bare input", async () => {
+  it("upgrades filterable: true on an option column to a select while text columns render an InputField", async () => {
     const columns: TableConfig<StatusRow>["columns"] = {
       status: {
         type: "option",

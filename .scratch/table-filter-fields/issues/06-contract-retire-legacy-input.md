@@ -4,9 +4,9 @@
 
 **Blocked by:** 02, 03, 04, 05.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The bare-input filter implementation is removed; no filterable column renders anything but a Field
-- [ ] Demo tables demonstrate the object form: select (with async options), multi-select, date-range with explicit `{ from, to }` keys, and the shorthands
-- [ ] Full test suite (table + field) green; typecheck clean
-- [ ] README/demo copy, if it documents `filterable`, describes the new union and the range-key collision footgun
+- [x] The bare-input filter implementation is removed; no filterable column renders anything but a Field
+- [x] Demo tables demonstrate the object form: select (with async options), multi-select, date-range with explicit `{ from, to }` keys, and the shorthands
+- [x] Full test suite (table + field) green; typecheck clean
+- [x] README/demo copy, if it documents `filterable`, describes the new union and the range-key collision footgun

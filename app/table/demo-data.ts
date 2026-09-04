@@ -96,25 +96,39 @@ export const projectColumns: TableColumns<Project> = {
     type: "text",
     label: "Project",
     sortable: true,
+    // Legacy `true` shorthand: the kind is inferred (text → input).
     filterable: true,
   },
   owner: {
     type: "text",
     label: "Owner",
     sortable: true,
-    filterable: true,
+    // Legacy string shorthand: a Filter key override (the request writes
+    // under "owner_name" instead of the column's own key).
+    filterable: "owner_name",
   },
   status: {
     type: "option",
     label: "Status",
     options: PROJECT_STATUS_OPTIONS,
     sortable: true,
-    filterable: true,
+    // Object form: a select whose Options come from an async loader.
+    filterable: {
+      kind: "select",
+      options: () =>
+        new Promise((resolve) => setTimeout(() => resolve(PROJECT_STATUS_OPTIONS), 400)),
+    },
   },
   startDate: {
     type: "date",
     label: "Start date",
     sortable: true,
+    // Object form: a date range whose two Filter keys are explicit and
+    // used verbatim — no ".from"/".to" suffix is ever appended to them.
+    filterable: {
+      kind: "date-range",
+      key: { from: "startDateFrom", to: "startDateTo" },
+    },
   },
   lastActive: {
     type: "datetime",
@@ -125,15 +139,47 @@ export const projectColumns: TableColumns<Project> = {
     type: "text",
     label: "Tags",
     sortable: true,
-    filterable: true,
+    // Object form: a multi-select emitting an array of scalars.
+    filterable: {
+      kind: "multi-select",
+      options: PROJECT_TAGS.map((tag) => ({ label: tag, value: tag })),
+    },
   },
   avatar: { type: "image", label: "Avatar" },
   score: {
     type: "number",
     label: "Score",
     sortable: true,
-    filterable: true,
+    // Object form: a number range with explicit, verbatim request keys —
+    // no ".from"/".to" suffix is ever appended to them. Two unnamed range
+    // filters in one table would collide under the derived default keys,
+    // so range filters should name their keys.
+    filterable: {
+      kind: "number-range",
+      key: { from: "minScore", to: "maxScore" },
+    },
   },
+};
+
+/**
+ * Where each request key a demo filter can emit filters on: the row key and,
+ * for range bounds, which side of the comparison it drives. The fake server
+ * needs this map because explicit range keys ("minScore") don't name a row
+ * property, and explicit range keys ("startDateFrom") name a bound of one
+ * without saying so in the key itself.
+ */
+const filterKeyTargets: Record<
+  string,
+  { key: string; bound?: "from" | "to" }
+> = {
+  name: { key: "name" },
+  owner_name: { key: "owner" },
+  status: { key: "status" },
+  tags: { key: "tags" },
+  startDateFrom: { key: "startDate", bound: "from" },
+  startDateTo: { key: "startDate", bound: "to" },
+  minScore: { key: "score", bound: "from" },
+  maxScore: { key: "score", bound: "to" },
 };
 
 export const projects: Project[] = Array.from({ length: 57 }, (_, i) => {
@@ -159,21 +205,59 @@ export const projects: Project[] = Array.from({ length: 57 }, (_, i) => {
   };
 });
 
+const MEMBER_SKILLS = [
+  ["analytical", "math"],
+  ["compilers", "cobol"],
+  ["algorithms", "logic"],
+  ["algorithms", "math"],
+  ["systems", "reliability"],
+  ["math", "physics"],
+  ["linux", "c"],
+  ["algorithms", "typesetting"],
+  ["abstraction", "distributed"],
+  ["unix", "c"],
+  ["networking", "security"],
+  ["web", "html"],
+  ["c++", "templates"],
+  ["python", "language design"],
+];
+
+export const MEMBER_SKILL_OPTIONS = Array.from(
+  new Set(MEMBER_SKILLS.flat()),
+).map((skill) => ({ label: skill, value: skill }));
+
 export const teamColumns: TableColumns<TeamMember> = {
   name: { type: "text", label: "Name", sortable: true, filterable: true },
-  role: { type: "text", label: "Role", sortable: true, filterable: true },
-  joined: { type: "date", label: "Joined", sortable: true },
+  role: { type: "text", label: "Role", sortable: true, filterable: "role" },
+  joined: {
+    type: "date",
+    label: "Joined",
+    sortable: true,
+    // Object form: a date range under "joined.from"/"joined.to".
+    filterable: { kind: "date-range" },
+  },
   lastSeen: {
     type: "datetime",
     label: "Last seen",
     sortable: true,
+    filterable: { kind: "datetime" },
   },
-  skills: { type: "text", label: "Skills", sortable: true, filterable: true },
+  skills: {
+    type: "text",
+    label: "Skills",
+    sortable: true,
+    // Object form: a multi-select over the flattened skill set.
+    filterable: {
+      kind: "multi-select",
+      options: MEMBER_SKILL_OPTIONS,
+    },
+  },
   avatar: { type: "image", label: "Avatar" },
   projects: {
     type: "number",
     label: "Projects",
-    sortable: true, filterable: true
+    sortable: true,
+    filterable: { kind: "number-range" },
   },
 };
 
@@ -211,22 +295,6 @@ const MEMBER_ROLES = [
   "Developer",
 ];
 
-const MEMBER_SKILLS = [
-  ["analytical", "math"],
-  ["compilers", "cobol"],
-  ["algorithms", "logic"],
-  ["algorithms", "math"],
-  ["systems", "reliability"],
-  ["math", "physics"],
-  ["linux", "c"],
-  ["algorithms", "typesetting"],
-  ["abstraction", "distributed"],
-  ["unix", "c"],
-  ["networking", "security"],
-  ["web", "html"],
-  ["c++", "templates"],
-  ["python", "language design"],
-];
 
 export const teamMembers: TeamMember[] = MEMBER_NAMES.map((name, i) => {
   const year = 2015 + (i % 10);
@@ -348,6 +416,29 @@ function matchesValue(
   }
 }
 
+function matchesBound(
+  value: unknown,
+  bound: "from" | "to",
+  filter: TableFilterScalar,
+  column: TableColumn<unknown>,
+): boolean {
+  if (column.type === "number") {
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+      return false;
+    }
+    return bound === "from" ? num >= Number(filter) : num <= Number(filter);
+  }
+  const valueDate = toMatchDate(value);
+  const filterDate = toMatchDate(filter);
+  if (!valueDate || !filterDate) {
+    return false;
+  }
+  return bound === "from"
+    ? valueDate.getTime() >= filterDate.getTime()
+    : valueDate.getTime() <= filterDate.getTime();
+}
+
 function applyFilters<T>(
   rows: T[],
   filters: TableDataRequest["filters"],
@@ -359,14 +450,31 @@ function applyFilters<T>(
   }
   return rows.filter((row) =>
     entries.every(([key, filter]) => {
+      // Range bounds arrive under their resolved request keys (a derived
+      // "<base>.from"/".to" pair or explicit keys like "minScore"); the
+      // target map translates them back to a row key and comparison side.
+      const target = filterKeyTargets[key];
+      if (target?.bound) {
+        const bound = target.bound;
+        const column = columns[target.key] as TableColumn<unknown>;
+        return filter !== undefined
+          ? matchesBound(
+              (row as Record<string, unknown>)[target.key],
+              bound,
+              filter as TableFilterScalar,
+              column,
+            )
+          : true;
+      }
+      const baseKey = target?.key ?? key;
       const values = Array.isArray(filter) ? filter : [filter];
       return (
         values.length === 0 ||
         values.some((value) =>
           matchesValue(
-            (row as Record<string, unknown>)[key],
+            (row as Record<string, unknown>)[baseKey],
             value,
-            columns[key] as TableColumn<unknown>,
+            columns[baseKey] as TableColumn<unknown>,
           ),
         )
       );

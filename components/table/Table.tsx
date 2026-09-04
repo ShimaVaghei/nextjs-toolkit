@@ -301,7 +301,8 @@ function resolveFilterKind<T>(column: TableColumn<T>): TableFilterKind {
     return filterable.kind;
   }
   // Only the `true` shorthand infers the kind; the string shorthand is a
-  // request-key override that keeps the legacy bare-input behavior.
+  // Filter key override that keeps the input kind (now rendered as an
+  // InputField like every other kind).
   return filterable === true ? inferFilterKind(column) : "input";
 }
 
@@ -678,26 +679,12 @@ function FilterControl<T>({
   onOpenChange: (open: boolean) => void;
 }) {
   const popoverId = useId();
-  const inputId = `${popoverId}-input`;
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const onOpenChangeRef = useRef(onOpenChange);
   const label = column.label ?? columnKey;
-  const isNumber = column.type === "number";
   const filterKind = resolveFilterKind(column);
   const isRange = isRangeFilterKind(filterKind);
-  // The legacy string shorthand keeps the bare input (its number/text typing
-  // derives from the column type). Every other kind — including the three
-  // range kinds — renders its real Field.
-  const usesLegacyInput =
-    filterKind === "input" && typeof column.filterable === "string";
-  const rendersFieldComponent =
-    isRange ||
-    filterKind === "select" ||
-    filterKind === "multi-select" ||
-    filterKind === "date" ||
-    filterKind === "datetime" ||
-    (filterKind === "input" && !usesLegacyInput);
   const isMultiSelectFilter = filterKind === "multi-select";
   // The current range bounds (open-ended allowed), or undefined when inactive.
   const rangeValue =
@@ -707,7 +694,6 @@ function FilterControl<T>({
     !Array.isArray(value)
       ? (value as TableRangeValue)
       : undefined;
-  const inputValue = value === undefined ? "" : String(value);
   const isActive = value !== undefined;
   // The Table owns the filters record; external changes (chip removal,
   // Clear all) are installed into the mounted Field through its handle.
@@ -719,7 +705,7 @@ function FilterControl<T>({
   const [fieldResetEpoch, setFieldResetEpoch] = useState(0);
 
   useEffect(() => {
-    if (!rendersFieldComponent || !open) {
+    if (!open) {
       return;
     }
     const handle = fieldHandleRef.current;
@@ -778,7 +764,17 @@ function FilterControl<T>({
     if (!Object.is(handle.getValue(), value)) {
       handle.setValue(value as TableFilterScalar);
     }
-  }, [rendersFieldComponent, open, value, isMultiSelectFilter, isRange]);
+  }, [open, value, isMultiSelectFilter, isRange]);
+
+  // Preserve the bare input's autofocus nicety: an input filter's control
+  // takes focus when the popover opens. Date kinds are skipped — their
+  // Fields are calendar triggers and stealing focus breaks the pick.
+  useEffect(() => {
+    if (!open || filterKind !== "input") {
+      return;
+    }
+    containerRef.current?.querySelector<HTMLElement>("input")?.focus();
+  }, [open, filterKind]);
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -805,22 +801,6 @@ function FilterControl<T>({
   const closeAndFocus = () => {
     onOpenChangeRef.current(false);
     triggerRef.current?.focus();
-  };
-
-  const handleChange = (raw: string) => {
-    if (raw === "") {
-      onChange(undefined);
-      return;
-    }
-    if (isNumber) {
-      const num = Number(raw);
-      if (Number.isNaN(num)) {
-        return;
-      }
-      onChange(num);
-    } else {
-      onChange(raw);
-    }
   };
 
   return (
@@ -859,15 +839,11 @@ function FilterControl<T>({
         <div
           id={popoverId}
           role="group"
-          onKeyDown={
-            rendersFieldComponent
-              ? (event) => {
-                  if (event.key === "Escape") {
-                    closeAndFocus();
-                  }
-                }
-              : undefined
-          }
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              closeAndFocus();
+            }
+          }}
           className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
         >
           {filterKind === "multi-select" ? (
@@ -901,7 +877,7 @@ function FilterControl<T>({
                   onChange(next === "" ? undefined : next),
               }}
             />
-          ) : filterKind === "input" && !usesLegacyInput ? (
+          ) : filterKind === "input" ? (
             <InputField
               key={fieldResetEpoch}
               ref={fieldHandleRef}
@@ -976,29 +952,7 @@ function FilterControl<T>({
                 onValueChange: (next) => onChange(next),
               }}
             />
-          ) : (
-            <>
-              <label
-                htmlFor={inputId}
-                className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400"
-              >
-                Filter by {label}
-              </label>
-              <input
-                id={inputId}
-                type={isNumber ? "number" : "text"}
-                value={inputValue}
-                autoFocus
-                onChange={(event) => handleChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    closeAndFocus();
-                  }
-                }}
-                className="w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-              />
-            </>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>
