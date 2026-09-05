@@ -11,7 +11,7 @@ import { pad2, utcDateParts } from "@/lib/date";
 // ─── Calendar widget tokens ────────────────────────────────────────────
 
 export const CALENDAR_PANEL_BASE_CLASS =
-  "absolute left-0 right-0 z-10 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
+  "absolute left-0 right-0 z-10 min-w-72 rounded-md border border-neutral-300 bg-white p-3 shadow-md " +
   "dark:border-neutral-700 dark:bg-neutral-900";
 export const CALENDAR_PANEL_BELOW_CLASS = "top-full mt-1.5";
 export const CALENDAR_PANEL_ABOVE_CLASS = "bottom-full mb-1.5";
