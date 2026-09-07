@@ -101,6 +101,26 @@ describe("Field multi-select closed face", () => {
     ]);
   });
 
+  it("keeps the chevron on the right edge of the text face when the selection is empty and there is no placeholder", () => {
+    const { container } = render(
+      <MultiSelectHarness
+        overrides={{
+          label: "Tags",
+          validator: undefined,
+          options: TAG_OPTIONS,
+          initialValue: undefined,
+        }}
+      />,
+    );
+
+    const face = container.querySelector<HTMLElement>(".field-selection-text");
+    expect(face).not.toBeNull();
+    // With no text face and no placeholder ghost, an empty spacer keeps the
+    // chevron pinned to the right edge instead of collapsing to the left.
+    expect(face!.firstElementChild!.tagName).not.toBe("svg");
+    expect(face!.lastElementChild!.tagName).toBe("svg");
+  });
+
   it("renders fallback labels into the joined text face exactly as chips would show them", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {

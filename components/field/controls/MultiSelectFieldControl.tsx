@@ -202,7 +202,14 @@ export function MultiSelectFieldControl<T>({
             }
           >
             {chips.length === 0 ? (
-              emptySelectionFace
+              <>
+                {emptySelectionFace ?? (
+                  // No text and no placeholder ghost: keep an empty flex
+                  // filler so justify-between still pins the chevron to the
+                  // right edge instead of collapsing it to the left.
+                  <span className={SELECTION_TEXT_CLASS} />
+                )}
+              </>
             ) : (
               <span
                 className={SELECTION_TEXT_CLASS}
