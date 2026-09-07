@@ -1458,7 +1458,7 @@ export function Table<T>({
       {/* The table's min-content width can exceed narrow viewports; the
           scroll container keeps the page layout intact and lets the table
           scroll horizontally inside its own box instead. */}
-      <div className="overflow-x-auto">
+      <div className="thin-scrollbar overflow-x-auto">
         <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">

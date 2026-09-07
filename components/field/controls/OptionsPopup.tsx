@@ -56,7 +56,7 @@ export function OptionsPopup({
       />
       <fieldset className="min-w-0 border-0 p-0">
         <legend className="sr-only">Options</legend>
-        <div className="max-h-60 space-y-1 overflow-y-auto p-0.5">
+        <div className="field-options-list max-h-60 space-y-1 overflow-y-auto p-0.5">
           {children}
         </div>
       </fieldset>

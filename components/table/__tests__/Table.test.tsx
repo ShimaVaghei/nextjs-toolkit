@@ -103,7 +103,7 @@ describe("Table local mode", () => {
 
     const table = screen.getByRole("table");
     const wrapper = table.parentElement as HTMLElement;
-    expect(wrapper).toHaveClass("overflow-x-auto");
+    expect(wrapper).toHaveClass("overflow-x-auto", "thin-scrollbar");
   });
 
   it("renders a muted em-dash for empty cell values", async () => {

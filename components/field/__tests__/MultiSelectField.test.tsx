@@ -310,6 +310,17 @@ describe("Field multi-select panel", () => {
     ).toBeInTheDocument();
   });
 
+  it("gives the scrolling options list the thin-scrollbar treatment", () => {
+    render(<MultiSelectHarness overrides={tagOverrides()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+
+    const row = screen.getByRole("checkbox", { name: "Research" });
+    const list = row.closest(".field-options-list");
+    expect(list).not.toBeNull();
+    expect(list).toHaveClass("max-h-60", "overflow-y-auto");
+  });
+
   it("keeps the popup open and still toggles when a row press dissolves focus", () => {
     const received: FieldValue[] = [];
     render(
