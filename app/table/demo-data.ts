@@ -240,7 +240,7 @@ export const teamColumns: TableColumns<TeamMember> = {
     type: "datetime",
     label: "Last seen",
     sortable: true,
-    filterable: { kind: "datetime" },
+    filterable: { kind: "datetime-range" },
   },
   skills: {
     type: "text",
