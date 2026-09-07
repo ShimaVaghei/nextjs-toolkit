@@ -854,7 +854,11 @@ function FilterControl<T>({
               closeAndFocus();
             }
           }}
-          className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
+          // Date kinds host a w-72 (288px) Calendar popup, so the popover
+          // widens to fit it; every other kind keeps the compact default.
+          className={`absolute left-0 top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
+            isDateFilterKind(filterKind) ? "w-80" : "w-48"
+          }`}
         >
           {filterKind === "multi-select" ? (
             <MultiSelectField<TableFilterScalar>
