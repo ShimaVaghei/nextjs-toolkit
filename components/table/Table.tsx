@@ -854,10 +854,15 @@ function FilterControl<T>({
               closeAndFocus();
             }
           }}
-          // Date kinds host a w-72 (288px) Calendar popup, so the popover
-          // widens to fit it; every other kind keeps the compact default.
+          // Date kinds host a w-72 (288px) Calendar popup and the choice
+          // kinds (select, multi-select) host an options list with labels,
+          // so both widen past the compact default the other kinds keep.
           className={`absolute left-0 top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
-            isDateFilterKind(filterKind) ? "w-80" : "w-48"
+            isDateFilterKind(filterKind)
+              ? "w-80"
+              : filterKind === "select" || filterKind === "multi-select"
+                ? "w-64"
+                : "w-48"
           }`}
         >
           {filterKind === "multi-select" ? (
@@ -1407,7 +1412,11 @@ export function Table<T>({
           </button>
         </div>
       ) : null}
-      <table className="w-full border-collapse text-sm">
+      {/* The table's min-content width can exceed narrow viewports; the
+          scroll container keeps the page layout intact and lets the table
+          scroll horizontally inside its own box instead. */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">
             {visibleColumns.map(([key, column]) => {
@@ -1565,6 +1574,7 @@ export function Table<T>({
           )}
         </tbody>
       </table>
+      </div>
 
       <div
         role="status"

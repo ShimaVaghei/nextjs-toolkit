@@ -97,6 +97,14 @@ describe("Table local mode", () => {
     expect(screen.getAllByRole("row")).toHaveLength(11);
   });
 
+  it("wraps the table in a horizontal scroll container so narrow viewports scroll the table instead of the page", async () => {
+    await renderLocal(makeConfig(people));
+
+    const table = screen.getByRole("table");
+    const wrapper = table.parentElement as HTMLElement;
+    expect(wrapper).toHaveClass("overflow-x-auto");
+  });
+
   it("renders a muted em-dash for empty cell values", async () => {
     await renderLocal(
       makeConfig([
