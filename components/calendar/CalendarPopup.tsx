@@ -822,94 +822,89 @@ return (
       )}
 {kind === "datetime-range" && (
         <div className={CALENDAR_TIME_CLASS}>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-neutral-500 dark:text-neutral-400">Start time</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              value={startTimeHour || "00"}
-              aria-label="Start hour"
-              className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => handleStartTimeHourChange(e.target.value)}
-              onBlur={() => {
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={startTimeHour || "00"}
+            aria-label="Start hour"
+            className={CALENDAR_TIME_INPUT_CLASS}
+            onChange={(e) => handleStartTimeHourChange(e.target.value)}
+            onBlur={() => {
+              const h = Math.max(0, Math.min(23, parseInt(startTimeHour || "00", 10) || 0));
+              setStartTime(pad2(h), startTimeMinute || "00");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
                 const h = Math.max(0, Math.min(23, parseInt(startTimeHour || "00", 10) || 0));
                 setStartTime(pad2(h), startTimeMinute || "00");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const h = Math.max(0, Math.min(23, parseInt(startTimeHour || "00", 10) || 0));
-                  setStartTime(pad2(h), startTimeMinute || "00");
-                }
-              }}
-            />
-            <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              value={startTimeMinute || "00"}
-              aria-label="Start minute"
-              className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => handleStartTimeMinuteChange(e.target.value)}
-              onBlur={() => {
+              }
+            }}
+          />
+          <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={startTimeMinute || "00"}
+            aria-label="Start minute"
+            className={CALENDAR_TIME_INPUT_CLASS}
+            onChange={(e) => handleStartTimeMinuteChange(e.target.value)}
+            onBlur={() => {
+              const m = Math.max(0, Math.min(59, parseInt(startTimeMinute || "00", 10) || 0));
+              setStartTime(startTimeHour || "00", pad2(m));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
                 const m = Math.max(0, Math.min(59, parseInt(startTimeMinute || "00", 10) || 0));
                 setStartTime(startTimeHour || "00", pad2(m));
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const m = Math.max(0, Math.min(59, parseInt(startTimeMinute || "00", 10) || 0));
-                  setStartTime(startTimeHour || "00", pad2(m));
-                }
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-neutral-500 dark:text-neutral-400">End time</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              value={endTimeHour || "00"}
-              aria-label="End hour"
-              className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => handleEndTimeHourChange(e.target.value)}
-              onBlur={() => {
+              }
+            }}
+          />
+          <span className={CALENDAR_TIME_COLON_CLASS} aria-hidden="true">&ndash;</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={endTimeHour || "00"}
+            aria-label="End hour"
+            className={CALENDAR_TIME_INPUT_CLASS}
+            onChange={(e) => handleEndTimeHourChange(e.target.value)}
+            onBlur={() => {
+              const h = Math.max(0, Math.min(23, parseInt(endTimeHour || "00", 10) || 0));
+              setEndTime(pad2(h), endTimeMinute || "00");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
                 const h = Math.max(0, Math.min(23, parseInt(endTimeHour || "00", 10) || 0));
                 setEndTime(pad2(h), endTimeMinute || "00");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const h = Math.max(0, Math.min(23, parseInt(endTimeHour || "00", 10) || 0));
-                  setEndTime(pad2(h), endTimeMinute || "00");
-                }
-              }}
-            />
-            <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              value={endTimeMinute || "00"}
-              aria-label="End minute"
-              className={CALENDAR_TIME_INPUT_CLASS}
-              onChange={(e) => handleEndTimeMinuteChange(e.target.value)}
-              onBlur={() => {
+              }
+            }}
+          />
+          <span className={CALENDAR_TIME_COLON_CLASS}>:</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={endTimeMinute || "00"}
+            aria-label="End minute"
+            className={CALENDAR_TIME_INPUT_CLASS}
+            onChange={(e) => handleEndTimeMinuteChange(e.target.value)}
+            onBlur={() => {
+              const m = Math.max(0, Math.min(59, parseInt(endTimeMinute || "00", 10) || 0));
+              setEndTime(endTimeHour || "00", pad2(m));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
                 const m = Math.max(0, Math.min(59, parseInt(endTimeMinute || "00", 10) || 0));
                 setEndTime(endTimeHour || "00", pad2(m));
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const m = Math.max(0, Math.min(59, parseInt(endTimeMinute || "00", 10) || 0));
-                  setEndTime(endTimeHour || "00", pad2(m));
-                }
-              }}
-            />
-          </div>
+              }
+            }}
+          />
         </div>
       )}
 
