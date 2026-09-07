@@ -209,7 +209,7 @@ describe("DateField — calendar widget", () => {
     act(() => handle.current!.setValue("2025-03-15"));
 
     const trigger = screen.getByRole("button", { name: /Birthday/i });
-    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+    expect(trigger).toHaveTextContent(/2025\/03\/15/);
   });
 
   it("shows the in-progress draft on the trigger face while the calendar is open", async () => {
@@ -228,14 +228,14 @@ describe("DateField — calendar widget", () => {
     await act(async () => {
       fireEvent.mouseDown(screen.getByRole("gridcell", { name: /March 20, 2025/ }));
     });
-    expect(trigger).toHaveTextContent(/Mar 20, 2025/);
+    expect(trigger).toHaveTextContent(/2025\/03\/20/);
     expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
 
     // Cancel discards: the face reverts to the committed value.
     await act(async () => {
       fireEvent.mouseDown(screen.getByRole("button", { name: "Cancel" }));
     });
-    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
+    expect(trigger).toHaveTextContent(/2025\/03\/15/);
     expect(handle.current!.getValue()).toBe("2025-03-15T00:00:00Z");
   });
 
@@ -258,7 +258,7 @@ describe("DateField — calendar widget", () => {
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "45" } });
     });
-    expect(trigger).toHaveTextContent(/Mar 20, 2025/);
+    expect(trigger).toHaveTextContent(/2025\/03\/20/);
     expect(trigger).toHaveTextContent(/45/);
     expect(handle.current!.getValue()).toBe("2025-03-15T10:00:00Z");
   });

@@ -1,19 +1,16 @@
 // ─── Display formatters ────────────────────────────────────────────────
+//
+// Fixed-width, locale-independent formatters over the local parts of the
+// Date — the same timezone the previous Intl display formatters used, so
+// behavior is unchanged apart from the format itself.
 
-export const DATE_DISPLAY_FORMAT = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-});
+export function formatDisplayDate(d: Date): string {
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+}
 
-export const DATETIME_DISPLAY_FORMAT = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-  hour12: false,
-});
+export function formatDisplayDateTime(d: Date): string {
+  return `${formatDisplayDate(d)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 
 export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 

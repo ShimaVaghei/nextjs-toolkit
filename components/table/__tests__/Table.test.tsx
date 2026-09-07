@@ -424,20 +424,20 @@ describe("Table column type renderers", () => {
     };
   }
 
-  it("renders date cells as Intl short dates inside a native <time dateTime>", async () => {
+  it("renders date cells as YYYY/MM/DD inside a native <time dateTime>", async () => {
     await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
-      .getByText("Jun 12, 2023")
+      .getByText("2023/06/12")
       .closest("time") as HTMLElement;
     expect(dateTime).toHaveAttribute("datetime", "2023-06-12");
   });
 
-  it("renders datetime cells as Intl date + time inside a native <time dateTime>", async () => {
+  it("renders datetime cells as YYYY/MM/DD, HH:mm inside a native <time dateTime>", async () => {
     await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
-      .getByText("Nov 2, 2023, 14:20")
+      .getByText("2023/11/02, 14:20")
       .closest("time") as HTMLElement;
     expect(dateTime).toHaveAttribute("datetime", "2023-11-02T14:20");
   });
@@ -446,7 +446,7 @@ describe("Table column type renderers", () => {
     const row = { ...itemRows[0], joined: "2023-06-12T12:00:00" };
     await renderLocal(typeConfig([row]));
 
-    expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
+    expect(screen.getByText("2023/06/12")).toBeInTheDocument();
   });
 
   it("falls back to the raw string for an unparseable date value", async () => {
@@ -501,7 +501,7 @@ describe("Table column type renderers", () => {
       columns,
     });
 
-    expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
+    expect(screen.getByText("2023/06/12")).toBeInTheDocument();
     expect(screen.queryByText("garbage")).not.toBeInTheDocument();
   });
 
@@ -3004,6 +3004,10 @@ describe("Table filter Fields — input and date/datetime kinds", () => {
           },
         }),
       );
+
+      // The summary-strip chip shows the picked date in display format,
+      // not the raw ISO value.
+      expect(screen.getByText(/Joined: \d{4}\/\d{2}\/15/)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -3043,6 +3047,11 @@ describe("Table filter Fields — input and date/datetime kinds", () => {
           },
         }),
       );
+
+      // The chip shows the picked datetime in display format with time.
+      expect(
+        screen.getByText(/Updated: \d{4}\/\d{2}\/15, \d{2}:\d{2}/),
+      ).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

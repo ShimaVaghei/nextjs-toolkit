@@ -13,9 +13,9 @@ import {
 } from "react";
 
 import {
-  DATE_DISPLAY_FORMAT,
   DATE_ONLY_PATTERN,
-  DATETIME_DISPLAY_FORMAT,
+  formatDisplayDate,
+  formatDisplayDateTime,
   pad2,
 } from "@/lib/date";
 import {
@@ -374,6 +374,16 @@ function isRangeFilterKind(kind: TableFilterKind): boolean {
   );
 }
 
+/** Whether a Filter kind holds date values displayed through the date formatters. */
+function isDateFilterKind(kind: TableFilterKind): boolean {
+  return (
+    kind === "date" ||
+    kind === "datetime" ||
+    kind === "date-range" ||
+    kind === "datetime-range"
+  );
+}
+
 /**
  * The two resolved request keys a range filter writes under. An explicit
  * `{ from, to }` key pair is used verbatim with no suffixing; a string key or
@@ -625,7 +635,7 @@ function renderTimeCell(value: unknown, includeTime: boolean): ReactNode {
   }
   return (
     <time dateTime={buildDateTimeAttribute(date, includeTime)}>
-      {(includeTime ? DATETIME_DISPLAY_FORMAT : DATE_DISPLAY_FORMAT).format(date)}
+      {includeTime ? formatDisplayDateTime(date) : formatDisplayDate(date)}
     </time>
   );
 }
@@ -1320,12 +1330,31 @@ export function Table<T>({
           {activeFilterChips.map(({ key, column, value }) => {
             const label = column.label ?? key;
             const chipOptions = filterOptionSource(column);
-            const resolveScalarText = (scalar: TableFilterScalar) =>
-              Array.isArray(chipOptions)
-                ? chipOptions.find((option) =>
-                    Object.is(option.value, scalar),
-                  )?.label ?? String(scalar)
-                : String(scalar);
+            // Date-kind filters hold normalized ISO strings; show them in the
+            // same fixed-width display format the cells and Field faces use.
+            const chipFilterKind = resolveFilterKind(column);
+            const chipIncludesTime =
+              chipFilterKind === "datetime" || chipFilterKind === "datetime-range";
+            const resolveScalarText = (scalar: TableFilterScalar) => {
+              if (Array.isArray(chipOptions)) {
+                return (
+                  chipOptions.find((option) => Object.is(option.value, scalar))
+                    ?.label ?? String(scalar)
+                );
+              }
+              if (
+                isDateFilterKind(chipFilterKind) &&
+                typeof scalar === "string"
+              ) {
+                const date = toMatchDate(scalar);
+                if (date) {
+                  return chipIncludesTime
+                    ? formatDisplayDateTime(date)
+                    : formatDisplayDate(date);
+                }
+              }
+              return String(scalar);
+            };
             const isRangeChip =
               value !== undefined &&
               typeof value === "object" &&

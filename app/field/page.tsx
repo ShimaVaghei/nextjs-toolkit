@@ -462,7 +462,7 @@ export default function FieldDemoPage() {
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             A date-only picker: the calendar popup shows a month grid with day
             cells. Clicking a day picks it; Apply commits the draft, Cancel or
-            Escape discards. The closed face shows the en-US formatted date
+            Escape discards. The closed face shows the date as YYYY/MM/DD
             when filled, placeholder ghost when Empty. Keyboard navigation
             follows the APG grid pattern.
           </p>
