@@ -871,7 +871,7 @@ function FilterControl<T>({
               config={{
                 label: `Filter by ${label}`,
                 options: filterOptionSource(column),
-                selectionDisplay: "chips",
+                selectionDisplay: "text",
                 initialValue: Array.isArray(value) ? value : undefined,
                 onValueChange: (next) =>
                   onChange(next.length === 0 ? undefined : next),
