@@ -11,6 +11,7 @@ import {
 import "@testing-library/jest-dom/vitest";
 import {
   Table,
+  resolvePopoverSide,
   type TableConfig,
   type TableDataRequest,
   type TableDataResponse,
@@ -119,6 +120,16 @@ describe("Table local mode", () => {
     expect(within(row).getByText("—")).toBeInTheDocument();
     expect(screen.getByText("grace@example.com")).toBeInTheDocument();
   });
+  it("flips the filter popover anchor to the right edge when the trigger sits too close to the viewport's right", async () => {
+    // The popover (192px) starting at a trigger 200px from the right fits.
+    expect(resolvePopoverSide(200, 192, 1280)).toBe("left");
+    // A trigger 100px from the right edge cannot host a left-anchored popover.
+    expect(resolvePopoverSide(1180, 192, 1280)).toBe("right");
+    // Unmeasurable viewport (jsdom zeros) keeps the default left anchor.
+    expect(resolvePopoverSide(0, 192, 0)).toBe("left");
+  });
+
+
 
   it("announces the showing summary in a single polite role=status region", async () => {
     await renderLocal(makeConfig(people));

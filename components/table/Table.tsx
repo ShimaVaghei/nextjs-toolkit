@@ -374,6 +374,24 @@ function isRangeFilterKind(kind: TableFilterKind): boolean {
   );
 }
 
+/**
+ * Which edge of a filter's trigger its popover anchors to. A left-anchored
+ * popover overflows the viewport when the trigger sits within one popover
+ * width of the right edge (the last column's case), so it flips to open
+ * leftward from the right edge. An unmeasurable viewport (zero client
+ * width, as in jsdom) keeps the default left anchor.
+ */
+export function resolvePopoverSide(
+  triggerRight: number,
+  popoverWidth: number,
+  viewportWidth: number,
+): "left" | "right" {
+  if (viewportWidth <= 0) {
+    return "left";
+  }
+  return triggerRight + popoverWidth > viewportWidth ? "right" : "left";
+}
+
 /** Whether a Filter kind holds date values displayed through the date formatters. */
 function isDateFilterKind(kind: TableFilterKind): boolean {
   return (
@@ -713,6 +731,29 @@ function FilterControl<T>({
   // mounted Field already holds an empty selection.
   const fieldHandleRef = useRef<FieldHandle<TableFilterScalar> | null>(null);
   const [fieldResetEpoch, setFieldResetEpoch] = useState(0);
+  // Which horizontal edge of the trigger the popover anchors to. Measured
+  // when the popover opens: a trigger near the viewport's right edge would
+  // push a left-anchored popover off-screen (and scroll the page to reach
+  // it), so it opens leftward from the right edge instead.
+  const [side, setSide] = useState<"left" | "right">("left");
+  const popoverWidth = isDateFilterKind(filterKind)
+    ? 320
+    : filterKind === "select" || filterKind === "multi-select"
+      ? 256
+      : 192;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    setSide(
+      resolvePopoverSide(rect.right, popoverWidth, document.documentElement.clientWidth),
+    );
+  }, [open, popoverWidth]);
 
   useEffect(() => {
     if (!open) {
@@ -857,7 +898,9 @@ function FilterControl<T>({
           // Date kinds host a w-72 (288px) Calendar popup and the choice
           // kinds (select, multi-select) host an options list with labels,
           // so both widen past the compact default the other kinds keep.
-          className={`absolute left-0 top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
+          className={`absolute ${
+            side === "right" ? "right-0" : "left-0"
+          } top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
             isDateFilterKind(filterKind)
               ? "w-80"
               : filterKind === "select" || filterKind === "multi-select"
