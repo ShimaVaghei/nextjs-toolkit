@@ -54,3 +54,46 @@ body {
     background: var(--color-neutral-600);
   }
 }
+
+/* Thin scrollbar treatment shared by every internal scroll region: slim
+   rounded thumb on a transparent track, sized for both axes. */
+.thin-scrollbar,
+.field-chip-strip,
+.field-options-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar,
+.field-chip-strip::-webkit-scrollbar,
+.field-options-list::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track,
+.field-chip-strip::-webkit-scrollbar-track,
+.field-options-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb,
+.field-chip-strip::-webkit-scrollbar-thumb,
+.field-options-list::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: var(--color-neutral-300);
+}
+
+@media (prefers-color-scheme: dark) {
+  .thin-scrollbar,
+  .field-chip-strip,
+  .field-options-list {
+    scrollbar-color: var(--color-neutral-600) transparent;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar-thumb,
+  .field-chip-strip::-webkit-scrollbar-thumb,
+  .field-options-list::-webkit-scrollbar-thumb {
+    background: var(--color-neutral-600);
+  }
+}

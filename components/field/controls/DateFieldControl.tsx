@@ -3,8 +3,8 @@
 import { useRef } from "react";
 import type { DateControlProps } from "./FieldControl";
 import {
-  DATE_DISPLAY_FORMAT,
-  DATETIME_DISPLAY_FORMAT,
+  formatDisplayDate,
+  formatDisplayDateTime,
   type FieldDateRangeValue,
 } from "@/lib/date";
 import { SELECT_TRIGGER_CLASS, SELECT_FACE_GHOST_CLASS } from "../fieldShared";
@@ -73,8 +73,8 @@ export function DateFieldControl({
                   const d = new Date(iso);
                   if (Number.isNaN(d.getTime())) return "";
                   return kind === "date-range"
-                    ? DATE_DISPLAY_FORMAT.format(d)
-                    : DATETIME_DISPLAY_FORMAT.format(d);
+                    ? formatDisplayDate(d)
+                    : formatDisplayDateTime(d);
                 };
                 const fromStr = formatSingle(rangeVal.from);
                 const toStr = formatSingle(rangeVal.to);
@@ -89,8 +89,8 @@ export function DateFieldControl({
               const d = new Date(String(faceValue));
               if (Number.isNaN(d.getTime())) return "";
               return kind === "date"
-                ? DATE_DISPLAY_FORMAT.format(d)
-                : DATETIME_DISPLAY_FORMAT.format(d);
+                ? formatDisplayDate(d)
+                : formatDisplayDateTime(d);
             })()
           ) : null}
           {!isRangeKind && !faceValue && placeholder}

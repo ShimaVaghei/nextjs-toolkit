@@ -156,8 +156,8 @@ describe("DateTimeField — calendar widget", () => {
     act(() => handle.current!.setValue("2025-03-15T14:30:00Z"));
 
     const trigger = screen.getByRole("button", { name: /Appointment/i });
-    expect(trigger).toHaveTextContent(/Mar 15, 2025/);
-    // Time displayed in local timezone — just check the date part
+    expect(trigger).toHaveTextContent(/2025\/03\/15/);
+    // Time displayed as fixed UTC — just check the date part
   });
 
   it("minutes type freely and clamp on blur", async () => {

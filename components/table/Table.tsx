@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -13,17 +14,33 @@ import {
 } from "react";
 
 import {
-  DATE_DISPLAY_FORMAT,
   DATE_ONLY_PATTERN,
-  DATETIME_DISPLAY_FORMAT,
+  formatDisplayDate,
+  formatDisplayDateTime,
   pad2,
 } from "@/lib/date";
+import {
+  DateField,
+  DateRangeField,
+  DateTimeField,
+  DateTimeRangeField,
+  InputField,
+  MultiSelectField,
+  NumberRangeField,
+  SelectField,
+  type FieldDateRangeValue,
+  type FieldHandle,
+  type FieldNumberRangeValue,
+  type FieldOption,
+  type FieldOptionSource,
+} from "@/components/field/Field";
+import { createPortal } from "react-dom";
 
 export type TableColumnType =
   | "text"
   | "date"
   | "datetime"
-  | "array"
+  | "option"
   | "image"
   | "number";
 
@@ -33,6 +50,39 @@ export type TableFilterScalar = string | number;
 
 export type TableFilterValue = TableFilterScalar | TableFilterScalar[];
 
+/**
+ * The two bounds a range filter drives: each optional so open-ended ranges
+ * are expressible. Ranges always serialize to two separate scalar entries in
+ * the filters record (never a tuple).
+ */
+export type TableRangeValue = { from?: TableFilterScalar; to?: TableFilterScalar };
+
+/** The native input type an input filter kind may request. */
+export type TableFilterInputType = "text" | "number";
+
+/**
+ * A column's filter config in object form: a discriminated union on `kind`
+ * over the Filter kind set. Where Options come from is only expressible on
+ * the choice kinds, the input type only on the input kind, and every member
+ * takes an optional Filter key — a string for the single request key, or a
+ * `{ from, to }` pair naming a range's two request keys verbatim.
+ */
+export type TableFilterable = {
+  kind: "select" | "multi-select";
+  options?: FieldOptionSource<TableFilterScalar>;
+  key?: string | { from: string; to: string };
+} | {
+  kind: "input";
+  inputType?: TableFilterInputType;
+  key?: string | { from: string; to: string };
+} | {
+  kind: "date" | "datetime";
+  key?: string | { from: string; to: string };
+} | {
+  kind: "date-range" | "datetime-range" | "number-range";
+  key?: string | { from: string; to: string };
+};
+
 export type TableSort = {
   key: string;
   direction: TableSortDirection;
@@ -41,11 +91,12 @@ export type TableSort = {
 export type TableColumn<T> = {
   type: TableColumnType;
   label?: string;
+  options?: FieldOption[];
   transform?: (value: unknown, row: T) => unknown;
   class?: string | ((row: T) => string);
   hidden?: boolean;
   sortable?: string | boolean;
-  filterable?: string | boolean;
+  filterable?: string | boolean | TableFilterable;
 };
 
 export type TableDataRequest = {
@@ -139,13 +190,51 @@ function isEmptyValue(value: unknown): boolean {
   return value === null || value === undefined;
 }
 
-function compareRawValues(a: unknown, b: unknown, type: TableColumnType): number {
-  switch (type) {
-    case "array": {
-      const aText = Array.isArray(a) ? a.join(", ") : String(a);
-      const bText = Array.isArray(b) ? b.join(", ") : String(b);
-      return aText.localeCompare(bText, undefined, { sensitivity: "base" });
-    }
+const OPTION_WARNED_COLUMNS = new WeakSet<object>();
+
+function columnOptions<T>(column: TableColumn<T>): FieldOption[] | undefined {
+  return column.type === "option" ? column.options : undefined;
+}
+
+function warnMissingOptions<T>(column: TableColumn<T>): void {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+  if (OPTION_WARNED_COLUMNS.has(column)) {
+    return;
+  }
+  OPTION_WARNED_COLUMNS.add(column);
+  console.warn(
+    'Table column of type "option" has no options; rendering raw values.',
+  );
+}
+
+function resolveOptionLabel(
+  value: unknown,
+  options: FieldOption[] | undefined,
+): string {
+  const match = options?.find((option) => Object.is(option.value, value));
+  return match ? match.label : String(value);
+}
+
+function displayText(
+  value: unknown,
+  options: FieldOption[] | undefined,
+): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((element) => resolveOptionLabel(element, options))
+      .join(", ");
+  }
+  return resolveOptionLabel(value, options);
+}
+
+function compareRawValues<T>(
+  a: unknown,
+  b: unknown,
+  column: TableColumn<T>,
+): number {
+  switch (column.type) {
     case "number": {
       const aNum = Number(a);
       const bNum = Number(b);
@@ -158,11 +247,14 @@ function compareRawValues(a: unknown, b: unknown, type: TableColumnType): number
       return (aDate?.getTime() ?? 0) - (bDate?.getTime() ?? 0);
     }
     case "text":
+    case "option":
     case "image":
     default:
-      return String(a).localeCompare(String(b), undefined, {
-        sensitivity: "base",
-      });
+      return displayText(a, columnOptions(column)).localeCompare(
+        displayText(b, columnOptions(column)),
+        undefined,
+        { sensitivity: "base" },
+      );
   }
 }
 
@@ -187,6 +279,179 @@ function resolveRequestKey(
   requestKey: string | boolean | undefined,
 ): string {
   return typeof requestKey === "string" ? requestKey : columnKey;
+}
+
+type TableFilterKind = TableFilterable["kind"];
+
+/** The kind a legacy `filterable: true` shorthand infers from the column's type. */
+function inferFilterKind<T>(column: TableColumn<T>): TableFilterKind {
+  switch (column.type) {
+    case "option":
+      return "select";
+    case "date":
+      return "date";
+    case "datetime":
+      return "datetime";
+    default:
+      return "input";
+  }
+}
+
+function resolveFilterKind<T>(column: TableColumn<T>): TableFilterKind {
+  const filterable = column.filterable;
+  if (typeof filterable === "object") {
+    return filterable.kind;
+  }
+  // Only the `true` shorthand infers the kind; the string shorthand is a
+  // Filter key override that keeps the input kind (now rendered as an
+  // InputField like every other kind).
+  return filterable === true ? inferFilterKind(column) : "input";
+}
+
+/**
+ * The Input type an input filter kind renders with: the object config's own
+ * `inputType`, or the column type's number-ness for the inferred shorthand.
+ */
+function resolveFilterInputType<T>(
+  column: TableColumn<T>,
+): TableFilterInputType {
+  const filterable = column.filterable;
+  if (
+    typeof filterable === "object" &&
+    filterable.kind === "input" &&
+    filterable.inputType !== undefined
+  ) {
+    return filterable.inputType;
+  }
+  return column.type === "number" ? "number" : "text";
+}
+
+/**
+ * Where a select/multi-select filter's Options come from: the object
+ * config's own `options`, or — for the legacy `true` shorthand inferred to
+ * select on an option column — the column's cell-render options. Filter
+ * option values are filter scalars (the wire values), never the row type;
+ * cell-render options remain a separate prop for every other shape.
+ */
+function filterOptionSource<T>(
+  column: TableColumn<T>,
+): FieldOptionSource<TableFilterScalar> | undefined {
+  const filterable = column.filterable;
+  if (typeof filterable === "object") {
+    return filterable.kind === "select" || filterable.kind === "multi-select"
+      ? filterable.options
+      : undefined;
+  }
+  return filterable === true && column.type === "option"
+    ? (column.options as FieldOptionSource<TableFilterScalar>)
+    : undefined;
+}
+/**
+ * The request key a column's filter writes under: the legacy string
+ * shorthand, the object config's string key, or the column's own key.
+ */
+function resolveFilterRequestKey<T>(
+  columnKey: string,
+  column: TableColumn<T> | undefined,
+): string {
+  const filterable = column?.filterable;
+  if (typeof filterable === "string") {
+    return filterable;
+  }
+  if (
+    typeof filterable === "object" &&
+    typeof filterable.key === "string"
+  ) {
+    return filterable.key;
+  }
+  return columnKey;
+}
+
+/** Whether a Filter kind is a range kind (serializes as two scalar entries). */
+function isRangeFilterKind(kind: TableFilterKind): boolean {
+  return (
+    kind === "date-range" ||
+    kind === "datetime-range" ||
+    kind === "number-range"
+  );
+}
+
+/**
+ * Which edge of a filter's trigger its popover anchors to. A left-anchored
+ * popover overflows the viewport when the trigger sits within one popover
+ * width of the right edge (the last column's case), so it flips to open
+ * leftward from the right edge. An unmeasurable viewport (zero client
+ * width, as in jsdom) keeps the default left anchor.
+ */
+export function resolvePopoverSide(
+  triggerRight: number,
+  popoverWidth: number,
+  viewportWidth: number,
+): "left" | "right" {
+  if (viewportWidth <= 0) {
+    return "left";
+  }
+  return triggerRight + popoverWidth > viewportWidth ? "right" : "left";
+}
+
+/** Whether a Filter kind holds date values displayed through the date formatters. */
+function isDateFilterKind(kind: TableFilterKind): boolean {
+  return (
+    kind === "date" ||
+    kind === "datetime" ||
+    kind === "date-range" ||
+    kind === "datetime-range"
+  );
+}
+
+/**
+ * The two resolved request keys a range filter writes under. An explicit
+ * `{ from, to }` key pair is used verbatim with no suffixing; a string key or
+ * no key defaults to `"<key or columnKey>.from"` / `".to"`. Never invents a
+ * suffix on explicitly provided keys.
+ */
+function resolveRangeFilterKeys<T>(
+  columnKey: string,
+  column: TableColumn<T>,
+): { fromKey: string; toKey: string } {
+  const filterable = column.filterable;
+  if (
+    typeof filterable === "object" &&
+    typeof filterable.key === "object" &&
+    filterable.key !== null
+  ) {
+    return { fromKey: filterable.key.from, toKey: filterable.key.to };
+  }
+  const base =
+    typeof filterable === "string"
+      ? filterable
+      : typeof filterable === "object" && typeof filterable.key === "string"
+        ? filterable.key
+        : columnKey;
+  return { fromKey: `${base}.from`, toKey: `${base}.to` };
+}
+
+/**
+ * The current `{ from?, to? }` a range filter holds in the filters record, or
+ * undefined when neither bound is present. The single source for reading a
+ * range column's state back out of the filters record (local matching, chips,
+ * and the popover seed all share it).
+ */
+function getRangeFilterValue<T>(
+  filters: Record<string, TableFilterValue>,
+  columnKey: string,
+  column: TableColumn<T>,
+): TableRangeValue | undefined {
+  const { fromKey, toKey } = resolveRangeFilterKeys(columnKey, column);
+  const from = filters[fromKey];
+  const to = filters[toKey];
+  if (from === undefined && to === undefined) {
+    return undefined;
+  }
+  return {
+    from: from as TableFilterScalar | undefined,
+    to: to as TableFilterScalar | undefined,
+  };
 }
 
 function toDate(value: unknown): Date | null {
@@ -260,15 +525,23 @@ function containsCaseInsensitive(
 function matchesFilter<T>(
   value: unknown,
   column: TableColumn<T>,
-  filter: TableFilterScalar,
+  filter: TableFilterValue,
 ): boolean {
+  // A multi-select filter carries a scalar array: the row matches when any
+  // of its scalars matches (an OR over the same scalar pipeline).
+  if (Array.isArray(filter)) {
+    return filter.some((scalar) => matchesFilter(value, column, scalar));
+  }
   if (isEmptyValue(value)) {
     return false;
   }
   switch (column.type) {
     case "text":
-    case "array":
-      return containsCaseInsensitive(value, filter);
+    case "option":
+      return containsCaseInsensitive(
+        displayText(value, columnOptions(column)),
+        filter,
+      );
     case "date":
       return sameDateParts(value, filter, false);
     case "datetime":
@@ -277,8 +550,94 @@ function matchesFilter<T>(
       return Number(value) === Number(filter);
     case "image":
     default:
-      return false;
+      // Array display is value-shape behavior (see CONTEXT.md): any other
+      // renderer joins array cells, so their filter matches the joined text.
+      return Array.isArray(value)
+        ? containsCaseInsensitive(displayText(value, columnOptions(column)), filter)
+        : false;
   }
+}
+
+/**
+ * Local range matching: a row's value must fall between the bound scalars
+ * (inclusive). An absent bound is always satisfied; a present bound on an
+ * empty/garbage cell fails. Used when there is no server to answer.
+ */
+function matchesRangeCell(
+  value: unknown,
+  kind: TableFilterKind,
+  from: TableFilterScalar | undefined,
+  to: TableFilterScalar | undefined,
+): boolean {
+  if (from === undefined && to === undefined) {
+    return true;
+  }
+  if (kind === "number-range") {
+    if (isEmptyValue(value)) {
+      return false;
+    }
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+      return false;
+    }
+    if (from !== undefined && num < Number(from)) {
+      return false;
+    }
+    if (to !== undefined && num > Number(to)) {
+      return false;
+    }
+    return true;
+  }
+  const valueDate = toMatchDate(value);
+  if (!valueDate) {
+    return false;
+  }
+  if (from !== undefined) {
+    const fromDate = toMatchDate(from);
+    if (!fromDate || valueDate.getTime() < fromDate.getTime()) {
+      return false;
+    }
+  }
+  if (to !== undefined) {
+    const toDate = toMatchDate(to);
+    if (!toDate || valueDate.getTime() > toDate.getTime()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether a row passes a single column's active filter. Range columns read
+ * both of their resolved keys; every other kind reads its single key. A
+ * column with no present filter passes unconditionally, so this composes
+ * under AND across `visibleColumns`.
+ */
+function matchesColumnFilter<T>(
+  row: T,
+  columnKey: string,
+  column: TableColumn<T>,
+  filters: Record<string, TableFilterValue>,
+): boolean {
+  const kind = resolveFilterKind(column);
+  if (isRangeFilterKind(kind)) {
+    const rangeValue = getRangeFilterValue(filters, columnKey, column);
+    if (rangeValue === undefined) {
+      return true;
+    }
+    return matchesRangeCell(
+      row[columnKey as keyof T],
+      kind,
+      rangeValue.from,
+      rangeValue.to,
+    );
+  }
+  const requestKey = resolveFilterRequestKey(columnKey, column);
+  const filter = filters[requestKey];
+  if (filter === undefined) {
+    return true;
+  }
+  return matchesFilter(row[columnKey as keyof T], column, filter);
 }
 
 function buildDateTimeAttribute(date: Date, includeTime: boolean): string {
@@ -296,7 +655,7 @@ function renderTimeCell(value: unknown, includeTime: boolean): ReactNode {
   }
   return (
     <time dateTime={buildDateTimeAttribute(date, includeTime)}>
-      {(includeTime ? DATETIME_DISPLAY_FORMAT : DATE_DISPLAY_FORMAT).format(date)}
+      {includeTime ? formatDisplayDateTime(date) : formatDisplayDate(date)}
     </time>
   );
 }
@@ -320,14 +679,17 @@ function renderCell<T>(value: unknown, column: TableColumn<T>, row: T): ReactNod
       return renderTimeCell(display, false);
     case "datetime":
       return renderTimeCell(display, true);
-    case "array":
-      return Array.isArray(display) ? display.join(", ") : String(display);
     case "image":
       return renderImageCell(display, row);
+    case "option":
     case "number":
     case "text":
-    default:
-      return String(display);
+    default: {
+      if (column.type === "option" && !column.options?.length) {
+        warnMissingOptions(column);
+      }
+      return displayText(display, columnOptions(column));
+    }
   }
 }
 
@@ -341,20 +703,153 @@ function FilterControl<T>({
 }: {
   columnKey: string;
   column: TableColumn<T>;
-  value: TableFilterScalar | undefined;
-  onChange: (value: TableFilterScalar | undefined) => void;
+  value: TableFilterValue | TableRangeValue | undefined;
+  onChange: (value: TableFilterValue | TableRangeValue | undefined) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const popoverId = useId();
-  const inputId = `${popoverId}-input`;
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const onOpenChangeRef = useRef(onOpenChange);
   const label = column.label ?? columnKey;
-  const isNumber = column.type === "number";
-  const inputValue = value === undefined ? "" : String(value);
+  const filterKind = resolveFilterKind(column);
+  const isRange = isRangeFilterKind(filterKind);
+  const isMultiSelectFilter = filterKind === "multi-select";
+  // The current range bounds (open-ended allowed), or undefined when inactive.
+  const rangeValue =
+    isRange &&
+    value !== undefined &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+      ? (value as TableRangeValue)
+      : undefined;
   const isActive = value !== undefined;
+  // The Table owns the filters record; external changes (chip removal,
+  // Clear all) are installed into the mounted Field through its handle.
+  // A cleared value can't be pushed — setValue holds a defined V — so the
+  // Field remounts and re-seeds from Initial instead. A multi-select's
+  // emptiness is [] (a defined value), so the remount is skipped when the
+  // mounted Field already holds an empty selection.
+  const fieldHandleRef = useRef<FieldHandle<TableFilterScalar> | null>(null);
+  const [fieldResetEpoch, setFieldResetEpoch] = useState(0);
+  // Which horizontal edge of the trigger the popover anchors to. Measured
+  // when the popover opens: a trigger near the viewport's right edge would
+  // push a left-anchored popover off-screen (and scroll the page to reach
+  // it), so it opens leftward from the right edge instead.
+  const popoverWidth = isDateFilterKind(filterKind)
+    ? 320
+    : filterKind === "select" || filterKind === "multi-select"
+      ? 256
+      : 192;
+  // The popover is portaled to document.body (the table's overflow-x-auto
+  // scroll container would clip it vertically), so it is positioned with
+  // fixed coordinates derived from the trigger's rect.
+  const [position, setPosition] = useState<{ top: number; left: number }>();
+
+  useLayoutEffect(() => {
+    if (!open) {
+      return;
+    }
+    const measure = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+      const nextSide = resolvePopoverSide(
+        rect.right,
+        popoverWidth,
+        document.documentElement.clientWidth,
+      );
+      setPosition({
+        top: rect.bottom + 4,
+        left: nextSide === "left" ? rect.left : rect.right - popoverWidth,
+      });
+    };
+    measure();
+    // Keep the fixed-position popover glued to its trigger while the page
+    // or the table's own scroll container scrolls, or the window resizes.
+    window.addEventListener("resize", measure);
+    document.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      document.removeEventListener("scroll", measure, true);
+    };
+  }, [open, popoverWidth]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handle = fieldHandleRef.current;
+    if (!handle) {
+      return;
+    }
+    if (value === undefined) {
+      const current = handle.getValue();
+      const currentEmpty = isMultiSelectFilter
+        ? current === undefined ||
+          (Array.isArray(current) && current.length === 0)
+        : isRange
+          ? current === undefined ||
+            (typeof current === "object" &&
+              current !== null &&
+              !Array.isArray(current) &&
+              "from" in current &&
+              (current as TableRangeValue).from === undefined &&
+              (current as TableRangeValue).to === undefined)
+          : current === undefined;
+      if (!currentEmpty) {
+        setFieldResetEpoch((epoch) => epoch + 1);
+      }
+      return;
+    }
+    if (isMultiSelectFilter) {
+      const arrayHandle = handle as unknown as FieldHandle<
+        TableFilterScalar[]
+      >;
+      const next = Array.isArray(value) ? value : [];
+      const current = arrayHandle.getValue() ?? [];
+      const sameSelection =
+        current.length === next.length &&
+        next.every((scalar, index) => Object.is(current[index], scalar));
+      if (!sameSelection) {
+        arrayHandle.setValue(next);
+      }
+      return;
+    }
+    if (isRange) {
+      const next = value as TableRangeValue;
+      const current = handle.getValue();
+      if (
+        typeof current === "object" &&
+        current !== null &&
+        !Array.isArray(current) &&
+        "from" in current &&
+        Object.is((current as TableRangeValue).from, next.from) &&
+        Object.is((current as TableRangeValue).to, next.to)
+      ) {
+        return;
+      }
+      (handle as unknown as FieldHandle<TableRangeValue>).setValue(next);
+      return;
+    }
+    if (!Object.is(handle.getValue(), value)) {
+      handle.setValue(value as TableFilterScalar);
+    }
+  }, [open, value, isMultiSelectFilter, isRange]);
+
+  // Preserve the bare input's autofocus nicety: an input filter's control
+  // takes focus when the popover opens. Date kinds are skipped — their
+  // Fields are calendar triggers and stealing focus breaks the pick.
+  useEffect(() => {
+    if (!open || filterKind !== "input") {
+      return;
+    }
+    (containerRef.current?.querySelector<HTMLElement>("input") ??
+      popoverRef.current?.querySelector<HTMLElement>("input"))?.focus();
+  }, [open, filterKind]);
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
@@ -365,12 +860,14 @@ function FilterControl<T>({
       return;
     }
     const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        containerRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
       ) {
-        onOpenChangeRef.current(false);
+        return;
       }
+      onOpenChangeRef.current(false);
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => {
@@ -381,22 +878,6 @@ function FilterControl<T>({
   const closeAndFocus = () => {
     onOpenChangeRef.current(false);
     triggerRef.current?.focus();
-  };
-
-  const handleChange = (raw: string) => {
-    if (raw === "") {
-      onChange(undefined);
-      return;
-    }
-    if (isNumber) {
-      const num = Number(raw);
-      if (Number.isNaN(num)) {
-        return;
-      }
-      onChange(num);
-    } else {
-      onChange(raw);
-    }
   };
 
   return (
@@ -431,33 +912,146 @@ function FilterControl<T>({
           />
         ) : null}
       </button>
-      {open ? (
-        <div
-          id={popoverId}
-          role="group"
-          className="absolute left-0 top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800"
-        >
-          <label
-            htmlFor={inputId}
-            className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400"
-          >
-            Filter by {label}
-          </label>
-          <input
-            id={inputId}
-            type={isNumber ? "number" : "text"}
-            value={inputValue}
-            autoFocus
-            onChange={(event) => handleChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                closeAndFocus();
+      {open
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              id={popoverId}
+              role="group"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  closeAndFocus();
+                }
+              }}
+              // Portaled to document.body so the table's overflow-x-auto
+              // scroll container cannot clip it. Date kinds host a w-72
+              // (288px) Calendar popup and the choice kinds (select,
+              // multi-select) host an options list with labels, so both
+              // widen past the compact default the other kinds keep.
+              className={`fixed z-50 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
+                isDateFilterKind(filterKind)
+                  ? "w-80"
+                  : filterKind === "select" || filterKind === "multi-select"
+                    ? "w-64"
+                    : "w-48"
+              }`}
+              style={
+                position
+                  ? { top: position.top, left: position.left }
+                  : { visibility: "hidden" }
               }
-            }}
-            className="w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-          />
-        </div>
-      ) : null}
+            >
+          {filterKind === "multi-select" ? (
+            <MultiSelectField<TableFilterScalar>
+              key={fieldResetEpoch}
+              ref={
+                fieldHandleRef as unknown as Ref<
+                  FieldHandle<TableFilterScalar[]>
+                >
+              }
+              config={{
+                label: `Filter by ${label}`,
+                options: filterOptionSource(column),
+                selectionDisplay: "text",
+                initialValue: Array.isArray(value) ? value : undefined,
+                onValueChange: (next) =>
+                  onChange(next.length === 0 ? undefined : next),
+              }}
+            />
+          ) : filterKind === "select" ? (
+            <SelectField<TableFilterScalar>
+              key={fieldResetEpoch}
+              ref={fieldHandleRef}
+              config={{
+                label: `Filter by ${label}`,
+                options: filterOptionSource(column),
+                initialValue: Array.isArray(value)
+                  ? undefined
+                  : (value as TableFilterScalar | undefined),
+                onValueChange: (next) =>
+                  onChange(next === "" ? undefined : next),
+              }}
+            />
+          ) : filterKind === "input" ? (
+            <InputField
+              key={fieldResetEpoch}
+              ref={fieldHandleRef}
+              config={{
+                label: `Filter by ${label}`,
+                inputType: resolveFilterInputType(column),
+                initialValue: Array.isArray(value)
+                  ? undefined
+                  : (value as TableFilterScalar | undefined),
+                onValueChange: (next) =>
+                  onChange(
+                    next === "" || Number.isNaN(next) ? undefined : next,
+                  ),
+              }}
+            />
+          ) : filterKind === "date" || filterKind === "datetime" ? (
+            (() => {
+              // The date kinds share one Field config; only the component
+              // (and its value-shape-specific ref cast) differs.
+              const dateConfig = {
+                label: `Filter by ${label}`,
+                initialValue: typeof value === "string" ? value : undefined,
+                onValueChange: (next: string) =>
+                  onChange(next === "" ? undefined : next),
+              };
+              const dateRef =
+                fieldHandleRef as unknown as Ref<FieldHandle<string>>;
+              return filterKind === "date" ? (
+                <DateField key={fieldResetEpoch} ref={dateRef} config={dateConfig} />
+              ) : (
+                <DateTimeField key={fieldResetEpoch} ref={dateRef} config={dateConfig} />
+              );
+            })()
+          ) : filterKind === "date-range" || filterKind === "datetime-range" ? (
+            (() => {
+              // The date range kinds share one config; only the component
+              // (and its value-shape-specific ref cast) differs.
+              const rangeConfig = {
+                label: `Filter by ${label}`,
+                initialValue: rangeValue as FieldDateRangeValue | undefined,
+                onValueChange: (next: FieldDateRangeValue) => onChange(next),
+              };
+              const rangeRef =
+                fieldHandleRef as unknown as Ref<
+                  FieldHandle<FieldDateRangeValue>
+                >;
+              return filterKind === "date-range" ? (
+                <DateRangeField
+                  key={fieldResetEpoch}
+                  ref={rangeRef}
+                  config={rangeConfig}
+                />
+              ) : (
+                <DateTimeRangeField
+                  key={fieldResetEpoch}
+                  ref={rangeRef}
+                  config={rangeConfig}
+                />
+              );
+            })()
+          ) : filterKind === "number-range" ? (
+            <NumberRangeField
+              key={fieldResetEpoch}
+              ref={
+                fieldHandleRef as unknown as Ref<
+                  FieldHandle<FieldNumberRangeValue>
+                >
+              }
+              config={{
+                label: `Filter by ${label}`,
+                initialValue: rangeValue as FieldNumberRangeValue | undefined,
+                onValueChange: (next) => onChange(next),
+              }}
+            />
+          ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -477,7 +1071,7 @@ export function Table<T>({
   const serverSide = Boolean(config.serverSide);
   const [rows, setRows] = useState<T[] | null>(null);
   const [sort, setSort] = useState<TableSort | null>(null);
-  const [filters, setFilters] = useState<Record<string, TableFilterScalar>>({});
+  const [filters, setFilters] = useState<Record<string, TableFilterValue>>({});
   const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null);
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [pagination, setPagination] = useState(() => ({
@@ -494,7 +1088,7 @@ export function Table<T>({
 
   const updateFilter = (
     key: string,
-    value: TableFilterScalar | undefined,
+    value: TableFilterValue | undefined,
   ) => {
     setFilters((current) => {
       if (value === undefined) {
@@ -507,6 +1101,53 @@ export function Table<T>({
       }
       return { ...current, [key]: value };
     });
+  };
+
+  /**
+   * Range filter commit: writes the two bounds as separate scalar entries
+   * under the range column's resolved keys (never a tuple). An absent bound
+   * clears that key; a fully empty range clears both.
+   */
+  const updateRangeFilter = (
+    columnKey: string,
+    column: TableColumn<T>,
+    range: TableRangeValue | undefined,
+  ) => {
+    const { fromKey, toKey } = resolveRangeFilterKeys(columnKey, column);
+    setFilters((current) => {
+      const hasFrom = range?.from !== undefined;
+      const hasTo = range?.to !== undefined;
+      const fromSame = hasFrom
+        ? Object.is(current[fromKey], range?.from)
+        : !(fromKey in current);
+      const toSame = hasTo
+        ? Object.is(current[toKey], range?.to)
+        : !(toKey in current);
+      if (fromSame && toSame) {
+        return current;
+      }
+      const next = { ...current };
+      if (hasFrom) {
+        next[fromKey] = range!.from as TableFilterScalar;
+      } else {
+        delete next[fromKey];
+      }
+      if (hasTo) {
+        next[toKey] = range!.to as TableFilterScalar;
+      } else {
+        delete next[toKey];
+      }
+      return next;
+    });
+  };
+
+  /** Clears a single column's filter(s), removing both range keys when needed. */
+  const clearColumnFilter = (columnKey: string, column: TableColumn<T>) => {
+    if (isRangeFilterKind(resolveFilterKind(column))) {
+      updateRangeFilter(columnKey, column, undefined);
+    } else {
+      updateFilter(resolveFilterRequestKey(columnKey, column), undefined);
+    }
   };
 
   const clearAllFilters = () => {
@@ -619,12 +1260,7 @@ export function Table<T>({
             },
           }
         : {}),
-      filters: Object.fromEntries(
-        Object.entries(debouncedFilters).map(([key, value]) => [
-          resolveRequestKey(key, columnsRef.current[key]?.filterable),
-          value,
-        ]),
-      ),
+      filters: debouncedFilters,
     };
 
     const fail = () => {
@@ -673,11 +1309,24 @@ export function Table<T>({
   );
 
   const activeFilterChips = useMemo(() => {
-    const chips: Array<[string, TableColumn<T>, TableFilterScalar]> = [];
+    const chips: Array<{
+      key: string;
+      column: TableColumn<T>;
+      value: TableFilterValue | TableRangeValue;
+    }> = [];
     for (const [key, column] of visibleColumns) {
-      const value = filters[key];
-      if (value !== undefined) {
-        chips.push([key, column, value]);
+      const kind = resolveFilterKind(column);
+      if (isRangeFilterKind(kind)) {
+        const rangeValue = getRangeFilterValue(filters, key, column);
+        if (rangeValue !== undefined) {
+          chips.push({ key, column, value: rangeValue });
+        }
+      } else {
+        const requestKey = resolveFilterRequestKey(key, column);
+        const value = filters[requestKey];
+        if (value !== undefined) {
+          chips.push({ key, column, value });
+        }
       }
     }
     return chips;
@@ -689,16 +1338,12 @@ export function Table<T>({
     if (!rows) {
       return [];
     }
-    const entries = Object.entries(filters);
-    if (entries.length === 0) {
-      return rows;
-    }
     return rows.filter((row) =>
-      entries.every(([key, filter]) =>
-        matchesFilter(row[key as keyof T], config.columns[key], filter),
+      visibleColumns.every(([key, column]) =>
+        matchesColumnFilter(row, key, column, filters),
       ),
     );
-  }, [rows, filters, config.columns]);
+  }, [rows, filters, visibleColumns]);
 
   const total = filteredRows.length;
   const size = pagination.size;
@@ -723,7 +1368,7 @@ export function Table<T>({
         }
         return aEmpty ? 1 : -1;
       }
-      return compareRawValues(aValue, bValue, column.type) * factor;
+      return compareRawValues(aValue, bValue, column) * factor;
     });
   }, [filteredRows, sort, config.columns]);
   const pageRows = sortedRows.slice(start, end);
@@ -769,20 +1414,66 @@ export function Table<T>({
       ) : null}
       {showFilterSummary && activeFilterChips.length > 0 ? (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          {activeFilterChips.map(([key, column, value]) => {
+          {activeFilterChips.map(({ key, column, value }) => {
             const label = column.label ?? key;
+            const chipOptions = filterOptionSource(column);
+            // Date-kind filters hold normalized ISO strings; show them in the
+            // same fixed-width display format the cells and Field faces use.
+            const chipFilterKind = resolveFilterKind(column);
+            const chipIncludesTime =
+              chipFilterKind === "datetime" || chipFilterKind === "datetime-range";
+            const resolveScalarText = (scalar: TableFilterScalar) => {
+              if (Array.isArray(chipOptions)) {
+                return (
+                  chipOptions.find((option) => Object.is(option.value, scalar))
+                    ?.label ?? String(scalar)
+                );
+              }
+              if (
+                isDateFilterKind(chipFilterKind) &&
+                typeof scalar === "string"
+              ) {
+                const date = toMatchDate(scalar);
+                if (date) {
+                  return chipIncludesTime
+                    ? formatDisplayDateTime(date)
+                    : formatDisplayDate(date);
+                }
+              }
+              return String(scalar);
+            };
+            const isRangeChip =
+              value !== undefined &&
+              typeof value === "object" &&
+              !Array.isArray(value);
+            const chipText = isRangeChip
+              ? (() => {
+                  const range = value as TableRangeValue;
+                  const fromLabel =
+                    range.from === undefined
+                      ? "…"
+                      : resolveScalarText(range.from);
+                  const toLabel =
+                    range.to === undefined
+                      ? "…"
+                      : resolveScalarText(range.to);
+                  return `${fromLabel} – ${toLabel}`;
+                })()
+              : Array.isArray(value)
+                ? value.map(resolveScalarText).join(", ")
+                : resolveScalarText(value);
             return (
               <span
                 key={key}
                 className="flex items-center gap-1 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
               >
                 <span>
-                  {label}: {String(value)}
+                  {label}: {chipText}
                 </span>
                 <button
                   type="button"
                   aria-label={`Remove filter ${label}`}
-                  onClick={() => updateFilter(key, undefined)}
+                  onClick={() => clearColumnFilter(key, column)}
                   className="cursor-pointer rounded p-0.5 leading-none text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                 >
                   ×
@@ -799,7 +1490,11 @@ export function Table<T>({
           </button>
         </div>
       ) : null}
-      <table className="w-full border-collapse text-sm">
+      {/* The table's min-content width can exceed narrow viewports; the
+          scroll container keeps the page layout intact and lets the table
+          scroll horizontally inside its own box instead. */}
+      <div className="thin-scrollbar overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">
             {visibleColumns.map(([key, column]) => {
@@ -834,18 +1529,52 @@ export function Table<T>({
                     ) : (
                       (column.label ?? key)
                     )}
-                    {column.filterable ? (
-                      <FilterControl
-                        columnKey={key}
-                        column={column}
-                        value={filters[key]}
-                        onChange={(value) => updateFilter(key, value)}
-                        open={openFilterColumn === key}
-                        onOpenChange={(nextOpen) =>
-                          setOpenFilterColumn(nextOpen ? key : null)
-                        }
-                      />
-                    ) : null}
+                    {column.filterable ? (() => {
+                      const kind = resolveFilterKind(column);
+                      if (isRangeFilterKind(kind)) {
+                        const rangeValue = getRangeFilterValue(
+                          filters,
+                          key,
+                          column,
+                        );
+                        return (
+                          <FilterControl
+                            columnKey={key}
+                            column={column}
+                            value={rangeValue}
+                            onChange={(value) =>
+                              updateRangeFilter(
+                                key,
+                                column,
+                                value as TableRangeValue | undefined,
+                              )
+                            }
+                            open={openFilterColumn === key}
+                            onOpenChange={(nextOpen) =>
+                              setOpenFilterColumn(nextOpen ? key : null)
+                            }
+                          />
+                        );
+                      }
+                      const requestKey = resolveFilterRequestKey(key, column);
+                      return (
+                        <FilterControl
+                          columnKey={key}
+                          column={column}
+                          value={filters[requestKey]}
+                          onChange={(value) =>
+                            updateFilter(
+                              requestKey,
+                              value as TableFilterValue | undefined,
+                            )
+                          }
+                          open={openFilterColumn === key}
+                          onOpenChange={(nextOpen) =>
+                            setOpenFilterColumn(nextOpen ? key : null)
+                          }
+                        />
+                      );
+                    })() : null}
                   </div>
                 </th>
               );
@@ -923,6 +1652,7 @@ export function Table<T>({
           )}
         </tbody>
       </table>
+      </div>
 
       <div
         role="status"

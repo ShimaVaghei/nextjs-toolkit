@@ -101,6 +101,26 @@ describe("Field multi-select closed face", () => {
     ]);
   });
 
+  it("keeps the chevron on the right edge of the text face when the selection is empty and there is no placeholder", () => {
+    const { container } = render(
+      <MultiSelectHarness
+        overrides={{
+          label: "Tags",
+          validator: undefined,
+          options: TAG_OPTIONS,
+          initialValue: undefined,
+        }}
+      />,
+    );
+
+    const face = container.querySelector<HTMLElement>(".field-selection-text");
+    expect(face).not.toBeNull();
+    // With no text face and no placeholder ghost, an empty spacer keeps the
+    // chevron pinned to the right edge instead of collapsing to the left.
+    expect(face!.firstElementChild!.tagName).not.toBe("svg");
+    expect(face!.lastElementChild!.tagName).toBe("svg");
+  });
+
   it("renders fallback labels into the joined text face exactly as chips would show them", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -288,6 +308,17 @@ describe("Field multi-select panel", () => {
     expect(
       screen.getByRole("checkbox", { name: "Engineering" }),
     ).toBeInTheDocument();
+  });
+
+  it("gives the scrolling options list the thin-scrollbar treatment", () => {
+    render(<MultiSelectHarness overrides={tagOverrides()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+
+    const row = screen.getByRole("checkbox", { name: "Research" });
+    const list = row.closest(".field-options-list");
+    expect(list).not.toBeNull();
+    expect(list).toHaveClass("max-h-60", "overflow-y-auto");
   });
 
   it("keeps the popup open and still toggles when a row press dissolves focus", () => {

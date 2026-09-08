@@ -283,6 +283,7 @@ describe("AppLayout fixed-width sidebar", () => {
   it("navigation column scrolls internally when taller than the viewport", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     expect(getNavColumn()).toHaveClass("overflow-y-auto");
+    expect(getNavColumn()).toHaveClass("thin-scrollbar");
     expect(getNavColumn()).toHaveClass("md:max-h-screen");
     expect(getNavColumn()).toHaveClass("md:self-start");
   });
@@ -500,6 +501,7 @@ describe("AppLayout mobile overlay", () => {
     render(<AppLayout routes={routes}>{pageContent}</AppLayout>);
     openOverlay();
     expect(getOverlay()).toHaveClass("overflow-y-auto");
+    expect(getOverlay()).toHaveClass("thin-scrollbar");
   });
 
   it("tapping a Leaf node in the overlay navigates and dismisses it", () => {

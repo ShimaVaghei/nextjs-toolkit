@@ -11,11 +11,14 @@ import {
 import "@testing-library/jest-dom/vitest";
 import {
   Table,
+  resolvePopoverSide,
   type TableConfig,
   type TableDataRequest,
   type TableDataResponse,
+  type TableFilterScalar,
   type TableHandle,
 } from "../Table";
+import type { FieldOption } from "@/components/field/Field";
 
 type Person = {
   id: number;
@@ -95,6 +98,14 @@ describe("Table local mode", () => {
     expect(screen.getAllByRole("row")).toHaveLength(11);
   });
 
+  it("wraps the table in a horizontal scroll container so narrow viewports scroll the table instead of the page", async () => {
+    await renderLocal(makeConfig(people));
+
+    const table = screen.getByRole("table");
+    const wrapper = table.parentElement as HTMLElement;
+    expect(wrapper).toHaveClass("overflow-x-auto", "thin-scrollbar");
+  });
+
   it("renders a muted em-dash for empty cell values", async () => {
     await renderLocal(
       makeConfig([
@@ -109,6 +120,16 @@ describe("Table local mode", () => {
     expect(within(row).getByText("—")).toBeInTheDocument();
     expect(screen.getByText("grace@example.com")).toBeInTheDocument();
   });
+  it("flips the filter popover anchor to the right edge when the trigger sits too close to the viewport's right", async () => {
+    // The popover (192px) starting at a trigger 200px from the right fits.
+    expect(resolvePopoverSide(200, 192, 1280)).toBe("left");
+    // A trigger 100px from the right edge cannot host a left-anchored popover.
+    expect(resolvePopoverSide(1180, 192, 1280)).toBe("right");
+    // Unmeasurable viewport (jsdom zeros) keeps the default left anchor.
+    expect(resolvePopoverSide(0, 192, 0)).toBe("left");
+  });
+
+
 
   it("announces the showing summary in a single polite role=status region", async () => {
     await renderLocal(makeConfig(people));
@@ -406,7 +427,7 @@ describe("Table column type renderers", () => {
     name: { type: "text", label: "Name" },
     joined: { type: "date", label: "Joined" },
     updated: { type: "datetime", label: "Updated" },
-    tags: { type: "array", label: "Tags" },
+    tags: { type: "text", label: "Tags" },
     avatar: { type: "image", label: "Avatar" },
     score: { type: "number", label: "Score" },
   };
@@ -422,20 +443,20 @@ describe("Table column type renderers", () => {
     };
   }
 
-  it("renders date cells as Intl short dates inside a native <time dateTime>", async () => {
+  it("renders date cells as YYYY/MM/DD inside a native <time dateTime>", async () => {
     await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
-      .getByText("Jun 12, 2023")
+      .getByText("2023/06/12")
       .closest("time") as HTMLElement;
     expect(dateTime).toHaveAttribute("datetime", "2023-06-12");
   });
 
-  it("renders datetime cells as Intl date + time inside a native <time dateTime>", async () => {
+  it("renders datetime cells as YYYY/MM/DD, HH:mm inside a native <time dateTime>", async () => {
     await renderLocal(typeConfig([itemRows[0]]));
 
     const dateTime = screen
-      .getByText("Nov 2, 2023, 14:20")
+      .getByText("2023/11/02, 14:20")
       .closest("time") as HTMLElement;
     expect(dateTime).toHaveAttribute("datetime", "2023-11-02T14:20");
   });
@@ -444,7 +465,7 @@ describe("Table column type renderers", () => {
     const row = { ...itemRows[0], joined: "2023-06-12T12:00:00" };
     await renderLocal(typeConfig([row]));
 
-    expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
+    expect(screen.getByText("2023/06/12")).toBeInTheDocument();
   });
 
   it("falls back to the raw string for an unparseable date value", async () => {
@@ -499,7 +520,7 @@ describe("Table column type renderers", () => {
       columns,
     });
 
-    expect(screen.getByText("Jun 12, 2023")).toBeInTheDocument();
+    expect(screen.getByText("2023/06/12")).toBeInTheDocument();
     expect(screen.queryByText("garbage")).not.toBeInTheDocument();
   });
 
@@ -585,7 +606,7 @@ describe("Table local sort", () => {
     name: { type: "text", label: "Name", sortable: "name" },
     score: { type: "number", label: "Score", sortable: "score" },
     joined: { type: "date", label: "Joined", sortable: "joined" },
-    tags: { type: "array", label: "Tags", sortable: "tags" },
+    tags: { type: "text", label: "Tags", sortable: "tags" },
     avatar: { type: "image", label: "Avatar", sortable: "avatar" },
   };
 
@@ -823,7 +844,7 @@ describe("Table local filter", () => {
     name: { type: "text", label: "Name", filterable: "name" },
     joined: { type: "date", label: "Joined", filterable: "joined" },
     updated: { type: "datetime", label: "Updated", filterable: "updated" },
-    tags: { type: "array", label: "Tags", filterable: "tags" },
+    tags: { type: "text", label: "Tags", filterable: "tags" },
     score: { type: "number", label: "Score", filterable: "score" },
     avatar: { type: "image", label: "Avatar", filterable: "avatar" },
   };
@@ -1082,6 +1103,35 @@ describe("Table local filter", () => {
     expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
 
     fireEvent.click(trigger);
+
+    expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("renders the filter popover through a portal on document.body, outside the table's scroll container", async () => {
+    await renderLocal(filterConfig());
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    fireEvent.click(trigger);
+
+    const popover = document.getElementById(
+      trigger.getAttribute("aria-controls") ?? "",
+    );
+    expect(popover).not.toBeNull();
+    // The table's overflow-x-auto scroll container clips absolutely
+    // positioned descendants vertically too; the popover must escape it.
+    expect(popover!.closest(".overflow-x-auto")).toBeNull();
+    expect(popover!.parentElement).toBe(document.body);
+  });
+
+  it("closes an open filter popover when the user clicks anywhere outside it and its trigger", async () => {
+    await renderLocal(filterConfig());
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    fireEvent.click(trigger);
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
 
     expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
     expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -2227,5 +2277,1248 @@ describe("Table sortable/filterable string | boolean keys", () => {
     expect(
       screen.queryByRole("button", { name: "Filter Role" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Table option columns", () => {
+  type StatusItem = {
+    id: number;
+    name: string;
+    status: string | null;
+    codes: string[] | null;
+  };
+
+  const STATUS_OPTIONS = [
+    { label: "In Progress", value: "p" },
+    { label: "Blocked", value: "b" },
+    { label: "Shipped", value: "s" },
+  ];
+
+  const statusRows: StatusItem[] = [
+    { id: 1, name: "Ada", status: "p", codes: ["p", "b"] },
+    { id: 2, name: "Grace", status: "b", codes: ["s"] },
+    { id: 3, name: "Alan", status: "x", codes: ["p"] },
+    { id: 4, name: "Linus", status: null, codes: null },
+  ];
+
+  const statusColumns: TableConfig<StatusItem>["columns"] = {
+    name: { type: "text", label: "Name", sortable: "name" },
+    status: {
+      type: "option",
+      label: "Status",
+      options: STATUS_OPTIONS,
+      sortable: "status",
+      filterable: "status",
+    },
+    codes: {
+      type: "option",
+      label: "Codes",
+      options: STATUS_OPTIONS,
+      sortable: "codes",
+      filterable: "codes",
+    },
+  };
+
+  function statusConfig(
+    rows: StatusItem[] = statusRows,
+    overrides: Partial<TableConfig<StatusItem>> = {},
+  ): TableConfig<StatusItem> {
+    return {
+      dataSource: async () => ({ rows }),
+      columns: statusColumns,
+      ...overrides,
+    };
+  }
+
+  const clickSort = (header: HTMLElement, name: string) =>
+    fireEvent.click(within(header).getByRole("button", { name }));
+
+  it("renders the matched option label instead of the raw coded value", async () => {
+    await renderLocal(statusConfig([statusRows[0]]));
+
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    expect(screen.queryByText("p")).not.toBeInTheDocument();
+  });
+
+  it("renders the raw value as its string form when no option matches", async () => {
+    await renderLocal(statusConfig([statusRows[2]]));
+
+    expect(screen.getByText("x")).toBeInTheDocument();
+  });
+
+  it("renders the muted em-dash for null/undefined option cells", async () => {
+    await renderLocal(statusConfig([statusRows[3]]));
+
+    const dashes = screen.getAllByText("—");
+    expect(dashes).toHaveLength(2);
+    dashes.forEach((dash) => expect(dash).toHaveClass("text-neutral-400"));
+  });
+
+  it("warns in dev and falls back to raw text when an option column has no options", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const columns: TableConfig<StatusItem>["columns"] = {
+        name: { type: "text", label: "Name" },
+        status: { type: "option", label: "Status" },
+      };
+      await renderLocal({
+        dataSource: async () => ({ rows: [statusRows[0]] }),
+        columns,
+      });
+
+      expect(screen.getByText("p")).toBeInTheDocument();
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Table column of type "option" has no options; rendering raw values.',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("maps each element of an array value through the options and joins them", async () => {
+    await renderLocal(statusConfig([statusRows[0]]));
+
+    expect(screen.getByText("In Progress, Blocked")).toBeInTheDocument();
+  });
+
+  it("sorts option columns by the displayed labels, ascending then descending", async () => {
+    await renderLocal(statusConfig());
+
+    const header = screen.getByRole("columnheader", { name: /status/i });
+    const cellTexts = () => {
+      const rows = screen.getAllByRole("row").slice(1);
+      return rows.map(
+        (row) => within(row).getAllByRole("cell")[1].textContent,
+      );
+    };
+
+    clickSort(header, "Status");
+    expect(cellTexts()).toEqual([
+      "Blocked",
+      "In Progress",
+      "x",
+      "—",
+    ]);
+
+    clickSort(header, "Status");
+    expect(cellTexts()).toEqual([
+      "x",
+      "In Progress",
+      "Blocked",
+      "—",
+    ]);
+  });
+
+  it("filters option columns case-insensitively against the displayed labels", async () => {
+    await renderLocal(statusConfig());
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter Status" }));
+    fireEvent.change(screen.getByLabelText("Filter by Status"), {
+      target: { value: "PROGRESS" },
+    });
+
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.queryByText("Grace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alan")).not.toBeInTheDocument();
+  });
+
+  it("sorts and filters array-valued option columns on their joined label text", async () => {
+    await renderLocal(statusConfig());
+
+    const codesHeader = screen.getByRole("columnheader", { name: /codes/i });
+    clickSort(codesHeader, "Codes");
+    const rows = screen.getAllByRole("row").slice(1);
+    const codeTexts = rows.map(
+      (row) => within(row).getAllByRole("cell")[2].textContent,
+    );
+    expect(codeTexts).toEqual([
+      "In Progress",
+      "In Progress, Blocked",
+      "Shipped",
+      "—",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter Codes" }));
+    fireEvent.change(screen.getByLabelText("Filter by Codes"), {
+      target: { value: "shipped" },
+    });
+
+    expect(screen.getByText("Grace")).toBeInTheDocument();
+    expect(screen.queryByText("Ada")).not.toBeInTheDocument();
+  });
+
+  it("renders array values under a text column as comma-joined raw elements", async () => {
+    const columns: TableConfig<StatusItem>["columns"] = {
+      name: { type: "text", label: "Name" },
+      codes: { type: "text", label: "Codes" },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: [statusRows[0]] }),
+      columns,
+    });
+
+    expect(screen.getByText("p, b")).toBeInTheDocument();
+  });
+});
+
+describe("Table filter Fields — select kind", () => {
+  type StatusRow = {
+    id: number;
+    name: string;
+    status: string;
+  };
+
+  const selectRows: StatusRow[] = [
+    { id: 1, name: "Ada", status: "p" },
+    { id: 2, name: "Grace", status: "b" },
+  ];
+
+  const SELECT_OPTIONS = [
+    { label: "In Progress", value: "p" },
+    { label: "Blocked", value: "b" },
+  ];
+
+  function selectColumns(
+    filterable: TableConfig<StatusRow>["columns"]["status"]["filterable"],
+  ): TableConfig<StatusRow>["columns"] {
+    return { status: { type: "text", label: "Status", filterable } };
+  }
+
+  function openSelectFilter(columnLabel: string) {
+    fireEvent.click(filterTrigger(columnLabel));
+    fireEvent.click(
+      screen.getByRole("button", { name: `Filter by ${columnLabel}` }),
+    );
+  }
+
+  it("renders a SelectField in the popover and sends the picked option's scalar under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: selectRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: selectColumns({
+              kind: "select",
+              options: SELECT_OPTIONS,
+              key: "status_filter",
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openSelectFilter("Status");
+      fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(true);
+      expect(screen.getByText("Status: Blocked")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status_filter: "b" } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("loads async filter options through the Field's own loader and sends the picked value", async () => {
+    vi.useFakeTimers();
+    try {
+      const optionsDeferred = deferred<FieldOption<TableFilterScalar>[]>();
+      const dataSource = vi.fn(async () => ({ rows: selectRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: selectColumns({
+              kind: "select",
+              options: () => optionsDeferred.promise,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Status"));
+      // Pending: the loader hasn't resolved, so no Options are offered yet.
+      expect(
+        screen.queryByRole("button", { name: "Blocked" }),
+      ).not.toBeInTheDocument();
+
+      await act(async () => {
+        optionsDeferred.resolve(SELECT_OPTIONS);
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Filter by Status" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: "b" } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("upgrades filterable: true on an option column to a select while text columns render an InputField", async () => {
+    const columns: TableConfig<StatusRow>["columns"] = {
+      status: {
+        type: "option",
+        label: "Status",
+        options: SELECT_OPTIONS,
+        filterable: true,
+      },
+      name: { type: "text", label: "Name", filterable: true },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: selectRows }),
+      columns,
+    });
+
+    openSelectFilter("Status");
+    fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+
+    expect(screen.getByText("Status: Blocked")).toBeInTheDocument();
+    expect(screen.getByText("Grace")).toBeInTheDocument();
+    expect(screen.queryByText("Ada")).not.toBeInTheDocument();
+
+    fireEvent.click(filterTrigger("Name"));
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+  });
+
+  it("removing the summary chip clears the select filter from the next request and the dot", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: selectRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: selectColumns({
+              kind: "select",
+              options: SELECT_OPTIONS,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+
+      openSelectFilter("Status");
+      fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Status" }),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+describe("Table filter Fields — multi-select kind", () => {
+  type TagRow = {
+    id: number;
+    name: string;
+    status: string;
+  };
+
+  const tagRows: TagRow[] = [
+    { id: 1, name: "Ada", status: "p" },
+    { id: 2, name: "Grace", status: "b" },
+  ];
+
+  const TAG_OPTIONS = [
+    { label: "In Progress", value: "p" },
+    { label: "Blocked", value: "b" },
+  ];
+
+  function multiSelectColumns(
+    filterable: TableConfig<TagRow>["columns"]["status"]["filterable"],
+  ): TableConfig<TagRow>["columns"] {
+    return { status: { type: "text", label: "Status", filterable } };
+  }
+
+  function openMultiSelectFilter(columnLabel: string) {
+    fireEvent.click(filterTrigger(columnLabel));
+    fireEvent.click(screen.getByRole("button", { name: "Show options" }));
+  }
+
+  it("renders a MultiSelectField with chips in the popover and sends a scalar array under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: TAG_OPTIONS,
+              key: "status_filter",
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      fireEvent.click(screen.getByLabelText("In Progress"));
+
+      // The picked option shows as a chip inside the strip (plus its popup
+      // row), the trigger dot and summary chip appear, and the payload
+      // carries the scalar array.
+      expect(
+        screen.getAllByText("In Progress").length,
+      ).toBeGreaterThan(0);
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(true);
+      expect(screen.getByText("Status: In Progress")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status_filter: ["p"] } }),
+      );
+
+      // A second pick extends the array rather than replacing it.
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { status_filter: ["p", "b"] },
+        }),
+      );
+      expect(screen.getByText("Status: In Progress, Blocked")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clearing the selection through the popup's Clear omits the filter from the request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: TAG_OPTIONS,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: ["b"] } }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("removing the summary chip omits the multi-select filter from the next request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: TAG_OPTIONS,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+
+      openMultiSelectFilter("Status");
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Status" }),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(hasActiveDot(filterTrigger("Status"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("loads async options with Pending then usable behavior inherited from Field", async () => {
+    vi.useFakeTimers();
+    try {
+      const optionsDeferred = deferred<FieldOption<TableFilterScalar>[]>();
+      const loader = vi.fn(() => optionsDeferred.promise);
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: loader,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      // Pending: the loader hasn't resolved, so no Options are offered yet.
+      expect(screen.queryByLabelText("In Progress")).not.toBeInTheDocument();
+      expect(loader).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        optionsDeferred.resolve(TAG_OPTIONS);
+      });
+      expect(screen.getByLabelText("In Progress")).toBeInTheDocument();
+      expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: ["b"] } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers from a Rejected option load through Retry and then sends the picked values", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstLoad = deferred<FieldOption<TableFilterScalar>[]>();
+      const retryLoad = deferred<FieldOption<TableFilterScalar>[]>();
+      const loader = vi
+        .fn<() => Promise<FieldOption<TableFilterScalar>[]>>()
+        .mockReturnValueOnce(firstLoad.promise)
+        .mockReturnValueOnce(retryLoad.promise);
+      const dataSource = vi.fn(async () => ({ rows: tagRows }));
+      render(
+        <Table
+          config={{
+            dataSource,
+            columns: multiSelectColumns({
+              kind: "multi-select",
+              options: loader,
+            }),
+            serverSide: true,
+          }}
+        />,
+      );
+      await act(async () => {});
+      dataSource.mockClear();
+
+      openMultiSelectFilter("Status");
+      // Rejected: no Options offered, with the failure status beside Retry.
+      await act(async () => {
+        firstLoad.reject(new Error("load failed"));
+      });
+      expect(screen.queryByLabelText("In Progress")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      await act(async () => {
+        retryLoad.resolve(TAG_OPTIONS);
+      });
+      expect(screen.getByLabelText("In Progress")).toBeInTheDocument();
+      expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText("Blocked"));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {});
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { status: ["b"] } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("Table filter Fields — input and date/datetime kinds", () => {
+  type KindRow = {
+    id: number;
+    name: string;
+    joined: string;
+    updated: string;
+    score: number;
+  };
+
+  const kindRows: KindRow[] = [
+    { id: 1, name: "Ada", joined: "2024-03-15", updated: "2024-03-15T10:30:00", score: 10 },
+  ];
+
+  function serverTable(
+    columns: TableConfig<KindRow>["columns"],
+  ) {
+    const dataSource = vi.fn(async () => ({ rows: kindRows }));
+    render(
+      <Table config={{ dataSource, columns, serverSide: true }} />,
+    );
+    return dataSource;
+  }
+
+  async function flushDebounce(dataSource: ReturnType<typeof serverTable>) {
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {});
+    return dataSource;
+  }
+
+  it("renders an InputField for kind input and sends the typed text under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        name: {
+          type: "text",
+          label: "Name",
+          filterable: { kind: "input", key: "name_filter" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Name"));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+      await flushDebounce(dataSource);
+
+      expect(hasActiveDot(filterTrigger("Name"))).toBe(true);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { name_filter: "Ada" } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an input filter with inputType number emits a numeric scalar", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "input", inputType: "number" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      const input = screen.getByLabelText("Filter by Score");
+      expect(input).toHaveAttribute("type", "number");
+      fireEvent.change(input, { target: { value: "42" } });
+      await flushDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: { score: 42 } }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a password input filter is unrepresentable at compile time", () => {
+    const invalid: TableConfig<KindRow>["columns"]["name"]["filterable"] = {
+      kind: "input",
+      // @ts-expect-error password filters are not part of the Filter kind set
+      inputType: "password",
+    };
+    expect(invalid).toBeDefined();
+  });
+
+  it("a date filter renders the Calendar kind in the popover and sends the committed value under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        joined: {
+          type: "date",
+          label: "Joined",
+          filterable: { kind: "date", key: "joined_filter" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Joined"));
+      const popover = screen.getByRole("group");
+      expect(
+        within(popover).queryByRole("dialog", { name: "Choose date" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        within(popover).getByRole("button", { name: /Joined/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("gridcell", { name: /15,/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("button", { name: "Apply" }),
+      );
+
+      expect(hasActiveDot(filterTrigger("Joined"))).toBe(true);
+      await flushDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: {
+            joined_filter: expect.stringMatching(/-15T00:00:00Z$/),
+          },
+        }),
+      );
+
+      // The summary-strip chip shows the picked date in display format,
+      // not the raw ISO value.
+      expect(screen.getByText(/Joined: \d{4}\/\d{2}\/15/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a datetime filter sends its committed value as a scalar under the resolved key", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        updated: {
+          type: "datetime",
+          label: "Updated",
+          filterable: { kind: "datetime" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Updated"));
+      const popover = screen.getByRole("group");
+      fireEvent.click(
+        within(popover).getByRole("button", { name: /Updated/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("gridcell", { name: /15,/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("button", { name: "Apply" }),
+      );
+
+      await flushDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: {
+            updated: expect.stringMatching(/-15T\d{2}:\d{2}:\d{2}Z$/),
+          },
+        }),
+      );
+
+      // The chip shows the picked datetime in display format with time.
+      expect(
+        screen.getByText(/Updated: \d{4}\/\d{2}\/15, \d{2}:\d{2}/),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("kind inference routes filterable: true text/number columns to the input Field and date columns to the Calendar kind", async () => {
+    const columns: TableConfig<KindRow>["columns"] = {
+      name: { type: "text", label: "Name", filterable: true },
+      score: { type: "number", label: "Score", filterable: true },
+      joined: { type: "date", label: "Joined", filterable: true },
+    };
+    await renderLocal({
+      dataSource: async () => ({ rows: kindRows }),
+      columns,
+    });
+
+    fireEvent.click(filterTrigger("Name"));
+    expect(screen.getByLabelText("Filter by Name")).toHaveAttribute(
+      "type",
+      "text",
+    );
+
+    fireEvent.click(filterTrigger("Score"));
+    expect(screen.getByLabelText("Filter by Score")).toHaveAttribute(
+      "type",
+      "number",
+    );
+
+    fireEvent.click(filterTrigger("Joined"));
+    const popover = screen.getByRole("group");
+    expect(
+      within(popover).queryByRole("dialog", { name: "Choose date" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(popover).getByRole("button", { name: /Joined/ }),
+    );
+    expect(
+      within(popover).getByRole("dialog", { name: "Choose date" }),
+    ).toBeInTheDocument();
+  });
+
+  it("clearing a date filter omits it from the next request and removes the dot", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        joined: {
+          type: "date",
+          label: "Joined",
+          filterable: { kind: "date" },
+        },
+      });
+      await act(async () => {});
+
+      fireEvent.click(filterTrigger("Joined"));
+      const popover = screen.getByRole("group");
+      fireEvent.click(within(popover).getByRole("button", { name: /Joined/ }));
+      fireEvent.mouseDown(
+        within(popover).getByRole("gridcell", { name: /15,/ }),
+      );
+      fireEvent.mouseDown(
+        within(popover).getByRole("button", { name: "Apply" }),
+      );
+      await flushDebounce(dataSource);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Joined" }),
+      );
+      await flushDebounce(dataSource);
+
+      expect(hasActiveDot(filterTrigger("Joined"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clearing an input filter omits it from the next request and removes the dot", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverTable({
+        name: {
+          type: "text",
+          label: "Name",
+          filterable: { kind: "input" },
+        },
+      });
+      await act(async () => {});
+
+      fireEvent.click(filterTrigger("Name"));
+      fireEvent.change(screen.getByLabelText("Filter by Name"), {
+        target: { value: "Ada" },
+      });
+      await flushDebounce(dataSource);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove filter Name" }),
+      );
+      await flushDebounce(dataSource);
+
+      expect(hasActiveDot(filterTrigger("Name"))).toBe(false);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("Table range filter kinds — two-key serialization", () => {
+  type RangeRow = {
+    id: number;
+    name: string;
+    score: number;
+    joined: string;
+    updated: string;
+  };
+
+  const rangeRows: RangeRow[] = [
+    {
+      id: 1,
+      name: "Ada",
+      score: 10,
+      joined: "2024-03-15",
+      updated: "2024-03-15T10:30:00",
+    },
+    {
+      id: 2,
+      name: "Grace",
+      score: 20,
+      joined: "2024-03-20",
+      updated: "2024-03-21T09:00:00",
+    },
+  ];
+
+  function serverRangeTable(columns: TableConfig<RangeRow>["columns"]) {
+    const dataSource = vi.fn(async () => ({ rows: rangeRows }));
+    render(<Table config={{ dataSource, columns, serverSide: true }} />);
+    return dataSource;
+  }
+
+  async function flushRangeDebounce(
+    dataSource: ReturnType<typeof serverRangeTable>,
+  ) {
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {});
+    return dataSource;
+  }
+
+  it("renders a DateRangeField (Calendar) inside the popover for kind date-range", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        joined: {
+          type: "date",
+          label: "Joined",
+          filterable: { kind: "date-range", key: "joined_range" },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Joined"));
+    const rangeTrigger = screen.getByRole("button", {
+      name: "Filter by Joined",
+    });
+    expect(rangeTrigger).toBeInTheDocument();
+    fireEvent.click(rangeTrigger);
+
+    expect(
+      screen.getByRole("dialog", { name: "Choose date range" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a DateTimeRangeField (Calendar) inside the popover for kind datetime-range", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        updated: {
+          type: "datetime",
+          label: "Updated",
+          filterable: { kind: "datetime-range", key: "updated_range" },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Updated"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter by Updated" }),
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Choose date range" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a NumberRangeField (From/To inputs) inside the popover for kind number-range", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range", key: "score_range" },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Score"));
+
+    expect(
+      screen.getByRole("spinbutton", { name: "From" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "To" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sends an explicit { from, to } key pair verbatim as two scalar entries", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: {
+            kind: "number-range",
+            key: { from: "minScore", to: "maxScore" },
+          },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "To" }),
+        { target: { value: "20" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { minScore: 10, maxScore: 20 },
+        }),
+      );
+      expect(hasActiveDot(filterTrigger("Score"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+it("a string range key sends <key>.from / <key>.to", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range", key: "score" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "To" }),
+        { target: { value: "20" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10, "score.to": 20 },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an omitted range key sends <columnKey>.from / <columnKey>.to", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "To" }),
+        { target: { value: "20" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10, "score.to": 20 },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an open-ended (partial) range sends the filled bound and clears the other entry", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      fireEvent.change(
+        screen.getByRole("spinbutton", { name: "From" }),
+        { target: { value: "10" } },
+      );
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10 },
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clearing the range omits both entries from the next request", async () => {
+    vi.useFakeTimers();
+    try {
+      const dataSource = serverRangeTable({
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: { kind: "number-range" },
+        },
+      });
+      await act(async () => {});
+      dataSource.mockClear();
+
+      fireEvent.click(filterTrigger("Score"));
+      const from = screen.getByRole("spinbutton", { name: "From" });
+      const to = screen.getByRole("spinbutton", { name: "To" });
+      fireEvent.change(from, { target: { value: "10" } });
+      fireEvent.change(to, { target: { value: "20" } });
+      await flushRangeDebounce(dataSource);
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: { "score.from": 10, "score.to": 20 },
+        }),
+      );
+
+      fireEvent.change(from, { target: { value: "" } });
+      fireEvent.change(to, { target: { value: "" } });
+      await flushRangeDebounce(dataSource);
+
+      expect(dataSource).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: {} }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("filters local rows by the range bounds resolved across both keys", async () => {
+    await renderLocal<RangeRow>({
+      dataSource: async () => ({ rows: rangeRows }),
+      columns: {
+        score: {
+          type: "number",
+          label: "Score",
+          filterable: {
+            kind: "number-range",
+            key: { from: "minScore", to: "maxScore" },
+          },
+        },
+      },
+    });
+
+    fireEvent.click(filterTrigger("Score"));
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "From" }),
+      { target: { value: "15" } },
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "To" }),
+      { target: { value: "25" } },
+    );
+
+    expect(screen.getByText("20")).toBeInTheDocument();
+    expect(screen.queryByText("10")).not.toBeInTheDocument();
   });
 });

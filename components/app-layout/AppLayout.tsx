@@ -341,7 +341,7 @@ export function AppLayout({
         </button>
       </div>
 
-      <div className="hidden md:flex w-64 shrink-0 overflow-y-auto bg-sidebar md:sticky md:top-0 md:max-h-screen md:self-start min-h-screen">
+      <div className="thin-scrollbar hidden md:flex w-64 shrink-0 overflow-y-auto bg-sidebar md:sticky md:top-0 md:max-h-screen md:self-start min-h-screen">
         <SidebarNav
           routes={routes}
           activeRoute={activeRoute}
@@ -359,7 +359,7 @@ export function AppLayout({
           role="dialog"
           aria-modal="true"
           aria-label="Navigation"
-          className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950"
+          className="thin-scrollbar fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950"
         >
           <div className="flex items-center border-b border-neutral-200 px-4 py-3 dark:border-neutral-700 dark:bg-sidebar">
             <button
