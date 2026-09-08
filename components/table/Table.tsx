@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -33,6 +34,7 @@ import {
   type FieldOption,
   type FieldOptionSource,
 } from "@/components/field/Field";
+import { createPortal } from "react-dom";
 
 export type TableColumnType =
   | "text"
@@ -708,6 +710,7 @@ function FilterControl<T>({
 }) {
   const popoverId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const onOpenChangeRef = useRef(onOpenChange);
   const label = column.label ?? columnKey;
@@ -735,24 +738,44 @@ function FilterControl<T>({
   // when the popover opens: a trigger near the viewport's right edge would
   // push a left-anchored popover off-screen (and scroll the page to reach
   // it), so it opens leftward from the right edge instead.
-  const [side, setSide] = useState<"left" | "right">("left");
   const popoverWidth = isDateFilterKind(filterKind)
     ? 320
     : filterKind === "select" || filterKind === "multi-select"
       ? 256
       : 192;
+  // The popover is portaled to document.body (the table's overflow-x-auto
+  // scroll container would clip it vertically), so it is positioned with
+  // fixed coordinates derived from the trigger's rect.
+  const [position, setPosition] = useState<{ top: number; left: number }>();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
       return;
     }
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) {
-      return;
-    }
-    setSide(
-      resolvePopoverSide(rect.right, popoverWidth, document.documentElement.clientWidth),
-    );
+    const measure = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+      const nextSide = resolvePopoverSide(
+        rect.right,
+        popoverWidth,
+        document.documentElement.clientWidth,
+      );
+      setPosition({
+        top: rect.bottom + 4,
+        left: nextSide === "left" ? rect.left : rect.right - popoverWidth,
+      });
+    };
+    measure();
+    // Keep the fixed-position popover glued to its trigger while the page
+    // or the table's own scroll container scrolls, or the window resizes.
+    window.addEventListener("resize", measure);
+    document.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      document.removeEventListener("scroll", measure, true);
+    };
   }, [open, popoverWidth]);
 
   useEffect(() => {
@@ -824,7 +847,8 @@ function FilterControl<T>({
     if (!open || filterKind !== "input") {
       return;
     }
-    containerRef.current?.querySelector<HTMLElement>("input")?.focus();
+    (containerRef.current?.querySelector<HTMLElement>("input") ??
+      popoverRef.current?.querySelector<HTMLElement>("input"))?.focus();
   }, [open, filterKind]);
 
   useEffect(() => {
@@ -836,12 +860,14 @@ function FilterControl<T>({
       return;
     }
     const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
       if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        containerRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
       ) {
-        onOpenChangeRef.current(false);
+        return;
       }
+      onOpenChangeRef.current(false);
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => {
@@ -886,28 +912,35 @@ function FilterControl<T>({
           />
         ) : null}
       </button>
-      {open ? (
-        <div
-          id={popoverId}
-          role="group"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              closeAndFocus();
-            }
-          }}
-          // Date kinds host a w-72 (288px) Calendar popup and the choice
-          // kinds (select, multi-select) host an options list with labels,
-          // so both widen past the compact default the other kinds keep.
-          className={`absolute ${
-            side === "right" ? "right-0" : "left-0"
-          } top-full z-20 mt-1 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
-            isDateFilterKind(filterKind)
-              ? "w-80"
-              : filterKind === "select" || filterKind === "multi-select"
-                ? "w-64"
-                : "w-48"
-          }`}
-        >
+      {open
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              id={popoverId}
+              role="group"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  closeAndFocus();
+                }
+              }}
+              // Portaled to document.body so the table's overflow-x-auto
+              // scroll container cannot clip it. Date kinds host a w-72
+              // (288px) Calendar popup and the choice kinds (select,
+              // multi-select) host an options list with labels, so both
+              // widen past the compact default the other kinds keep.
+              className={`fixed z-50 rounded-md border border-neutral-300 bg-white p-2 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
+                isDateFilterKind(filterKind)
+                  ? "w-80"
+                  : filterKind === "select" || filterKind === "multi-select"
+                    ? "w-64"
+                    : "w-48"
+              }`}
+              style={
+                position
+                  ? { top: position.top, left: position.left }
+                  : { visibility: "hidden" }
+              }
+            >
           {filterKind === "multi-select" ? (
             <MultiSelectField<TableFilterScalar>
               key={fieldResetEpoch}
@@ -1015,8 +1048,10 @@ function FilterControl<T>({
               }}
             />
           ) : null}
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

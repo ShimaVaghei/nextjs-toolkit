@@ -1108,6 +1108,35 @@ describe("Table local filter", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("renders the filter popover through a portal on document.body, outside the table's scroll container", async () => {
+    await renderLocal(filterConfig());
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    fireEvent.click(trigger);
+
+    const popover = document.getElementById(
+      trigger.getAttribute("aria-controls") ?? "",
+    );
+    expect(popover).not.toBeNull();
+    // The table's overflow-x-auto scroll container clips absolutely
+    // positioned descendants vertically too; the popover must escape it.
+    expect(popover!.closest(".overflow-x-auto")).toBeNull();
+    expect(popover!.parentElement).toBe(document.body);
+  });
+
+  it("closes an open filter popover when the user clicks anywhere outside it and its trigger", async () => {
+    await renderLocal(filterConfig());
+
+    const trigger = screen.getByRole("button", { name: "Filter Name" });
+    fireEvent.click(trigger);
+    expect(screen.getByLabelText("Filter by Name")).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByLabelText("Filter by Name")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("keeps only one filter popover open at a time across columns", async () => {
     await renderLocal(filterConfig());
 
