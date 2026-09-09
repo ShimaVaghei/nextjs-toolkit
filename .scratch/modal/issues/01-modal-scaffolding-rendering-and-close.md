@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Renders nothing from the DOM when `open` is `false`.
 - [ ] Renders a portaled dialog with `role="dialog"`, `aria-modal`, and `aria-label={title}` when `open`.
