@@ -21,9 +21,24 @@ export type ModalProps = {
   onClose: () => void;
   /** The dialog's body content; the only internally scrolling region. */
   children?: ReactNode;
+  /**
+   * The panel's literal CSS width (number → px). Hard-clamped so the modal
+   * never exceeds the viewport (`max-width: 100vw`).
+   */
+  width?: number | string;
+  /**
+   * The panel's literal CSS height (number → px). Hard-clamped so the modal
+   * never exceeds the viewport (`max-height: 100vh`).
+   */
+  height?: number | string;
 };
 
-export function Modal({ title, open, onClose, children }: ModalProps) {
+/** A numeric size is a CSS pixel value; a string is used literally. */
+function cssSize(size: number | string): string {
+  return typeof size === "number" ? `${size}px` : size;
+}
+
+export function Modal({ title, open, onClose, children, width, height }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll while open; restore whatever was there on close.
@@ -67,6 +82,10 @@ export function Modal({ title, open, onClose, children }: ModalProps) {
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
+        style={{
+          ...(width !== undefined && { width: cssSize(width), maxWidth: "100vw" }),
+          ...(height !== undefined && { height: cssSize(height), maxHeight: "100vh" }),
+        }}
         className="relative flex max-h-full w-full max-w-md flex-col rounded-lg bg-white shadow-xl outline-none dark:bg-neutral-800"
       >
         <header className="sticky top-0 shrink-0 border-b border-neutral-200 px-6 py-4 dark:border-neutral-700">

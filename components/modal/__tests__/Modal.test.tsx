@@ -10,10 +10,14 @@ function ModalHarness({
   title,
   initialOpen = true,
   onClose = vi.fn(),
+  width,
+  height,
 }: {
   title: string;
   initialOpen?: boolean;
   onClose?: () => void;
+  width?: number | string;
+  height?: number | string;
 }) {
   const [open, setOpen] = useState(initialOpen);
   return (
@@ -28,6 +32,8 @@ function ModalHarness({
           onClose();
           setOpen(false);
         }}
+        width={width}
+        height={height}
       >
         <p>Modal body content</p>
       </Modal>
@@ -116,5 +122,53 @@ describe("Modal — focus", () => {
   it("moves focus to the panel on open", () => {
     openModal();
     expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+});
+
+describe("Modal — sizing and viewport clamping", () => {
+  it("applies a numeric width as px and caps it at max-width: 100vw", () => {
+    render(<ModalHarness title="My modal" width={800} />);
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.width).toBe("800px");
+    expect(panel.style.maxWidth).toBe("100vw");
+  });
+
+  it("applies a numeric height as px and caps it at max-height: 100vh", () => {
+    render(<ModalHarness title="My modal" height={900} />);
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.height).toBe("900px");
+    expect(panel.style.maxHeight).toBe("100vh");
+  });
+
+  it("applies a string size literally with the viewport clamp", () => {
+    render(<ModalHarness title="My modal" width="50rem" height="75%" />);
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.width).toBe("50rem");
+    expect(panel.style.height).toBe("75%");
+    expect(panel.style.maxWidth).toBe("100vw");
+    expect(panel.style.maxHeight).toBe("100vh");
+  });
+
+  it("uses the default small-screen-inset size when no size is passed", () => {
+    render(<ModalHarness title="My modal" />);
+    const panel = screen.getByRole("dialog");
+    expect(panel).toHaveClass("w-full", "max-w-md", "max-h-full");
+    expect(panel.style.width).toBe("");
+    expect(panel.style.height).toBe("");
+  });
+});
+
+describe("Modal — internal scroll region", () => {
+  it("scrolls the body internally while the header and footer stay fixed", () => {
+    render(<ModalHarness title="My modal" />);
+    const panel = screen.getByRole("dialog");
+    const body = screen.getByText("Modal body content").parentElement!;
+    expect(body).toHaveClass("overflow-y-auto", "flex-1", "min-h-0");
+    expect(body).toHaveClass("thin-scrollbar");
+    // The body is a sibling of the sticky header and footer inside the panel.
+    expect(body.previousElementSibling).toHaveClass("sticky");
+    expect(body.nextElementSibling).toHaveClass("sticky");
+    expect(panel).toContainElement(screen.getByRole("heading", { name: "My modal" }));
+    expect(panel).toContainElement(screen.getByRole("button", { name: "Cancel" }));
   });
 });

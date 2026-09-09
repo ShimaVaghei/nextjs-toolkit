@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Modal scaffolding, controlled rendering, and close
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## Acceptance criteria
 
