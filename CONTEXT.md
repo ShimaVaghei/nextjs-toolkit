@@ -262,3 +262,21 @@ _Avoid_: save, confirm, OK
 **Cancel**:
 The Modal's secondary, dismissive footer action (its default cancel label). It never does domain work — it only closes the modal through `onClose`, discarding anything uncommitted, symmetric with the Calendar popup's Cancel (discards without committing distinct from Apply).
 _Avoid_: close, dismiss, abort
+
+## Modal Service terms
+
+**Modal Service**:
+The imperative, module-level singleton API (`components/modal/service/modalService.ts`) layered over the controlled Modal. Its `open` call mounts a modal anywhere in the app and returns a promise carrying the submitted result, so callers can `await` a modal the way they await a function. It holds the stack of open modals and every promise, config, and callback per open.
+_Avoid_: modal manager, modal controller
+
+**Modal Host**:
+The client component (`ModalHost`) mounted once in the root layout that renders the open modals from the Modal Service's stack, in open order. It renders nothing while the stack is empty; the root layout stays a server component with the Host as its client leaf.
+_Avoid_: portal host, modal root
+
+**Open**:
+The Modal Service's `open(component, data, config) → Promise<R | undefined>` call. It takes a component type (not an element) plus typed modal data, injects `data`, `submit`, and `close` into that component, and resolves with the submitted result — or `undefined` when dismissed. Called from event handlers, never render or effects.
+_Avoid_: showDialog, launch
+
+**Per-modal open**:
+A typed open function produced by `defineModal` for one specific modal component: `const openConfirm = defineModal(ConfirmModal)`. It pins definition-time config (shallow-merged with per-call config, per-call winning) so each modal gets one named, fully-inferred entry point.
+_Avoid_: wrapper, helper
