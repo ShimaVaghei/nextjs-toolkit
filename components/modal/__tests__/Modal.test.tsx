@@ -2,6 +2,7 @@ import { cleanup, fireEvent, act, render, screen } from "@testing-library/react"
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubScrollbarWidth } from "@/lib/__tests__/stubScrollbarWidth";
 import { Modal } from "../Modal";
 
 // ─── Modal — behavior through the module's public interface ────────────
@@ -62,7 +63,11 @@ function openModal(title = "My modal") {
   return { onClose };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.body.style.overflow = "";
+  document.body.style.paddingRight = "";
+});
 
 describe("Modal — controlled rendering", () => {
   it("renders nothing from the DOM when open is false", () => {
@@ -124,6 +129,16 @@ describe("Modal — body scroll lock", () => {
     expect(document.body.style.overflow).toBe("hidden");
     unmount();
     expect(document.body.style.overflow).toBe("");
+  });
+
+  it("compensates body padding-right by the scrollbar width so the page does not jump", () => {
+    const restore = stubScrollbarWidth(15);
+    const { unmount } = render(<ModalHarness title="My modal" />);
+    // jsdom normalizes "calc(0px + 15px)" down to "calc(15px)".
+    expect(document.body.style.paddingRight).toBe("calc(15px)");
+    unmount();
+    expect(document.body.style.paddingRight).toBe("");
+    restore();
   });
 
   it("restores body scroll when the parent closes the modal", () => {

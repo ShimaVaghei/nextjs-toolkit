@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 export type ModalProps = {
   /** Rendered as the visible heading and the dialog's `aria-label`. */
@@ -94,15 +95,9 @@ export function Modal({
   // Drop the pending state if the modal unmounts while a submit is in flight.
   useEffect(() => () => setPendingSubmit(false), []);
 
-  // Lock body scroll while open; restore whatever was there on close.
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [open]);
+  // Lock body scroll while open (with scrollbar-width compensation so the
+  // page does not jump); restore whatever was there on close.
+  useBodyScrollLock(open);
 
   // Escape closes through the single `onClose` channel.
   useEffect(() => {

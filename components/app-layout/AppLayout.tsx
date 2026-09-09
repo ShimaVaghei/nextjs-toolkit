@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 export type Route = {
   path: string;
@@ -293,14 +294,8 @@ export function AppLayout({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOverlayOpen, handleCloseOverlay]);
 
-  useEffect(() => {
-    if (!isOverlayOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOverlayOpen]);
+  // Scroll lock with scrollbar-width compensation so the page does not jump.
+  useBodyScrollLock(isOverlayOpen);
 
   const handleLeafNavigate = useCallback(
     (nodePath: string) => {
