@@ -11,6 +11,7 @@ export const appRoutes: RoutesSection[] = [
         ]
       },
       { path: "field", label: "Field" },
+      { path: "modal", label: "Modal" },
     ],
   },
 ];
