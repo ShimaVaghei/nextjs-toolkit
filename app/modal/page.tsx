@@ -94,10 +94,12 @@ export default function ModalDemoPage() {
       >
         <ModalButton onClick={() => setDefaultOpen(true)}>Open default modal</ModalButton>
         <Modal
-          title="Confirm action"
-          open={defaultOpen}
-          onClose={() => setDefaultOpen(false)}
-          onSubmit={() => setDefaultOpen(false)}
+          config={{
+            title: "Confirm action",
+            open: defaultOpen,
+            onClose: () => setDefaultOpen(false),
+            onSubmit: () => setDefaultOpen(false),
+          }}
         >
           <p>This is the modal body. Close it with Cancel, Escape, a backdrop click — or Apply.</p>
         </Modal>
@@ -109,12 +111,14 @@ export default function ModalDemoPage() {
       >
         <ModalButton onClick={() => setCustomOpen(true)}>Open custom-label modal</ModalButton>
         <Modal
-          title="Delete project"
-          open={customOpen}
-          onClose={() => setCustomOpen(false)}
-          onSubmit={() => setCustomOpen(false)}
-          submitText="Delete"
-          cancelText="Keep it"
+          config={{
+            title: "Delete project",
+            open: customOpen,
+            onClose: () => setCustomOpen(false),
+            onSubmit: () => setCustomOpen(false),
+            submitText: "Delete",
+            cancelText: "Keep it",
+          }}
         >
           <p>This dialog asks with the words its domain uses, not Apply/Cancel.</p>
         </Modal>
@@ -126,11 +130,13 @@ export default function ModalDemoPage() {
       >
         <ModalButton onClick={() => setSingleActionOpen(true)}>Open single-action modal</ModalButton>
         <Modal
-          title="Session expired"
-          open={singleActionOpen}
-          onClose={() => setSingleActionOpen(false)}
-          onSubmit={() => setSingleActionOpen(false)}
-          hideCancel
+          config={{
+            title: "Session expired",
+            open: singleActionOpen,
+            onClose: () => setSingleActionOpen(false),
+            onSubmit: () => setSingleActionOpen(false),
+            hideCancel: true,
+          }}
         >
           <p>Sign in again to continue. There is only one thing to do here.</p>
         </Modal>
@@ -142,11 +148,13 @@ export default function ModalDemoPage() {
       >
         <ModalButton onClick={() => setGatedOpen(true)}>Open gated modal</ModalButton>
         <Modal
-          title="Accept the terms"
-          open={gatedOpen}
-          onClose={() => setGatedOpen(false)}
-          onSubmit={() => setGatedOpen(false)}
-          submitDisabled={!termsAccepted}
+          config={{
+            title: "Accept the terms",
+            open: gatedOpen,
+            onClose: () => setGatedOpen(false),
+            onSubmit: () => setGatedOpen(false),
+            submitDisabled: !termsAccepted,
+          }}
         >
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -172,10 +180,12 @@ export default function ModalDemoPage() {
           </span>
         </div>
         <Modal
-          title="Save draft"
-          open={asyncOpen}
-          onClose={() => setAsyncOpen(false)}
-          onSubmit={runAsyncSubmit}
+          config={{
+            title: "Save draft",
+            open: asyncOpen,
+            onClose: () => setAsyncOpen(false),
+            onSubmit: runAsyncSubmit,
+          }}
         >
           <p>
             Click Apply and watch the button: busy and disabled for 1.5 seconds,
@@ -194,12 +204,14 @@ export default function ModalDemoPage() {
           <ModalButton onClick={() => setTallOpen(true)}>Open tall content modal</ModalButton>
         </div>
         <Modal
-          title="Large dialog"
-          open={sizedOpen}
-          onClose={() => setSizedOpen(false)}
-          onSubmit={() => setSizedOpen(false)}
-          width={800}
-          height={600}
+          config={{
+            title: "Large dialog",
+            open: sizedOpen,
+            onClose: () => setSizedOpen(false),
+            onSubmit: () => setSizedOpen(false),
+            width: 800,
+            height: 600,
+          }}
         >
           <p>
             This panel asks for 800×600. On a small screen the clamp caps it to
@@ -207,11 +219,13 @@ export default function ModalDemoPage() {
           </p>
         </Modal>
         <Modal
-          title="Tall content"
-          open={tallOpen}
-          onClose={() => setTallOpen(false)}
-          onSubmit={() => setTallOpen(false)}
-          height={300}
+          config={{
+            title: "Tall content",
+            open: tallOpen,
+            onClose: () => setTallOpen(false),
+            onSubmit: () => setTallOpen(false),
+            height: 300,
+          }}
         >
           {Array.from({ length: 20 }, (_, i) => (
             <p key={i} className="pb-2">

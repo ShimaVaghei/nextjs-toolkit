@@ -248,8 +248,12 @@ _Avoid_: min/max field, range slider, dual input
 ## Modal terms
 
 **Modal**:
-A controlled, centered dialog that blocks interaction with the rest of the page until dismissed. The parent owns visibility through the `open` flag; every dismiss path — the Cancel button, an Escape keypress, a backdrop click, or the parent deciding it — funnels through the single `onClose` channel. It renders portaled over the page content and locks body scroll while open, clamped so it never exceeds the viewport. The footer offers an Apply action (the default submit label) and a Cancel action; Apply may run asynchronously, keeping the modal open and its button busy until the work resolves, then closing through `onClose`.
+A controlled, centered dialog that blocks interaction with the rest of the page until dismissed, driven by a `ModalConfig`. The parent owns visibility through the `open` flag; every dismiss path — the Cancel button, an Escape keypress, a backdrop click, or the parent deciding it — funnels through the single `onClose` channel. It renders portaled over the page content and locks body scroll while open, clamped so it never exceeds the viewport. The footer offers an Apply action (the default submit label) and a Cancel action; Apply may run asynchronously, keeping the modal open and its button busy until the work resolves, then closing through `onClose`. The body content is passed as `children`, outside the config.
 _Avoid_: popup, popover, dialog box, confirm dialog, alert box
+
+**ModalConfig**:
+The configuration object passed to `Modal`. It declares the `title` (the visible heading and the dialog's `aria-label`), the controlled `open` flag, the single `onClose` channel, the panel's optional `width`/`height` (hard-clamped to the viewport), the footer's `onSubmit` action with its `submitText`/`cancelText` labels, and the `hideCancel`/`submitDisabled` flags.
+_Avoid_: ModalProps
 
 **Apply**:
 The Modal's primary footer action and its default submit label, mirroring the Calendar popup's Apply shorthand. Distinct from the Field concept Commit, which lands a picked Draft into a Field's value; here Apply simply confirms the modal's content and closes it (heading an asynchronous handler may keep it open pending).

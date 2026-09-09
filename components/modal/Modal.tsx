@@ -13,15 +13,17 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
-export type ModalProps = {
+/**
+ * The configuration object passed to `Modal`, mirroring `TableConfig`: every
+ * prop except the body content, which is passed as `children`.
+ */
+export type ModalConfig = {
   /** Rendered as the visible heading and the dialog's `aria-label`. */
   title: string;
   /** The parent's visibility flag; when false nothing renders. */
   open: boolean;
   /** The single close channel: Cancel, Escape, and backdrop click all map here. */
   onClose: () => void;
-  /** The dialog's body content; the only internally scrolling region. */
-  children?: ReactNode;
   /**
    * The panel's literal CSS width (number → px). Hard-clamped so the modal
    * never exceeds the viewport (`max-width: 100vw`).
@@ -55,18 +57,24 @@ function cssSize(size: number | string): string {
 }
 
 export function Modal({
-  title,
-  open,
-  onClose,
+  config,
   children,
-  width,
-  height,
-  onSubmit,
-  submitText = "Apply",
-  cancelText = "Cancel",
-  hideCancel = false,
-  submitDisabled = false,
-}: ModalProps) {
+}: {
+  config: ModalConfig;
+  children?: ReactNode;
+}) {
+  const {
+    title,
+    open,
+    onClose,
+    width,
+    height,
+    onSubmit,
+    submitText = "Apply",
+    cancelText = "Cancel",
+    hideCancel = false,
+    submitDisabled = false,
+  } = config;
   const panelRef = useRef<HTMLDivElement>(null);
   const [pendingSubmit, setPendingSubmit] = useState(false);
 

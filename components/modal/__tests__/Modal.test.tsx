@@ -37,19 +37,21 @@ function ModalHarness({
         Close from parent
       </button>
       <Modal
-        title={title}
-        open={open}
-        onClose={() => {
-          onClose();
-          setOpen(false);
+        config={{
+          title: title,
+          open: open,
+          onClose: () => {
+            onClose();
+            setOpen(false);
+          },
+          onSubmit: onSubmit,
+          submitText: submitText,
+          cancelText: cancelText,
+          hideCancel: hideCancel,
+          submitDisabled: submitDisabled,
+          width: width,
+          height: height,
         }}
-        onSubmit={onSubmit}
-        submitText={submitText}
-        cancelText={cancelText}
-        hideCancel={hideCancel}
-        submitDisabled={submitDisabled}
-        width={width}
-        height={height}
       >
         <p>Modal body content</p>
       </Modal>
