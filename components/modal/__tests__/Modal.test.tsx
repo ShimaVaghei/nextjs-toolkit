@@ -10,12 +10,22 @@ function ModalHarness({
   title,
   initialOpen = true,
   onClose = vi.fn(),
+  onSubmit,
+  submitText,
+  cancelText,
+  hideCancel,
+  submitDisabled,
   width,
   height,
 }: {
   title: string;
   initialOpen?: boolean;
   onClose?: () => void;
+  onSubmit?: () => void;
+  submitText?: string;
+  cancelText?: string;
+  hideCancel?: boolean;
+  submitDisabled?: boolean;
   width?: number | string;
   height?: number | string;
 }) {
@@ -32,6 +42,11 @@ function ModalHarness({
           onClose();
           setOpen(false);
         }}
+        onSubmit={onSubmit}
+        submitText={submitText}
+        cancelText={cancelText}
+        hideCancel={hideCancel}
+        submitDisabled={submitDisabled}
         width={width}
         height={height}
       >
@@ -170,5 +185,52 @@ describe("Modal — internal scroll region", () => {
     expect(body.nextElementSibling).toHaveClass("sticky");
     expect(panel).toContainElement(screen.getByRole("heading", { name: "My modal" }));
     expect(panel).toContainElement(screen.getByRole("button", { name: "Cancel" }));
+  });
+});
+
+describe("Modal — footer configuration", () => {
+  it("renders Apply and Cancel by default", () => {
+    const onSubmit = vi.fn();
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} />);
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("overrides the submit and cancel labels", () => {
+    const onSubmit = vi.fn();
+    render(
+      <ModalHarness title="My modal" onSubmit={onSubmit} submitText="Save changes" cancelText="Discard" />,
+    );
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
+  it("hides the Cancel button with hideCancel, leaving a single-action dialog", () => {
+    const onSubmit = vi.fn();
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} hideCancel />);
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
+  it("disables Apply with submitDisabled without busy semantics", () => {
+    const onSubmit = vi.fn();
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} submitDisabled />);
+    const apply = screen.getByRole("button", { name: "Apply" });
+    expect(apply).toBeDisabled();
+    fireEvent.click(apply);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("calls onSubmit when Apply is clicked", () => {
+    const onSubmit = vi.fn();
+    const { onClose } = { onClose: vi.fn() };
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    // This ticket wires the handler only — Apply does not close (ticket 04 owns async auto-close).
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

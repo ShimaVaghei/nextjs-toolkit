@@ -31,6 +31,20 @@ export type ModalProps = {
    * never exceeds the viewport (`max-height: 100vh`).
    */
   height?: number | string;
+  /**
+   * The footer's primary action. This ticket only wires the handler —
+   * its asynchronous lifecycle (busy, auto-close, reject) is a separate
+   * concern; the modal does not close on Apply here.
+   */
+  onSubmit?: () => void;
+  /** The footer's primary action label. Default: "Apply". */
+  submitText?: string;
+  /** The footer's secondary, dismissive action label. Default: "Cancel". */
+  cancelText?: string;
+  /** Hides Cancel, collapsing the dialog to a single Apply action. */
+  hideCancel?: boolean;
+  /** Disables Apply without busy semantics (e.g. validation incomplete). */
+  submitDisabled?: boolean;
 };
 
 /** A numeric size is a CSS pixel value; a string is used literally. */
@@ -38,7 +52,19 @@ function cssSize(size: number | string): string {
   return typeof size === "number" ? `${size}px` : size;
 }
 
-export function Modal({ title, open, onClose, children, width, height }: ModalProps) {
+export function Modal({
+  title,
+  open,
+  onClose,
+  children,
+  width,
+  height,
+  onSubmit,
+  submitText = "Apply",
+  cancelText = "Cancel",
+  hideCancel = false,
+  submitDisabled = false,
+}: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll while open; restore whatever was there on close.
@@ -96,14 +122,26 @@ export function Modal({ title, open, onClose, children, width, height }: ModalPr
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-4 text-neutral-700 dark:text-neutral-300">
           {children}
         </div>
-        <footer className="sticky bottom-0 shrink-0 border-t border-neutral-200 px-6 py-4 dark:border-neutral-700">
-          <button
-            type="button"
-            className="rounded-md px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
+        <footer className="sticky bottom-0 flex shrink-0 items-center justify-end gap-2 border-t border-neutral-200 px-6 py-4 dark:border-neutral-700">
+          {!hideCancel && (
+            <button
+              type="button"
+              className="rounded-md px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              onClick={onClose}
+            >
+              {cancelText}
+            </button>
+          )}
+          {onSubmit && (
+            <button
+              type="button"
+              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
+              disabled={submitDisabled || undefined}
+              onClick={onSubmit}
+            >
+              {submitText}
+            </button>
+          )}
         </footer>
       </div>
     </div>,
