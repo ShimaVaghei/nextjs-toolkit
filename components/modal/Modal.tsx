@@ -9,7 +9,7 @@
 // renders portaled to document.body over a translucent backdrop, locks
 // body scroll while open, and moves focus to the panel on open.
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export type ModalProps = {
@@ -32,11 +32,12 @@ export type ModalProps = {
    */
   height?: number | string;
   /**
-   * The footer's primary action. This ticket only wires the handler —
-   * its asynchronous lifecycle (busy, auto-close, reject) is a separate
-   * concern; the modal does not close on Apply here.
+   * The footer's primary action. May return a promise: while it is pending
+   * Apply is busy + disabled and the modal does not close; on resolve the
+   * modal auto-closes through `onClose`; on reject it stays open and Apply
+   * returns to idle — the caller handles the failure itself (no error slot).
    */
-  onSubmit?: () => void;
+  onSubmit?: () => void | Promise<unknown>;
   /** The footer's primary action label. Default: "Apply". */
   submitText?: string;
   /** The footer's secondary, dismissive action label. Default: "Cancel". */
@@ -66,6 +67,32 @@ export function Modal({
   submitDisabled = false,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+
+  // The async submit lifecycle: while `onSubmit`'s promise is pending the
+  // Apply button is busy + disabled and the modal does not close. On resolve
+  // the modal auto-closes through `onClose`; on reject it stays open and
+  // Apply returns to idle — the caller handles the failure itself.
+  const isSubmitBusy = pendingSubmit || undefined;
+  const isSubmitDisabled = submitDisabled || pendingSubmit;
+  const handleSubmit = () => {
+    if (isSubmitDisabled) return;
+    const result = onSubmit?.();
+    if (!(result instanceof Promise)) return;
+    setPendingSubmit(true);
+    result.then(
+      () => {
+        setPendingSubmit(false);
+        onClose();
+      },
+      () => {
+        setPendingSubmit(false);
+      },
+    );
+  };
+
+  // Drop the pending state if the modal unmounts while a submit is in flight.
+  useEffect(() => () => setPendingSubmit(false), []);
 
   // Lock body scroll while open; restore whatever was there on close.
   useEffect(() => {
@@ -136,8 +163,9 @@ export function Modal({
             <button
               type="button"
               className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
-              disabled={submitDisabled || undefined}
-              onClick={onSubmit}
+              disabled={isSubmitDisabled || undefined}
+              aria-busy={isSubmitBusy}
+              onClick={handleSubmit}
             >
               {submitText}
             </button>

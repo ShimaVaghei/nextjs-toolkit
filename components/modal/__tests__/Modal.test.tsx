@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, act, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -232,5 +232,59 @@ describe("Modal — footer configuration", () => {
     // This ticket wires the handler only — Apply does not close (ticket 04 owns async auto-close).
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("Modal — async submit lifecycle", () => {
+  function deferred() {
+    let resolve!: (value: unknown) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<unknown>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it("shows Apply busy + disabled and keeps the modal open while onSubmit is pending", async () => {
+    const onSubmit = vi.fn(() => deferred().promise);
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    const apply = screen.getByRole("button", { name: "Apply" });
+    expect(apply).toBeDisabled();
+    expect(apply).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("auto-closes through onClose when onSubmit's promise resolves", async () => {
+    const deferredSubmit = deferred();
+    const onSubmit = vi.fn(() => deferredSubmit.promise);
+    const onClose = vi.fn();
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await act(async () => {
+      deferredSubmit.resolve(undefined);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("stays open with Apply returned to idle when onSubmit's promise rejects", async () => {
+    const deferredSubmit = deferred();
+    const onSubmit = vi.fn(() => deferredSubmit.promise);
+    const onClose = vi.fn();
+    render(<ModalHarness title="My modal" onSubmit={onSubmit} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await act(async () => {
+      deferredSubmit.reject(new Error("submission failed"));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    const apply = screen.getByRole("button", { name: "Apply" });
+    expect(apply).toBeEnabled();
+    expect(apply).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // A rejected submit can be retried.
+    fireEvent.click(apply);
+    expect(onSubmit).toHaveBeenCalledTimes(2);
   });
 });
